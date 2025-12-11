@@ -1,0 +1,17 @@
+Package: AsyPeer
+Type: Package
+Title: Estimating Asymmetric Peer Effects
+Version: 0.0
+Date: 2026-12-01
+Authors@R: c(person("Aristide", "Houndetoungan",  role = c("cre","aut"), email =  "ahoundetoungan@ecn.ulaval.ca"), person("Mathieu", "Lambotte",  role = c("cre","aut"), email =  "mathieu.lambotte@univ-rennes.fr"))
+Description: More about what it does (maybe more than one line).
+License: GPL-3
+BugReports: https://github.com/MathieuLambotte/AsyPeer/issues
+URL: https://github.com/MathieuLambotte/AsyPeer
+LazyData: true
+Depends: R (>= 3.5.0)
+Imports: Rcpp (>= 1.0.0), randomForest, formula.tools, doParallel, doRNG
+LinkingTo: Rcpp, RcppEigen
+RoxygenNote: 7.3.2
+Roxygen: list(markdown = TRUE)
+Suggests: PartialNetwork 

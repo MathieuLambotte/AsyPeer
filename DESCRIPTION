@@ -4,7 +4,7 @@ Title: Estimating Asymmetric Peer Effects
 Version: 0.0
 Date: 2026-12-01
 Authors@R: c(person("Aristide", "Houndetoungan",  role = c("cre","aut"), email =  "ahoundetoungan@ecn.ulaval.ca"), person("Mathieu", "Lambotte",  role = c("cre","aut"), email =  "mathieu.lambotte@univ-rennes.fr"))
-Description: More about what it does (maybe more than one line).
+Description: This package estimate the asymmetric peer effects model introduced by Houndetoungan and Lambotte (2026). The asymmetric model nest the linear-in-means model, but allows agents to be influenced differently by friends that exert more or less effort than them. 
 License: GPL-3
 BugReports: https://github.com/MathieuLambotte/AsyPeer/issues
 URL: https://github.com/MathieuLambotte/AsyPeer

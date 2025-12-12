@@ -1,14 +1,71 @@
+#' @title Estimating the Asymmetric Peer Effects Model
+#'
+#' @param formula An object of class \link[stats]{formula}: a symbolic description of the model. 
+#'   `formula` should be specified as \code{y ~ X}, where `y` is the outcome and `X` is the vector 
+#'   or matrix of control variables, which may include contextual variables such as averages among peers.
+#'
+#' @param excluded.instruments An object of class \link[stats]{formula} specifying the excluded 
+#'   instruments. It should be written as \code{~ Ins}, where `Ins` is a vector or matrix of 
+#'   excluded instruments for the two endogenous variables in the asymmetric model: the average 
+#'   peers' outcomes, and the average outcomes of peers who exert more effort than the agent.
+#'
+#' @param Glist The adjacency matrix. For networks consisting of multiple subnets (e.g., schools), 
+#'   `Glist` must be a list of subnets, with the \code{m}-th element being an \eqn{n_m \times n_m} 
+#'   adjacency matrix, where \eqn{n_m} is the number of nodes in the \code{m}-th subnet.
+#'
+#' @param data An optional data frame, list, or environment (or an object that can be coerced to a 
+#'   data frame via \link[base]{as.data.frame}) containing the variables in the model. If a variable 
+#'   is not found in `data`, it is taken from \code{environment(formula)}, typically the environment 
+#'   from which `asypeer.estim` is called.
+#'
+#' @param weight A character string specifying the weighting matrix used in the GMM estimation. 
+#'   Available options are: `"identity"` for GMM with the identity matrix as the weighting matrix; 
+#'   `"IV"` for the standard instrumental-variable GMM estimator; and `"optimal"` for GMM with the 
+#'   optimal weighting matrix.
+#'
+#' @param tol A tolerance value used in the QR factorization to detect collinear columns in the 
+#'   matrices of explanatory variables and instruments, ensuring a full-rank matrix (see 
+#'   \link[base]{qr}).
+#'
+#' @param HAC A character string specifying the correlation structure of the idiosyncratic errors 
+#'   for covariance computation. Options are `"iid"` for independent errors; `"group iid"` for 
+#'   independence within the groups of isolated and non-isolated players; `"hetero"` for 
+#'   heteroskedastic but non-autocorrelated errors; and `"cluster"` for heteroskedastic errors with 
+#'   potential within-subnetwork correlation.
+#'
+#' @param fixed.effects A logical value indicating whether the model includes subnetwork fixed effects.
+#'
+#' @param nthread A strictly positive integer specifying the number of threads used in 
+#'   computationally intensive steps of the estimation procedure.
+#'
+#' @param model A character string specifying the model used to generate the instruments for the 
+#'   average outcomes of peers who exert more effort than the agent. This argument determines how the 
+#'   probability that a friend has a higher outcome than the agent is estimated. Options are 
+#'   `"ols"` for a linear probability model, `"glm"` for a logit model, and `"rf"` for a 
+#'   classification random forest.
+#'
+#' @param power A strictly positive integer indicating the maximum length of walks in the network 
+#'   whose endpoints are used to instrument peers' outcomes. For example, \code{power = 2} means that 
+#'   walks of length 2 (i.e., friends-of-friends) are used, so the instrument includes terms such as 
+#'   \eqn{G^2 X}. More generally, \code{power = k} uses \eqn{G^k X} as instruments for peers' outcomes.
+#'
+#' @description
+#' `asypeer.estim` estimates the asymmetric peer effects model introduced by Houndetoungan and 
+#'   Lambotte (2026). The instruments are generated automatically following the procedure described 
+#'   in the paper.
+
+
 #' @export
 #' @importFrom stats pchisq
 asypeer.estim <- function(formula,
                           excluded.instruments,
                           Glist,
+                          data,
                           weight = "IV",
                           HAC = "group-iid",
                           fixed.effects = FALSE,
                           tol = 1e-10,
                           nthread = 1,
-                          data,
                           model="rf",
                           power="3",
                           ...){

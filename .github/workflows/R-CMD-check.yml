@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest (stable)
+          - os: macos-latest   # stable
             r: '4.5.1'
             http-user-agent: ''
           - os: windows-latest

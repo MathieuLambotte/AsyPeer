@@ -1,6 +1,6 @@
 // [[Rcpp::depends(RcppEigen)]]
 #include <RcppEigen.h>
-#if defined(_OPENMP)
+#if defined(_OPENMP) 
 #include <omp.h>
 // [[Rcpp::plugins(openmp)]]
 #endif

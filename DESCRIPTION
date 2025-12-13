@@ -2,7 +2,7 @@ Package: AsyPeer
 Type: Package
 Title: Estimating Asymmetric Peer Effects
 Version: 0.0.1
-Date: 2026-12-01
+Date: 2026-01-01
 Authors@R: c(person("Aristide", "Houndetoungan",  role = c("aut"), email =  "ahoundetoungan@ecn.ulaval.ca", comment = c(ORCID = "0009-0003-2733-9362")), person("Mathieu", "Lambotte",  role = c("cre","aut"), email =  "mathieu.lambotte@univ-rennes.fr",comment = c(ORCID = "0000-0002-7806-7286")))
 Description: This package simulates and estimates an asymmetric peer-effect model (Houndetoungan and Lambotte, 2026 <doi:xxx>). The model nests the widely used linear-in-means model (Manski, 1993 <doi:10.2307/2298123>; Bramoulle et al., 2009 <doi:10.1016/j.jeconom.2008.12.021>) and allows agents to be influenced differently by friends who exert more or less effort than themselves.
 SystemRequirements: Requires the OpenMP library for parallel computing. If the OpenMP library is not available, the code is executed sequentially, and a warning is printed.

@@ -1,10 +1,67 @@
 #' @importFrom formula.tools env
-#' @importFrom stats model.frame
-#' @importFrom stats terms
-#' @importFrom stats model.response
-#' @importFrom stats model.matrix
-#' @importFrom stats as.formula
-formula.to.data <- function(formula,
+#' @importFrom stats model.frame terms model.response model.matrix as.formula lm glm runif predict binomial
+#' @importFrom randomForest randomForest
+#' @importFrom parallel makeCluster stopCluster
+#' @importFrom doParallel registerDoParallel  
+#' @importFrom doRNG registerDoRNG "%dorng%"
+#' @importFrom foreach foreach
+mpredict  <- function(ddy, ddX, id_fold, estimator, nthread, ...){
+  #Given a vector of fold id, create a list of the corresponding row of each ddyad
+  # belonging in each fold
+  id_list <- split(seq_along(id_fold), id_fold)
+  seed    <- as.integer(runif(1, 0, 1e9))
+  
+  cl      <- makeCluster(nthread)
+  registerDoParallel(cl)
+  registerDoRNG(seed)
+  lrho    <- foreach(k         = id_list, 
+                     .export   = "mpredict_fold",
+                     .packages = c("randomForest") #Remember to add "NameOfThePackage"
+  ) %dorng% {
+    #each observation in fold k is predicted using a model trained
+    #on the observations of the other folds
+    ARG <- list(ddX = ddX, ddy = ddy, id_listk = k, estimator = estimator, ...)
+    do.call(mpredict_fold, ARG) 
+  }
+  stopCluster(cl)
+  
+  rho   <- numeric(nrow(ddX))
+  for (k in 1:length(id_list)) {
+    rho[id_list[[k]]] <- lrho[[k]]
+  }
+  
+  return(rho)
+}
+
+
+mpredict_fold <-function(ddX, ddy, id_listk, estimator, ...){
+  #gather the observations from the other folds, expect id_listk
+  ddX_train <- data.frame(ddX[-id_listk, ,drop = FALSE])
+  ddy_train <- ddy[-id_listk]
+  
+  #gather the observations from the fold k
+  ddX_k <- data.frame(ddX[id_listk, , drop = FALSE])
+  if (estimator == "ols") {
+    ARG         <- list(formula = ddy_train ~ ., data = ddX_train, ...)
+    model_train <- do.call(lm, ARG) 
+    rho_k       <- predict(model_train, newdata = ddX_k)
+  } else if (estimator == "glm") {
+    ARG           <- list(formula = ddy_train ~ ., data = ddX_train, ...)
+    if (is.null(ARG$family)) { # If the user does not set link, use logit
+      ARG$family  <- binomial(link = "logit")
+    }
+    model_train <- do.call(glm, ARG)  
+    rho_k       <- predict(model_train, newdata = ddX_k, type = "response")
+  } else if (estimator == "RF") {
+    ddy_train   <- as.factor(ddy_train)
+    ARG         <- list(formula = ddy_train ~ ., data = ddX_train, ...)
+    model_train <- do.call(randomForest, ARG)  
+    rho_k       <- predict(model_train, newdata=ddX_k,type="prob")[,"1"]
+  }
+  return(rho_k)
+}
+
+formula2data <- function(formula,
                             data, 
                             simulations   = FALSE,
                             fixed.effects = FALSE) {
@@ -55,7 +112,7 @@ fnetwork   <- function(Glist) {
   cumsn    <- c(0, cumsum(nvec))
   
   ldg      <- lapply(Glist, function(g) round(apply(g, 1, sum), 7))
-  idpeer   <- do.call(c, lapply(1:S, function(s) lapply(1:nvec[s], function(i) which(G[[s]][i,] > 0) - 1)))
+  idpeer   <- do.call(c, lapply(1:S, function(s) lapply(1:nvec[s], function(i) which(Glist[[s]][i,] > 0) - 1)))
   dg       <- unlist(ldg)
   SIs      <- round(sum(sapply(ldg, function(s) any(s == 0))))
   SnIs     <- round(sum(sapply(ldg, function(s) any(s != 0))))
@@ -72,6 +129,7 @@ fcheckrank <- function(X, tol = 1e-10) {
   which(fcheckrankEigen(X, tol)) - 1
 }
 
+#' @importFrom stats pnorm
 fcoef           <- function(Estimate, cov) {
   coef           <- cbind(Estimate, sqrt(diag(cov)), 0, 0)
   coef[,3]       <- coef[,1]/coef[,2]
@@ -175,9 +233,12 @@ fdiagnostic <- function(object, KPtest, nthread) {
   ## Weak instrument test
   tpF    <- fFstat(y = endo, X = Z, index = index, cumsn = cumsn, HAC = HACn, 
                    nthread = nthread)
-  tpKP   <- NULL
+  tpKP    <- NULL
   if (KPtest) {
-    tpKP <- fKPstat(endo_ = endo, X = X, Z_ = Z, index = index, cumsn = cumsn, 
+    xname <- object$model.info$xname
+    zname <- object$model.info$zname
+    X     <- cbind(X_iso, X_niso)[, c(paste0("iso_", xname), paste0("niso_", xname)) %in% zname, drop = FALSE]
+    tpKP  <- fKPstat(endo_ = endo, X = X, Z_ = Z, index = index, cumsn = cumsn, 
                       HAC = HACn)
   }
 

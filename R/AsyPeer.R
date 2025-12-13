@@ -1,4 +1,44 @@
 #' @title The AsyPeer Package
+#' @description The \pkg{AsyPeer} simulates and estimates an asymmetric peer 
+#' effect model (Houndetoungan and Lambotte, 2026 <doi:xxx>). 
+#' The model nests the widely used linear-in-means model 
+#' (Manski, 1993 <doi:10.2307/2298123>; Bramoulle et al., 2009 <doi:10.1016/j.jeconom.2008.12.021>) 
+#' and allows agents to be influenced differently by friends who exert more or less effort than themselves.
+#' To make the computations faster \pkg{AsyPeer} uses \code{C++} through the \pkg{Rcpp} package (Eddelbuettel et al., 2011). 
+#' 
+
+#' @details
+#' The package includes the \code{\link{asypeer.sim}} function, which simulates 
+#' data from a peer effect model with asymmetric conformity effects (Houndetoungan and Lambotte, 2026 <doi:xxx>).
+#' Specifically, agents may be influenced differently by friends who exert
+#' more or less effort than themselves. \cr
+#'
+#' The package also provides the \code{\link{asypeer.estim}} function, which
+#' estimates the model using the Generalized Method of Moments (GMM). A key
+#' challenge in the estimation is that the dependent variable appears on both
+#' the left- and right-hand sides of the model specification. Compared to the
+#' standard linear-in-means setting, this introduces a second endogenous
+#' variable: the average difference between peers’ outcomes and one’s own
+#' outcome among peers who have higher outcomes. As a result, the dependent
+#' variable is defined implicitly. \cr
+#'
+#' The package also includes the \code{\link{gen.instrument}} function, used
+#' to generate instruments for the two endogenous variables. Estimation using
+#' \code{\link{asypeer.estim}} returns an object of class \code{asypeer.estim},
+#' to which the \code{\link[base]{summary}} and \code{\link[base]{print}}
+#' methods can be applied. These methods additionally report important
+#' diagnostic tests for the GMM estimator, including the J (Sargan) test and
+#' the Kleibergen-Paap Wald test (Kleibergen and Paap, 2006
+#' \doi{10.1016/j.jeconom.2005.02.011}).
+#' 
+#' @references 
+#' Bramoulle, Y., Djebbari, H., & Fortin, B., 2009, Identification of peer effects through social networks, \emph{Journal of Econometrics}, 150(1), 41-55, \doi{10.1016/j.jeconom.2008.12.021}.
+#' @references Eddelbuettel, D., Francois, R., Allaire, J., Ushey, K., Kou, Q., Russel, N., ... & Bates, D., 2011,
+#' \pkg{Rcpp}: Seamless \R and \code{C++} integration, \emph{Journal of Statistical Software}, 40(8), 1-18, \doi{10.18637/jss.v040.i08}.
+#' @references Houndetoungan and Lambotte, 2026, Asymmetries in Peer Effects for Continuous Outcomes.
+#' @references Kleibergen, F., & Paap, R., 2006, Generalized reduced rank tests using the singular value decomposition. \emph{Journal of Econometrics}, 133(1), 97-126, \doi{10.1016/j.jeconom.2005.02.011}.
+#' @references Manski, C. F., 1993, Identification of endogenous social effects: The reflection problem. \emph{The Review of Economic Studies}, 60(3), 531-542. \doi{10.2307/2298123}.
 #' @useDynLib AsyPeer, .registration = TRUE
+#' @importFrom Rcpp evalCpp
 "_PACKAGE"
 NULL

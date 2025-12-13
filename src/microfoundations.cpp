@@ -18,14 +18,11 @@
  */
 
 // [[Rcpp::depends(RcppEigen)]]
-// #include <RcppArmadillo.h>
 #include <RcppEigen.h>
-// #define NDEBUG
-// #include <RcppNumerical.h>
-// #include <RcppEigen.h>
-
-// typedef Eigen::Map<Eigen::MatrixXd> MapMatr;
-// typedef Eigen::Map<Eigen::VectorXd> MapVect;
+#if defined(_OPENMP)
+#include <omp.h>
+// [[Rcpp::plugins(openmp)]]
+#endif
 
 using namespace Rcpp;
 using namespace Eigen;
@@ -50,13 +47,17 @@ Eigen::VectorXd peeravg(const Eigen::VectorXd& u,
                         const int& ngroup,
                         const unsigned int& nthread) {
   Eigen::VectorXd out(u.size());
-#ifdef _OPENMP
+#if defined(_OPENMP)
   omp_set_num_threads(nthread);
-#endif
 #pragma omp parallel for schedule(static)
   for (int m = 0; m < ngroup; ++ m) {
     out.segment(cumsn(m), nvec(m)) =  G[m] * u.segment(cumsn(m), nvec(m));
   }
+#else
+  for (int m = 0; m < ngroup; ++ m) {
+    out.segment(cumsn(m), nvec(m)) =  G[m] * u.segment(cumsn(m), nvec(m));
+  }
+#endif
   return out;
 }
 
@@ -72,7 +73,7 @@ Eigen::ArrayXd BR(const Eigen::ArrayXd& alpha,
                   const Eigen::ArrayXi& d,
                   const int& ngroup,
                   const unsigned int& nthread){
-  int n(alpha.size());
+  // int n(alpha.size());
   // parameter
   double bl(peffects(0)), bh(peffects(1)), delta(peffects(2));
   
@@ -80,9 +81,8 @@ Eigen::ArrayXd BR(const Eigen::ArrayXd& alpha,
   Eigen::ArrayXd ybar = peeravg(y, G, cumsn, nvec, ngroup, nthread);
   // Compute new y
   Eigen::ArrayXd ynew(alpha);
-#ifdef _OPENMP
+#if defined(_OPENMP)
   omp_set_num_threads(nthread);
-#endif
 #pragma omp parallel for schedule(static)
   for (int m = 0; m < ngroup; ++ m) {
     int l(cumsn(m)); // Where the group starts in y.
@@ -115,6 +115,39 @@ Eigen::ArrayXd BR(const Eigen::ArrayXd& alpha,
       ++ l;
     }
   }
+#else
+  for (int m = 0; m < ngroup; ++ m) {
+    int l(cumsn(m)); // Where the group starts in y.
+    Eigen::ArrayXd ym        = y.segment(l, nvec(m));
+    Eigen::MatrixXd Gmt      = G[m].transpose();
+    for (int i(0); i < nvec(m); ++ i) {
+      if (d(l) > 0) {
+        Eigen::ArrayXd uypeer(sort_unique(ym(idpeer[l]))); // unique values of peer outcomes
+        Eigen::ArrayXd Ai(uypeer.size() + 2); Ai << R_NegInf, uypeer, R_PosInf; // Ai: -inf, yi(1), ..., yi(ni), +inf
+        int ell(1); // position of ai in Ai
+        bool cont(true); // says if ell should be incremented
+        while (cont) { // continue and remaining some ai
+          // compute the marginal utility at Ai(ell)
+          Eigen::ArrayXd Gmhi((ym > Ai(ell)).select(Gmt.col(i), 0));
+          double yhi((Gmhi*ym).sum());
+          double gih(Gmhi.sum());
+          double marg((alpha(l) + (delta + bl)*ybar(l) + (bh - bl)*yhi) - (1 + bl * d(l) + (bh - bl) * gih) * Ai(ell));
+          if (marg >= 0) {
+            ++ ell;
+          } else {
+            cont = false;
+          }
+        }
+        // We know the upper bound ell + 1 (in the paper), which is ell here.
+        Eigen::ArrayXd Gmhi((ym >= Ai(ell)).select(Gmt.col(i), 0));
+        double yhi((Gmhi*ym).sum());
+        double gih(Gmhi.sum());
+        ynew(l) = (alpha(l) + (delta + bl)*ybar(l) + (bh - bl)*yhi) / (1 + bl * d(l) + (bh - bl) * gih);
+      }
+      ++ l;
+    }
+  }
+#endif
   return ynew;
 }
 
@@ -132,7 +165,8 @@ int fNashE(Eigen::Map<Eigen::VectorXd> y,
            const int& ngroup,
            const double& tol,
            const int& maxit,
-           const unsigned int& nthread){
+           const unsigned int& nthread,
+           const bool& print){
   int t(0);
   computeBR: ++t; // Best response dynamics
   
@@ -146,7 +180,9 @@ int fNashE(Eigen::Map<Eigen::VectorXd> y,
   // check convergence
   double dist = ((yst - y.array())/(y.array() + 1e-50)).abs().maxCoeff();
   y           = yst;
-  cout<<"Iteration: "<<t<<" Distance: "<<dist<<endl;
+  if (print) {
+    Rcpp::Rcout << "Iteration: " << t << " Distance: " << dist << endl;
+  }
   if (dist > tol && t < maxit) goto computeBR;
   return t;
 }

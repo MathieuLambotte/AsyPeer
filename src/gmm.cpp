@@ -1,8 +1,8 @@
 // [[Rcpp::depends(RcppEigen)]]
-// [[Rcpp::plugins(openmp)]]
 #include <RcppEigen.h>
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #include <omp.h>
+// [[Rcpp::plugins(openmp)]]
 #endif
 // #define NDEBUG
 // #include <RcppNumerical.h>
@@ -62,8 +62,7 @@ Eigen::MatrixXd W_optimal(const double& betal,              // beta_l parameter
                           const int& dfniso,                // degree of freedom for nonisolated
                           const int& HAC,                   // HAC type
                           const int& S) {                   // Number of subnets
-  int n(endo.rows()), Kx(X_iso.cols()),  Kz(Z.cols()), n_iso(Iso.size()), 
-  n_niso(n - n_iso);
+  int n(endo.rows()), Kx(X_iso.cols()),  Kz(Z.cols());
   
   // 1. psi = [M, X_iso + X_niso / (1 + betal)]
   Eigen::MatrixXd psi(n, 2 + Kx);
@@ -128,8 +127,7 @@ Rcpp::List compute_estimate(const double& betal,              // beta_l paramete
                             const int& dfniso,                // degree of freedom for nonisolated
                             const int& HAC,                   // HAC type
                             const int& S) {                   // Number of subnets
-  int n(endo.rows()), Kx(X_iso.cols()), 
-  Kz(Z.cols()), n_iso(Iso.size()), n_niso(n - n_iso);
+  int n(endo.rows()), Kx(X_iso.cols()), Kz(Z.cols());
 
   // 1. psi = [M, X_iso + X_niso / (1 + betal)]
   Eigen::MatrixXd psi(n, 2 + Kx);

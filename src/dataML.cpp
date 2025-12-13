@@ -1,8 +1,8 @@
 // [[Rcpp::depends(RcppEigen)]]
-// [[Rcpp::plugins(openmp)]]
 #include <RcppEigen.h>
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #include <omp.h>
+// [[Rcpp::plugins(openmp)]]
 #endif
 // #define NDEBUG
 // #include <RcppNumerical.h>
@@ -31,9 +31,8 @@ Rcpp::List fdataML(const Eigen::ArrayXd& y,
   Eigen::ArrayXXd ddy(ddn, 7); //columns: group, IDi, IDj, gij, yi, yj, Indicator
   Eigen::ArrayXXd ddXi(ddn, kX), ddXj(ddn, kX);
   
-#ifdef _OPENMP
+#if defined(_OPENMP)
   omp_set_num_threads(nthread);
-#endif
 #pragma omp parallel for schedule(static)
   for (int i = 0; i < n; ++i) {
     if (ddni(i) > 0) {
@@ -51,6 +50,24 @@ Rcpp::List fdataML(const Eigen::ArrayXd& y,
         X(ncs(group(i)) + idpeer[i], Eigen::all);
     }
   }
+#else
+  for (int i = 0; i < n; ++i) {
+    if (ddni(i) > 0) {
+      ddy.block(ddncs(i), 0, ddni(i), 1).setConstant(group(i));
+      ddy.block(ddncs(i), 1, ddni(i), 1).setConstant(IDi(i));
+      ddy.block(ddncs(i), 2, ddni(i), 1) = idpeer[i].cast<double>();
+      ddy.block(ddncs(i), 3, ddni(i), 1) = gij[i];
+      ddy.block(ddncs(i), 4, ddni(i), 1).setConstant(y(i));
+      ddy.block(ddncs(i), 5, ddni(i), 1) = y(ncs(group(i)) + idpeer[i]);
+      
+      ddXi(Eigen::seqN(ddncs(i), ddni(i)), Eigen::all).rowwise() = 
+        X.row(i);
+      
+      ddXj(Eigen::seqN(ddncs(i), ddni(i)), Eigen::all) = 
+        X(ncs(group(i)) + idpeer[i], Eigen::all);
+    }
+  }
+#endif
   
   ddy.col(6) = (ddy.col(5) > ddy.col(4)).cast<double>();
   return Rcpp::List::create(Rcpp::_["ddy"]  = ddy,
@@ -70,14 +87,20 @@ Eigen::ArrayXXd fInstChecky(const Eigen::ArrayXXd& rhoddX,
   }
   Eigen::ArrayXXd out(Eigen::ArrayXXd::Zero(n, K));
   
-#ifdef _OPENMP
+#if defined(_OPENMP)
   omp_set_num_threads(nthread);
-#endif
 #pragma omp parallel for schedule(static)
   for (int i = 0; i < n; ++i) {
     if (ddni(i) > 0) {
       out.row(i) = rhoddX.block(ddncs(i), 0, ddni(i), K - 1).colwise().sum();
     }
   }
+#else
+  for (int i = 0; i < n; ++i) {
+    if (ddni(i) > 0) {
+      out.row(i) = rhoddX.block(ddncs(i), 0, ddni(i), K - 1).colwise().sum();
+    }
+  }
+#endif
   return out;
 }

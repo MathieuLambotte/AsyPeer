@@ -1,0 +1,26 @@
+^doc$
+^Meta$
+^test$
+^archives$
+^Replication$
+^scripts$
+^.github$
+^\.travis\.yml$
+^\.gitignore$
+^\.Rbuildignore$
+^\.Rhistory$
+^README\.md$
+^vignettes/\.gitignore$
+^src/.*\.so$
+^src/.*\.o$
+^datavignettes/
+^\.Rproj\.user$
+^.*\.tar\.gz$
+^vignettes/.*\.pdf$
+^[^/]*\.R$
+^.*\.Rproj$
+^AsyPeer\.Rproj, README\.md$
+^scr/*\.so$
+^scr/*\.o$
+^\.tar\.gz$
+^vignettes/\.pdf$

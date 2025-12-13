@@ -1,8 +1,8 @@
 // [[Rcpp::depends(RcppEigen)]]
-// [[Rcpp::plugins(openmp)]]
 #include <RcppEigen.h>
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #include <omp.h>
+// [[Rcpp::plugins(openmp)]]
 #endif
 // #define NDEBUG
 // #include <RcppNumerical.h>
@@ -14,6 +14,20 @@
 using namespace Rcpp;
 using namespace Eigen;
 using namespace std;
+
+// This function set nthreads
+//[[Rcpp::export]]
+int fnthreads(const int& nthread) {
+#if defined(_OPENMP)
+  return nthread;
+#else
+  if (nthread > 1) {
+    Rf_warning("OpenMP is not available. Sequential processing is used.");
+  }
+  return 1;
+#endif
+}
+
 
 // Compute statistics such as ybarh, ybarl, gil, gih
 //[[Rcpp::export]]
@@ -27,9 +41,8 @@ List highlowstat1(const Eigen::MatrixXd& X,
   Eigen::ArrayXXd Xb(n, K), Xbh(n, K), Xbl(n, K), gl(n, K), gh(n, K);
   Eigen::ArrayXd g(n);
   
-#ifdef _OPENMP
+#if defined(_OPENMP)
   omp_set_num_threads(nthread);
-#endif
 #pragma omp parallel for schedule(static)
   for (int m = 0; m < ngroup; ++ m) {
     int n1(cumsn(m)); // Where the group starts in X.
@@ -45,6 +58,22 @@ List highlowstat1(const Eigen::MatrixXd& X,
       }
     }
   }
+#else
+  for (int m = 0; m < ngroup; ++ m) {
+    int n1(cumsn(m)); // Where the group starts in X.
+    int nm(nvec(m));
+    Eigen::ArrayXXd Xm       = X.block(n1, 0, nm, K);
+    Eigen::ArrayXd Gmsum(G[m].rowwise().sum()); g.segment(n1, nm)  = Gmsum;
+    Eigen::ArrayXXd GmX(G[m].matrix() * Xm.matrix()); Xb.block(n1, 0, nm, K) = GmX;
+    for (int i(0); i < nm; ++ i) {
+      for(int k(0); k < K; ++ k) {
+        Eigen::ArrayXd Gmhi = (Xm.col(k) > Xm(i, k)).select(G[m].row(i).transpose(), 0);
+        gh(n1 + i, k)  = Gmhi.sum();
+        Xbh(n1 + i, k) = (Gmhi * Xm.col(k)).sum();
+      }
+    }
+  }
+#endif
   for(int k(0); k < K; ++ k) {
     gl.col(k) = g - gh.col(k);
   }
@@ -71,9 +100,8 @@ List highlowstat2(const Eigen::VectorXd& y,
   Eigen::ArrayXd yb(n), ybh(n), ybl(n), gl(n), gh(n), g(n);
   Eigen::ArrayXXd Xb(n, K), Xbh(n, K), Xbl(n, K);
   
-#ifdef _OPENMP
+#if defined(_OPENMP)
   omp_set_num_threads(nthread);
-#endif
 #pragma omp parallel for schedule(static)
   for (int m = 0; m < ngroup; ++ m) {
     int n1(cumsn(m)); // Where the group starts in X.
@@ -90,6 +118,23 @@ List highlowstat2(const Eigen::VectorXd& y,
       Xbh.row(n1 + i) = Gmhi.matrix().transpose() * Xm;
     }
   }
+#else
+  for (int m = 0; m < ngroup; ++ m) {
+    int n1(cumsn(m)); // Where the group starts in X.
+    int nm(nvec(m));
+    Eigen::ArrayXd ym        = y.segment(n1, nm);
+    Eigen::MatrixXd Xm       = X.block(n1, 0, nm, K);
+    Eigen::ArrayXd Gmsum(G[m].rowwise().sum()); g.segment(n1, nm)  = Gmsum;
+    Eigen::ArrayXd Gmy(G[m].matrix() * ym.matrix()); yb.segment(n1, nm)      = Gmy;
+    Eigen::ArrayXXd GmX(G[m].matrix() * Xm); Xb.block(n1, 0, nm, K) = GmX;
+    for (int i(0); i < nm; ++ i) {
+      Eigen::ArrayXd Gmhi = (ym > ym(i)).select(G[m].row(i).transpose(), 0);
+      gh(n1 + i)      = Gmhi.sum();
+      ybh(n1 + i)     = (Gmhi * ym.array()).sum();
+      Xbh.row(n1 + i) = Gmhi.matrix().transpose() * Xm;
+    }
+  }
+#endif
   gl  = g - gh;
   ybl = yb - ybh;
   Xbl = Xb - Xbh;
@@ -110,20 +155,26 @@ Eigen::MatrixXd peeravgpower(const std::vector<Eigen::MatrixXd>& G,
                              const Eigen::ArrayXXd& V,
                              const Eigen::ArrayXi& cumsn,
                              const Eigen::ArrayXi& nvec,
-                             const unsigned int& power,
-                             const unsigned int& nthread) {
-#ifdef _OPENMP
-  omp_set_num_threads(nthread);
-#endif
+                             const int& power,
+                             const int& nthread) {
   int kV(V.cols()), n(nvec.sum()), ngroup(nvec.size());
   Eigen::MatrixXd out(n, kV * power);
   out.block(0, 0, n, kV) = V;
+#if defined(_OPENMP)
+  omp_set_num_threads(nthread);
 #pragma omp parallel for schedule(static)
   for (int m = 0; m < ngroup; ++m) {
     for (int k = 1; k < power; ++k) {
       out.block(cumsn(m), kV * k, nvec(m), kV) = G[m] * out.block(cumsn(m), kV * (k - 1), nvec(m), kV);
     }
   }
+#else
+  for (int m = 0; m < ngroup; ++m) {
+    for (int k = 1; k < power; ++k) {
+      out.block(cumsn(m), kV * k, nvec(m), kV) = G[m] * out.block(cumsn(m), kV * (k - 1), nvec(m), kV);
+    }
+  }
+#endif
   return out;
 }
 
@@ -176,11 +227,10 @@ Eigen::ArrayXXd Demean(const Eigen::ArrayXXd& X,
                        const std::vector<Eigen::ArrayXi>& lIso,
                        const std::vector<Eigen::ArrayXi>& lnIso,
                        const int& nthread){
-  int ngroup(cumsn.size() - 1), n(cumsn(ngroup));
+  int ngroup(cumsn.size() - 1);
   Eigen::ArrayXXd out(X);
-#ifdef _OPENMP
+#if defined(_OPENMP)
   omp_set_num_threads(nthread);
-#endif
 #pragma omp parallel for schedule(static)
   for (int s = 0; s < ngroup; ++ s) {
     // For isolated
@@ -192,6 +242,18 @@ Eigen::ArrayXXd Demean(const Eigen::ArrayXXd& X,
       out(lnIso[s], Eigen::all).rowwise() -= out(lnIso[s], Eigen::all).colwise().mean();
     }
   }
+#else
+  for (int s = 0; s < ngroup; ++ s) {
+    // For isolated
+    if (lIso[s].size() > 0) {
+      out(lIso[s], Eigen::all).rowwise() -= out(lIso[s], Eigen::all).colwise().mean();
+    }
+    // For non-isolated
+    if (lnIso[s].size() > 0) {
+      out(lnIso[s], Eigen::all).rowwise() -= out(lnIso[s], Eigen::all).colwise().mean();
+    }
+  }
+#endif
   return out;
 }
 
@@ -199,15 +261,21 @@ Eigen::ArrayXXd Demean(const Eigen::ArrayXXd& X,
 std::vector<Eigen::ArrayXXd> fGnormalise(std::vector<Eigen::ArrayXXd>& G, 
                                          const int& nthread = 1) {
   int S(G.size());
-#ifdef _OPENMP
+#if defined(_OPENMP)
   omp_set_num_threads(nthread);
-#endif
 #pragma omp parallel for schedule(static)
   for(int s = 0; s < S; ++s) {
     Eigen::ArrayXd rowsum((G[s].rowwise().sum() * 1e7).round() / 1e7);
     rowsum = (rowsum > 0).select(rowsum, 1);
     G[s].colwise() /= rowsum;
   }
+#else
+  for(int s = 0; s < S; ++s) {
+    Eigen::ArrayXd rowsum((G[s].rowwise().sum() * 1e7).round() / 1e7);
+    rowsum = (rowsum > 0).select(rowsum, 1);
+    G[s].colwise() /= rowsum;
+  }
+#endif
   return G;
 }
 
@@ -227,9 +295,8 @@ Rcpp::List fFstat(const Eigen::MatrixXd& y,
   Eigen::MatrixXd b(iXX * X.transpose() * y);
   Eigen::ArrayXXd e(y - X * b);
   Eigen::VectorXd F(Ky);
-#ifdef _OPENMP
+#if defined(_OPENMP)
  omp_set_num_threads(nthread);
-#endif
 #pragma omp parallel for schedule(static)
   for (int k = 0; k < Ky; ++ k) {
     Eigen::MatrixXd V(Eigen::MatrixXd::Zero(K, K));
@@ -248,6 +315,25 @@ Rcpp::List fFstat(const Eigen::MatrixXd& y,
     Eigen::VectorXd bk(b(index, k));
     F(k) = (bk.array() * (V.colPivHouseholderQr().solve(bk)).array()).sum() / df1;
   }
+#else
+  for (int k = 0; k < Ky; ++ k) {
+    Eigen::MatrixXd V(Eigen::MatrixXd::Zero(K, K));
+    if (HAC <= 2) {
+      Eigen::MatrixXd Xe((X.array().colwise()*e.col(k)));
+      V = Xe.transpose()*Xe;
+    } else {
+      for (int r(0); r < ngroup; ++ r) {
+        int n1(cumsn(r)), n2(cumsn(r + 1) - 1);
+        Eigen::VectorXd tp(X(Eigen::seq(n1, n2), Eigen::all).transpose() * e(Eigen::seq(n1, n2), k).matrix());
+        V += tp * tp.transpose();
+      }
+    }
+    Eigen::MatrixXd tp(iXX*V*iXX);
+    V    = tp(index, index);
+    Eigen::VectorXd bk(b(index, k));
+    F(k) = (bk.array() * (V.colPivHouseholderQr().solve(bk)).array()).sum() / df1;
+  }
+#endif
   return Rcpp::List::create(_["F"] = F, _["df1"] = df1, _["df2"] = df2); // removed _["ru"] = e as exoport
 }
 
@@ -272,32 +358,32 @@ Rcpp::List fKPstat(const Eigen::MatrixXd& endo_,
   Eigen::MatrixXd Z(Z_(Eigen::all, index) - X * iXX * X.transpose() * Z_(Eigen::all, index));
   // Eigen::MatrixXd endo(endo_);
   // Eigen::MatrixXd Z(Z_);
-  int n(endo.rows()), ntau(endo.cols()), l(Z.cols()), ngroup(cumsn.size() - 1);
+  int n(endo.rows()), nendo(endo.cols()), l(Z.cols()), ngroup(cumsn.size() - 1);
   Eigen::MatrixXd ZZ(Z.transpose() * Z);
   Eigen::MatrixXd iZZ(ZZ.inverse());
   Eigen::MatrixXd Zendo(Z.transpose() * endo);
   
   // estimator
   Eigen::MatrixXd Pi(Zendo.transpose() * iZZ);
-  Eigen::VectorXd pi(Pi.reshaped(l * ntau, 1)); // Eigen::kroneckerProduct(Eigen::MatrixXd::Identity(l, l), Zendo.transpose()) * ZZ.inverse().reshaped(l*l, 1)
+  Eigen::VectorXd pi(Pi.reshaped(l * nendo, 1)); // Eigen::kroneckerProduct(Eigen::MatrixXd::Identity(l, l), Zendo.transpose()) * ZZ.inverse().reshaped(l*l, 1)
   
   // vec(Ze)
-  Eigen::MatrixXd R(Eigen::MatrixXd::Zero(l * ntau, l * ntau));
+  Eigen::MatrixXd R(Eigen::MatrixXd::Zero(l * nendo, l * nendo));
   for (int s1(0); s1 < l; ++ s1) {
-    for (int s2(0); s2 < ntau; ++ s2) {
-      R(s1 * ntau + s2, s2 * l + s1) = 1;
+    for (int s2(0); s2 < nendo; ++ s2) {
+      R(s1 * nendo + s2, s2 * l + s1) = 1;
     }
   }
   
   Eigen::MatrixXd eps(endo - Z * Pi.transpose());
-  Eigen::MatrixXd vecZe(n, l*ntau);
-  for (int s(0); s < ntau; ++ s) {
+  Eigen::MatrixXd vecZe(n, l*nendo);
+  for (int s(0); s < nendo; ++ s) {
     vecZe.block(0, s*l, n, l) = (Z.array().colwise()*eps.col(s).array()).matrix();
   }
   
   // Variance of vec(Ze), covendo and covz
-  Eigen::MatrixXd VvecZe(Eigen::MatrixXd::Zero(l*ntau, l*ntau)),
-  Eee(Eigen::MatrixXd::Zero(ntau, ntau)),
+  Eigen::MatrixXd VvecZe(Eigen::MatrixXd::Zero(l*nendo, l*nendo)),
+  Eee(Eigen::MatrixXd::Zero(nendo, nendo)),
   Ezz(Eigen::MatrixXd::Zero(l, l));
   if (HAC <= 2) {
     VvecZe = vecZe.transpose() * vecZe;
@@ -316,7 +402,7 @@ Rcpp::List fKPstat(const Eigen::MatrixXd& endo_,
   }
   
   // Variance of pi
-  Eigen::MatrixXd H(R * Eigen::kroneckerProduct(Eigen::MatrixXd::Identity(ntau, ntau), iZZ));
+  Eigen::MatrixXd H(R * Eigen::kroneckerProduct(Eigen::MatrixXd::Identity(nendo, nendo), iZZ));
   Eigen::MatrixXd varpi(H * VvecZe * H.transpose()); // O(1/n)
   
   // normalisation
@@ -327,29 +413,29 @@ Rcpp::List fKPstat(const Eigen::MatrixXd& endo_,
   
   // Theta and its variance
   Eigen::MatrixXd Theta(G * Pi * F.transpose());
-  Eigen::VectorXd theta(Theta.reshaped(l*ntau, 1));
+  Eigen::VectorXd theta(Theta.reshaped(l*nendo, 1));
   Eigen::MatrixXd FG(Eigen::kroneckerProduct(F, G));
   Eigen::MatrixXd vartheta(FG * varpi * FG.transpose());
   // cout << vartheta << endl;
   
   // SDV decomposition of Theta
   Eigen::JacobiSVD<Eigen::MatrixXd> svd(Theta, Eigen::ComputeFullU | Eigen::ComputeFullV);
-  Eigen::MatrixXd U = svd.matrixU(); //ntau * ntau
+  Eigen::MatrixXd U = svd.matrixU(); //nendo * nendo
   Eigen::VectorXd d = svd.singularValues();
   Eigen::MatrixXd ddiag = d.asDiagonal();
-  Eigen::MatrixXd D(ntau, l);
-  D << ddiag, Eigen::MatrixXd::Zero(ntau, l - ntau); //l*ntau
-  Eigen::MatrixXd V = svd.matrixV(); //ntau * ntau
+  Eigen::MatrixXd D(nendo, l);
+  D << ddiag, Eigen::MatrixXd::Zero(nendo, l - nendo); //l*nendo
+  Eigen::MatrixXd V = svd.matrixV(); //nendo * nendo
   
   //U12, U22, V12, V22
-  int q(ntau - 1);
-  Eigen::MatrixXd U12(U.block(0, q, q, ntau - q));
-  Eigen::MatrixXd U22(U.block(q, q, ntau - q, ntau - q));
+  int q(nendo - 1);
+  Eigen::MatrixXd U12(U.block(0, q, q, nendo - q));
+  Eigen::MatrixXd U22(U.block(q, q, nendo - q, nendo - q));
   Eigen::MatrixXd V12(V.block(0, q, q, l - q));
   Eigen::MatrixXd V22(V.block(q, q, l - q, l - q));
   
   // Aqper and Bqper
-  Eigen::MatrixXd U12U22(ntau, ntau - q), V12V22(l, l - q);
+  Eigen::MatrixXd U12U22(nendo, nendo - q), V12V22(l, l - q);
   U12U22 << U12, U22;
   V12V22 << V12, V22;
   
@@ -363,5 +449,5 @@ Rcpp::List fKPstat(const Eigen::MatrixXd& endo_,
   
   // statistic
   double stat((lambda.transpose() * varlambda.colPivHouseholderQr().solve(lambda))(0, 0));
-  return Rcpp::List::create(_["stat"] = stat, _["df"] = (ntau - q)*(l - q));
+  return Rcpp::List::create(_["stat"] = stat, _["df"] = (nendo - q)*(l - q));
 }

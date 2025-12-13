@@ -1,17 +1,20 @@
 #' @title Estimating the Asymmetric Peer Effects Model
 #'
 #' @param formula An object of class \link[stats]{formula}: a symbolic description of the model. 
-#'   `formula` should be specified as \code{y ~ X}, where `y` is the outcome and `X` is the vector 
-#'   or matrix of control variables, which may include contextual variables such as averages among peers.
+#'   `formula` should be specified as \code{y ~ x1 + x2 + ....}, where `y` is the outcome and `x1`, `x2`, .... 
+#'   are the vectors or matrices of control variables, which may include contextual variables such as averages among peers.
 #'
-#' @param excluded.instruments An object of class \link[stats]{formula} specifying the excluded 
-#'   instruments. It should be written as \code{~ Ins}, where `Ins` is a vector or matrix of 
-#'   excluded instruments for the two endogenous variables in the asymmetric model: the average 
-#'   peers' outcomes, and the average outcomes of peers who exert more effort than the agent.
+#' @param excluded.instruments A \link[stats]{formula} specifying the excluded
+#'   instruments. It should be written as \code{~ z1 + z2 + ...}, where \code{z1},
+#'   \code{z2}, ... are the vectors or matrices of excluded instruments for the two
+#'   endogenous variables in the asymmetric model: the average peers' outcomes and
+#'   the average difference in outcomes between an agent and her peers who have a
+#'   higher outcome. If omitted, default instruments are generated using
+#'   \link{gen.instrument}.
 #'
 #' @param Glist The adjacency matrix. For networks consisting of multiple subnets (e.g., schools), 
-#'   `Glist` must be a list of subnets, with the \code{m}-th element being an \eqn{n_m \times n_m} 
-#'   adjacency matrix, where \eqn{n_m} is the number of nodes in the \code{m}-th subnet.
+#'   `Glist` must be a list of subnets, with the \code{s}-th element being an \eqn{n_s \times n_s} 
+#'   adjacency matrix, where \eqn{n_s} is the number of nodes in the \code{s}-th subnet.
 #'
 #' @param data An optional data frame, list, or environment (or an object that can be coerced to a 
 #'   data frame via \link[base]{as.data.frame}) containing the variables in the model. If a variable 
@@ -35,28 +38,58 @@
 #'
 #' @param fixed.effects A logical value indicating whether the model includes subnetwork fixed effects.
 #'
-#' @param nthread A strictly positive integer specifying the number of threads used in 
-#'   computationally intensive steps of the estimation procedure.
+#' @param nthread Number of CPU cores (threads) used to run parts of the estimation in parallel.
+#'   
+#' @param ... Further arguments passed to or from other methods.   
 #'
-#' @param model A character string specifying the model used to generate the instruments for the 
-#'   average outcomes of peers who exert more effort than the agent. This argument determines how the 
-#'   probability that a friend has a higher outcome than the agent is estimated. Options are 
-#'   `"ols"` for a linear probability model, `"glm"` for a logit model, and `"rf"` for a 
-#'   classification random forest.
-#'
-#' @param power A strictly positive integer indicating the maximum length of walks in the network 
-#'   whose endpoints are used to instrument peers' outcomes. For example, \code{power = 2} means that 
-#'   walks of length 2 (i.e., friends-of-friends) are used, so the instrument includes terms such as 
-#'   \eqn{G^2 X}. More generally, \code{power = k} uses \eqn{G^k X} as instruments for peers' outcomes.
-#'
+#' @return A list containing:
+#'     \item{model.info}{A list with information about the model, such as the number of subnets, number of observations, and other key details.}
+#'     \item{gmm}{A list of GMM estimation results, including parameter estimates, the covariance matrix, and related statistics.}
+#'     \item{data}{A list including the original data used to estimate the model, as well as the endogenous variables and their instruments.}
+#' 
 #' @description
-#' `asypeer.estim` estimates the asymmetric peer effects model introduced by Houndetoungan and 
-#'   Lambotte (2026). The instruments are generated automatically following the procedure described 
-#'   in the paper.
-
-
+#' `asypeer.estim` estimates the asymmetric peer effects model. The instruments are generated automatically following the procedure described 
+#'   in the paper and implemented in \link{gen.instruments}. The user can also supply her own instruments.
+#' @examples
+#' if (requireNamespace("PartialNetwork", quietly = TRUE)) {
+#' library(PartialNetwork)
+#' ngr  <- 50  # Number of subnets
+#' nvec <- rep(30, ngr)  # Size of subnets
+#' n    <- sum(nvec)
+#' 
+#'### Simulating Data
+#' ## Network matrix
+#' G   <- lapply(1:ngr, function(z) {
+#'  Gz <- matrix(rbinom(nvec[z]^2, 1, 0.3), nvec[z], nvec[z])
+#'  diag(Gz) <- 0
+#'  # Adding isolated nodes (important for the structural model)
+#'  niso <- sample(0:nvec[z], 1, prob = ((nvec[z] + 1):1)^5 / sum(((nvec[z] + 1):1)^5))
+#'  if (niso > 0) {
+#'    Gz[sample(1:nvec[z], niso), ] <- 0
+#'  }
+#'  Gz
+#' })
+#' 
+#' Gnorm   <- norm.network(G)
+#' X       <- cbind(rnorm(n, 0, 2), rpois(n, 2))
+#' GX      <- peer.avg(Gnorm, X)
+#' delta   <- 0.25
+#' beta    <- c(0.3, 0.6)
+#' gamma   <- c(4, 1, -0.7, 0, -0.5) 
+#' eps     <- rnorm(n, 0, 0.5) 
+#' 
+#' ## Generating `y`
+#' y <- asypeer.sim(formula = ~ X + GX, Glist = Gnorm, delta = delta, beta = beta, 
+#'                 gamma = gamma, epsilon = eps)
+#' y <- y$y
+#' 
+#' ### Estimating the asymmetric peer effects model
+#' est <- asypeer.estim(formula=y ~ X + GX, Glist = Gnorm)
+#' summary(est, diagnostic = TRUE)
+#' }                  
 #' @export
 #' @importFrom stats pchisq
+#' @importFrom stats optimize
 asypeer.estim <- function(formula,
                           excluded.instruments,
                           Glist,
@@ -66,22 +99,27 @@ asypeer.estim <- function(formula,
                           fixed.effects = FALSE,
                           tol = 1e-10,
                           nthread = 1,
-                          model="rf",
-                          power="3",
                           ...){
+  ## Thread
+  nthread  <- fnthreads(nthread = nthread)
+  
   ## Instrument
   Z        <- NULL
+  detInst  <- list()
   if (missing(excluded.instruments)) {
     if (missing(data)) {
       data <- NULL
     }
     excluded.instruments <- NULL
     ARG    <-  list(formula = formula, Glist = Glist, data = data, 
-                    nthread = nthread, tol = tol, model=model,power=power,...) ## Remember to add ... when the function is completed
+                    nthread = nthread, tol = tol, ...) ## Remember to add ... when the function is completed
     Z      <- do.call(gen.inst, ARG)
+    detInst$estimator <- Z$model.info$estimator
+    detInst$power     <- Z$model.info$power
+    Z                 <- Z$instruments
   }  else {
     if(length(excluded.instruments) != 2) stop("The `excluded.instruments` argument must be in the format `~ INS`.")
-    f.t.data    <- formula.to.data(formula = excluded.instruments, 
+    f.t.data    <- formula2data(formula = excluded.instruments, 
                                    data = data, fixed.effects = FALSE, 
                                    simulations = TRUE)
     Z           <- f.t.data$X
@@ -159,7 +197,7 @@ asypeer.estim <- function(formula,
   if (length(as.formula(formula)) != 3) {
     stop("formula is expected to be y ~ x1 + x2 + ...")
   }
-  f.t.data <- formula.to.data(formula = formula, data = data, fixed.effects = fixed.effects,
+  f.t.data <- formula2data(formula = formula, data = data, fixed.effects = fixed.effects,
                               simulations = FALSE)
   
   # X, exogenous variables
@@ -291,11 +329,11 @@ asypeer.estim <- function(formula,
     c("betal", "betah", "delta", paste0("gamma:", xname))
   
   
-  out     <- list(model.info  = list(n = n, ngroup = S, nvec = nvec, formula = formula, 
+  out     <- list(model.info  = c(list(n = n, ngroup = S, nvec = nvec, formula = formula, 
                                      excluded.instruments = excluded.instruments, 
                                      weight = weight, HAC = HAC, fixed.effects = fixed.effects, 
-                                     power = power, model = model, tol = tol, xname = xname, 
-                                     yname = yname, zname = zname, dfiso = dfiso, dfniso = dfniso),
+                                     tol = tol, xname = xname, yname = yname, zname = zname, 
+                                     dfiso = dfiso, dfniso = dfniso), detInst),
                   gmm         = gmm,
                   data        = list(dependent = f.t.data$y, exogenous = f.t.data$X,
                                      endogenous.variables = endo0, instruments = Z0, 
@@ -305,18 +343,46 @@ asypeer.estim <- function(formula,
   out
 }
 
+#' @title Summary and Print Methods for the Asymmetric Peer Effects Model
+#' @param object An object of class \code{\link{asypeer.estim}} as returned by the function \link{asypeer.estim}.
+#' @param structural A logical value indicating whether the summary should display the structural parameters (\code{structural = TRUE}) or the reduced-form parameters (\code{structural = FALSE}).
+#' @param diagnostics,diagnostic A logical value indicating whether diagnostic tests for the IV GMM should be performed.
+#'   These include an F-test of the first-stage regression for weak instruments, a Wu-Hausman test
+#'   for endogeneity, and a Hansen's J-test for overidentifying restrictions (the latter only when
+#'   the number of instruments exceeds the number of regressors).
+#' @param KPtest A logical value indicating whether a Kleibergen-Paap Wald test (5% level) should be performed in addition to the standard F test 
+#'   of the first-stage regression for weak instruments.
+#' @param nthread A strictly positive integer specifying the number of threads used in
+#'   computationally intensive steps of the estimation procedure.
+#' @param x An object of class \code{\link{summary.asypeer.estim}} or \code{\link{asypeer.estim}} as returned by the function \link{summary.asypeer.estim} or \link{asypeer.estim}, respectively.
+#' @param ... Further arguments passed to or from other methods.
+#'
+#' @description
+#' Summary and print methods for objects of class \code{\link{asypeer.estim}}.
+#'
+#' @return A list containing:
+#'   \item{model.info}{A list containing information about the model, such as the number of subnets,
+#'     number of observations, and other key details.}
+#'   \item{coefficients}{A summary of coefficient estimates, standard errors, and p-values.}
+#'   \item{diagnostics}{A summary of the diagnostic tests for the instrumental-variable regression,
+#'     if requested.}
+#'   \item{gmm}{A list of GMM estimation results, including parameter estimates, the covariance matrix,
+#'     and related statistics.}
+#'
+#' @export
 
 summary.asypeer.estim <- function(object, 
                                   structural  = TRUE, 
                                   diagnostic  = FALSE, 
                                   diagnostics = FALSE,
-                                  KPtest      = diagnostics | diagnostic,  
+                                  KPtest      = diagnostics || diagnostic,  
                                   nthread     = 1L,
                                   ...) {
   stopifnot(inherits(object, "asypeer.estim"))
   diagn   <- NULL
   if (diagnostic || diagnostics) {
-    diagn <- fdiagnostic(object, KPtest, nthread)
+    nthread <- fnthreads(nthread = nthread)
+    diagn   <- fdiagnostic(object, KPtest, nthread)
   }
   yname   <- object$model.info$yname
   xnames  <- object$model.info$xnames
@@ -337,6 +403,8 @@ summary.asypeer.estim <- function(object,
   out
 }
 
+#' @rdname summary.asypeer.estim
+#' @export
 print.summary.asypeer.estim <- function(x, ...) {
   esti <- ifelse(x$model.info$weight == "identity", "GMM (Weight: Identity Matrix)", 
                  ifelse(x$model.info$weight == "optimal", "GMM (Weight: Optimal)",
@@ -351,9 +419,9 @@ print.summary.asypeer.estim <- function(x, ...) {
   cat("Formula: ", deparse(x$model.info$formula),
       "\nExcluded instruments: ", ifelse(!is.null(x$model.info$excluded.instruments), 
                                          deparse(x$model.info$excluded.instruments),
-                                         paste("G^p X with max(p) =", x$model.info$power,"and", 
-                                               ifelse(x$model.info$model == "rf", "Random Forest", 
-                                                      toupper(x$model.info$model)), "predictions")),
+                                         paste("(G^p)X with max(p) =", max(x$model.info$power),"and", 
+                                               ifelse(x$model.info$estimator == "rf", "Random Forest", 
+                                                      toupper(x$model.info$estimator)), "predictions")),
       "\n\nEstimator: ", esti,
       "\nFixed effects: ", ifelse(FE, "Yes", "No"), "\n", sep = "")
   

@@ -1,8 +1,87 @@
+#' @title Generating Instruments for the Asymmetric Peer Effects Model
+#'
+#' @param formula An object of class \link[stats]{formula}: a symbolic description of the model. 
+#'   The formula should be specified as \code{y ~ x1 + x2}, where \code{y} is the outcome and `x1`, `x2`, .... 
+#'   are the vectors or matrices of control variables, which may include contextual variables such as 
+#'   peer averages.
+#' @param ... Further arguments passed to or from other methods.  
+#' @param Glist The adjacency matrix or list of adjacency matrices. For networks composed of 
+#'   multiple subnets (e.g., schools), \code{Glist} must be a list, where the \code{s}-th element 
+#'   is an \eqn{n_s \times n_s} adjacency matrix, and \eqn{n_s} is the number of nodes in the 
+#'   \code{s}-th subnet.
+#'
+#' @param data An optional data frame, list, or environment (or an object that can be coerced to a 
+#'   data frame via \link[base]{as.data.frame}) containing the variables in the model. If a variable 
+#'   is not found in \code{data}, it is searched for in \code{environment(formula)}, typically the 
+#'   environment from which \code{gen.instrument} is called.
+#'
+#' @param estimator A character string indicating the estimator used to approximate 
+#' the probability that a friend has a higher outcome than the agent. Valid options are `"ols"` 
+#' for a linear probability model, `"glm"` for a generalized linear model (e.g., logit, probit, 
+#' or other binary-response links), and `"rf"` for a classification random forest.
+#'
+#' @param power A numeric vector of length 2 indicating the maximum walk lengths to be used (typically k in \eqn{G^kX}). 
+#' The two entries allow specifying a different value of k for each endogenous variable.
+#'
+#' @param sepiso A logical value indicating whether the explanatory variables used to predict the instruments 
+#' are differentiated among isolated and non-isolated agents.
+#' 
+#' @param diffX A logical value indicating whether the probability that a friend has a higher outcome than the agent be
+#'  modeled using the *differences* in their characteristics, rather than including both sets of 
+#'   characteristics separately.
+#'
+#' @param nfold A strictly positive integer specifying the number of folds used when estimating the probability model via cross-fitting.
+#'
+#' @param checkrank A logical value indicating whether the linearly dependent columns in the matrix of generated instruments should be drooped.
+#' @param nthread Number of CPU cores (threads) used to run parts of the estimation in parallel.
+#' @param tol A numeric tolerance used in QR factorization to detect linearly dependent columns in the 
+#'   matrices of explanatory variables and instruments, ensuring a full-rank matrix 
+#'   (see \link[base]{qr}).
+#' @description
+#' `gen.instrument` generates instruments for the endogenous variables in asymmetric peer effects models.
+#' @return A list containing:
+#'     \item{model.info}{A list with information about the model, such as the estimator, the number of folds, and other key details.}
+#'     \item{instruments}{A matrix of generated instruments.}
+#' @examples
+#' if (requireNamespace("PartialNetwork", quietly = TRUE)) {
+#' library(PartialNetwork)
+#' ngr  <- 50  # Number of subnets
+#' nvec <- rep(30, ngr)  # Size of subnets
+#' n    <- sum(nvec)
+#' 
+#' ### Simulating Data
+#' ## Network matrix
+#' G <- lapply(1:ngr, function(z) {
+#'   Gz       <- matrix(rbinom(nvec[z]^2, 1, 0.3), nvec[z], nvec[z])
+#'   diag(Gz) <- 0
+#'   # Adding isolated nodes (important for the structural model)
+#'   niso <- sample(0:nvec[z], 1, prob = ((nvec[z] + 1):1)^5 / sum(((nvec[z] + 1):1)^5))
+#'   if (niso > 0) {
+#'     Gz[sample(1:nvec[z], niso), ] <- 0
+#'   }
+#'   Gz
+#' })
+#' Gnorm   <- norm.network(G)
+#' X       <- cbind(rnorm(n, 0, 2), rpois(n, 2))
+#' GX      <- peer.avg(Gnorm, X)
+#' delta   <- 0.25
+#' beta    <- c(0.3, 0.6)
+#' gamma   <- c(4, 1, -0.7, 0, -0.5) 
+#' eps     <- rnorm(n, 0, 0.5) 
+#' 
+#' ## Generating `y`
+#' y <- asypeer.sim(formula = ~ X + GX, Glist = Gnorm, delta = delta, 
+#'                  beta = beta, gamma = gamma, epsilon = eps)
+#' y <- y$y
+#' 
+#' ### Generating instruments
+#' ins <- gen.instrument(formula = y ~ X, Glist = Gnorm, estimator = "ols")}
+#'  
 #' @export
 gen.instrument <- function(formula,
                            Glist, 
                            data,
-                           model     = "linear",
+                           estimator = "ols",
                            power     = c(1, 1),
                            sepiso    = TRUE,
                            diffX     = TRUE,
@@ -22,16 +101,19 @@ gen.instrument <- function(formula,
     stop("`power` cannot be negative or zero.")
   }
   
-  ## Model
-  if (tolower(model) %in% c("lin", "linear", "ols", "lm")) {
-    model   <- "ols"
-  } else if (tolower(model) %in% c("logit", "logistic", "glm")) {
-    model   <- "glm"
-  } else if (tolower(model) %in% c("rf", "r-f", "random forest", "random-forest", "randomforest")) {
-    model   <- "RF"
+  ## estimator
+  if (tolower(estimator) %in% c("lin", "linear", "ols", "lm")) {
+    estimator   <- "ols"
+  } else if (tolower(estimator) %in% c("logit", "logistic", "glm")) {
+    estimator   <- "glm"
+  } else if (tolower(estimator) %in% c("rf", "r-f", "random forest", "random-forest", "randomforest")) {
+    estimator   <- "RF"
   } else {
-    stop("This model is not available.")
+    stop("This estimator is not available.")
   }
+  
+  ## Thread
+  nthread <- fnthreads(nthread = nthread)
   
   ## Network
   if (!is.list(Glist)) {
@@ -62,7 +144,7 @@ gen.instrument <- function(formula,
   if (length(as.formula(formula)) != 3) {
     stop("formula is expected to be y ~ x1 + x2 + ...")
   } 
-  f.t.data <- formula.to.data(formula = formula, data = data, fixed.effects = TRUE,
+  f.t.data <- formula2data(formula = formula, data = data, fixed.effects = TRUE,
                               simulations = FALSE)
   ### We sta rt with instruments fro check y
   ## Row data
@@ -72,11 +154,12 @@ gen.instrument <- function(formula,
   xname    <- f.t.data$xname
   yname    <- f.t.data$yname
   if (sepiso) {
-    X      <- cbind(1 - dg, X * (1 - dg), dg, X * dg)
+    X          <- cbind(1 - dg, X * (1 - dg), dg, X * dg)
+    xname <- c("iso", paste0("iso_", xname), "niso", paste0("niso_", xname))
   } else {
-    X      <- cbind(1, X)
+    X          <- cbind(1, X)
+    xname <- c("(Intercept)", xname)
   }
-  xname    <- c("iso", paste0("iso_", xname), "niso", paste0("niso_", xname))
   Xtp      <- peeravgpower(G = Glist, V = X, cumsn = cumsn, nvec = nvec, 
                            power = power[2], nthread = nthread)
   ## Dyadic dada
@@ -109,7 +192,7 @@ gen.instrument <- function(formula,
   id_fold  <- fassignfold(tp$ddy[,1], nfold = nfold)
   
   ## Prediction
-  ARG      <- list(ddy = ddy, ddX = ddX, id_fold = id_fold, model = model, 
+  ARG      <- list(ddy = ddy, ddX = ddX, id_fold = id_fold, estimator = estimator, 
                    nthread = nthread, ...)
   rhoddX   <- tp$ddy[,4] * do.call(mpredict, ARG) * (tp$ddXj - tp$ddXi)
   insChey  <- fInstChecky(rhoddX = rhoddX, ddni = ddni, nthread = nthread)
@@ -123,6 +206,10 @@ gen.instrument <- function(formula,
                      c(sapply(paste0("rhoG", ifelse(1:power[2] == 1, "", 1:power[2]), "_"), \(x) paste0(x, xname))))
   
   out[, fcheckrank(X = out, tol = tol) + 1, drop = FALSE]
+  list(model.info  = list(power = power, estimator = estimator,
+                          sepiso = sepiso, diffX = diffX,
+                          nfold = nfold, tol = tol),
+       instruments = out)
 }
 
 #' @rdname gen.instrument
@@ -130,7 +217,7 @@ gen.instrument <- function(formula,
 gen.instruments <- function(formula,
                             Glist, 
                             data,
-                            model     = "linear",
+                            estimator = "ols",
                             power     = c(1, 1),
                             sepiso    = TRUE,
                             diffX     = TRUE,
@@ -139,7 +226,7 @@ gen.instruments <- function(formula,
                             tol       = 1e-10,
                             nthread   = 1,
                             ...) { 
-  ARG <- list(formula = formula, Glist = Glist, data = data,  model = model,
+  ARG <- list(formula = formula, Glist = Glist, data = data, estimator = estimator,
               power = power, sepiso = sepiso, diffX = diffX, nfold = nfold,
               checkrank = checkrank, tol = tol, nthread = nthread, ...)
   do.call(gen.instrument, ARG)
@@ -150,7 +237,7 @@ gen.instruments <- function(formula,
 gen.insts <- function(formula,
                       Glist, 
                       data,
-                      model     = "linear",
+                      estimator = "ols",
                       power     = c(1, 1),
                       sepiso    = TRUE,
                       diffX     = TRUE,
@@ -159,7 +246,7 @@ gen.insts <- function(formula,
                       tol       = 1e-10,
                       nthread   = 1,
                       ...) { 
-  ARG <- list(formula = formula, Glist = Glist, data = data,  model = model,
+  ARG <- list(formula = formula, Glist = Glist, data = data,  estimator = estimator,
               power = power, sepiso = sepiso, diffX = diffX, nfold = nfold,
               checkrank = checkrank, tol = tol, nthread = nthread, ...)
   do.call(gen.instrument, ARG)
@@ -170,7 +257,7 @@ gen.insts <- function(formula,
 gen.inst <- function(formula,
                      Glist, 
                      data,
-                     model     = "linear",
+                     estimator = "ols",
                      power     = c(1, 1),
                      sepiso    = TRUE,
                      diffX     = TRUE,
@@ -179,7 +266,7 @@ gen.inst <- function(formula,
                      tol       = 1e-10,
                      nthread   = 1,
                      ...) { 
-  ARG <- list(formula = formula, Glist = Glist, data = data,  model = model,
+  ARG <- list(formula = formula, Glist = Glist, data = data,  estimator = estimator,
               power = power, sepiso = sepiso, diffX = diffX, nfold = nfold,
               checkrank = checkrank, tol = tol, nthread = nthread, ...)
   do.call(gen.instrument, ARG)

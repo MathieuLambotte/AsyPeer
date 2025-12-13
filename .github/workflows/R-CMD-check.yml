@@ -15,7 +15,7 @@ jobs:
       matrix:
         include:
           - os: macos-latest (stable)
-            r: '4.4'
+            r: '4.5.1'
             http-user-agent: ''
           - os: windows-latest
             r: release

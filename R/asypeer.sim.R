@@ -81,6 +81,9 @@ asypeer.sim <- function(formula, Glist, parms, beta, delta, gamma, epsilon, init
   dg       <- dg$dg
   
   # Data
+  if (missing(data)) {
+    data  <- env(formula)
+  }
   f.t.data <- formula2data(formula = formula, data = data, simulations = TRUE, fixed.effects = FALSE)
   formula  <- f.t.data$formula
   X        <- f.t.data$X
@@ -129,7 +132,11 @@ asypeer.sim <- function(formula, Glist, parms, beta, delta, gamma, epsilon, init
   alpha   <- X %*% gam + eps
   
   ## Thread
-  nthread <- fnthreads(nthread = nthread)
+  tp        <- fnthreads(nthread = nthread)
+  if ((tp == 1) & (nthread != 1)) {
+    warning("OpenMP is not available. Sequential processing is used.")
+    nthread <- tp
+  }
   
   ## init
   if (missing(init)) {

@@ -1,6 +1,6 @@
 // [[Rcpp::depends(RcppEigen)]]
 #include <RcppEigen.h>
-#if defined(_OPENMP)
+#ifdef _OPENMP
 #include <omp.h>
 // [[Rcpp::plugins(openmp)]]
 #endif
@@ -31,7 +31,7 @@ Rcpp::List fdataML(const Eigen::ArrayXd& y,
   Eigen::ArrayXXd ddy(ddn, 7); //columns: group, IDi, IDj, gij, yi, yj, Indicator
   Eigen::ArrayXXd ddXi(ddn, kX), ddXj(ddn, kX);
   
-#if defined(_OPENMP)
+#ifdef _OPENMP
   omp_set_num_threads(nthread);
 #pragma omp parallel for schedule(static)
   for (int i = 0; i < n; ++i) {
@@ -87,7 +87,7 @@ Eigen::ArrayXXd fInstChecky(const Eigen::ArrayXXd& rhoddX,
   }
   Eigen::ArrayXXd out(Eigen::ArrayXXd::Zero(n, K));
   
-#if defined(_OPENMP)
+#ifdef _OPENMP
   omp_set_num_threads(nthread);
 #pragma omp parallel for schedule(static)
   for (int i = 0; i < n; ++i) {

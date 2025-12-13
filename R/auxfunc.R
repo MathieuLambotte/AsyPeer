@@ -15,8 +15,8 @@ mpredict  <- function(ddy, ddX, id_fold, estimator, nthread, ...){
   registerDoParallel(cl)
   registerDoRNG(seed)
   lrho    <- foreach(k         = id_list, 
-                     .export   = "mpredict_fold",
-                     .packages = c("randomForest") #Remember to add "NameOfThePackage"
+                     # .export   = "mpredict_fold",
+                     .packages = c("randomForest", "AsyPeer") #Remember to add "NameOfThePackage"
   ) %dorng% {
     #each observation in fold k is predicted using a model trained
     #on the observations of the other folds
@@ -74,9 +74,9 @@ formula2data <- function(formula,
   yname       <- NULL
   
   if (simulations) {
-    if(length(formula) != 2) stop("The `formula` argument is invalid. For data simulation, the expected format is `~ X1 + X2 + ...`.")
+    if(length(formula) != 2) stop("The `formula` argument is invalid. The expected format is `~ x1 + x2 + ...`.")
   } else {
-    if(length(formula) != 3) stop("The `formula` argument is invalid. For estimation, the expected format is `y ~ X1 + X2 + ...`.")
+    if(length(formula) != 3) stop("The `formula` argument is invalid. The expected format is `y ~ x1 + x2 + ...`.")
     yname     <- all.vars(formula)[1]
   }
   

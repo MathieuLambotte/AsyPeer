@@ -113,7 +113,12 @@ gen.instrument <- function(formula,
   }
   
   ## Thread
-  nthread <- fnthreads(nthread = nthread)
+  tp        <- fnthreads(nthread = nthread)
+  if ((tp == 1) & (nthread != 1)) {
+    warning("OpenMP is not available. Sequential processing is used.")
+    nthread <- tp
+  }
+
   
   ## Network
   if (!is.list(Glist)) {
@@ -123,7 +128,7 @@ gen.instrument <- function(formula,
       stop("Glist is neither a matrix nor a list")
     }
   }
-  Glist = fGnormalise(Glist, nthread)
+  Glist    <- fGnormalise(Glist, nthread)
   ## sizes
   dg       <- fnetwork(Glist = Glist)
   S        <- dg$S
@@ -141,9 +146,9 @@ gen.instrument <- function(formula,
   
   ## Formula to data
   formula  <- as.formula(formula)
-  if (length(as.formula(formula)) != 3) {
-    stop("formula is expected to be y ~ x1 + x2 + ...")
-  } 
+  if (missing(data)) {
+    data  <- env(formula)
+  }
   f.t.data <- formula2data(formula = formula, data = data, fixed.effects = TRUE,
                               simulations = FALSE)
   ### We sta rt with instruments fro check y
@@ -185,9 +190,13 @@ gen.instrument <- function(formula,
   ddX      <- ddX[, fcheckrank(X = ddX, tol = tol) + 1, drop = FALSE]
   
   ## Fold construction
+  nfold    <- as.integer(nfold)
   if (nfold > S) {
     nfold  <- S
     warning("The number of folds exceeds the number of subnets; it has been reset to the number of subnets.")
+  } 
+  if (nfold == 1) {
+    stop("At lead two folds is required.")
   }
   id_fold  <- fassignfold(tp$ddy[,1], nfold = nfold)
   

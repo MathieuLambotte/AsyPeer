@@ -19,7 +19,7 @@
 
 // [[Rcpp::depends(RcppEigen)]]
 #include <RcppEigen.h>
-#if defined(_OPENMP)
+#ifdef _OPENMP
 #include <omp.h>
 // [[Rcpp::plugins(openmp)]]
 #endif
@@ -47,7 +47,7 @@ Eigen::VectorXd peeravg(const Eigen::VectorXd& u,
                         const int& ngroup,
                         const unsigned int& nthread) {
   Eigen::VectorXd out(u.size());
-#if defined(_OPENMP)
+#ifdef _OPENMP
   omp_set_num_threads(nthread);
 #pragma omp parallel for schedule(static)
   for (int m = 0; m < ngroup; ++ m) {
@@ -81,7 +81,7 @@ Eigen::ArrayXd BR(const Eigen::ArrayXd& alpha,
   Eigen::ArrayXd ybar = peeravg(y, G, cumsn, nvec, ngroup, nthread);
   // Compute new y
   Eigen::ArrayXd ynew(alpha);
-#if defined(_OPENMP)
+#ifdef _OPENMP
   omp_set_num_threads(nthread);
 #pragma omp parallel for schedule(static)
   for (int m = 0; m < ngroup; ++ m) {

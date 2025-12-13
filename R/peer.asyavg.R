@@ -66,6 +66,9 @@ peer.asyavg <- function(formula, Glist, data, nthread = 1) {
   
   formula    <- as.formula(formula)
   hasy       <- (length(as.formula(formula)) == 3)
+  if (missing(data)) {
+    data     <- env(formula)
+  }
   f.t.data   <- formula2data(formula = formula, data = data, fixed.effects = TRUE,
                                 simulations = !hasy) #Intercept is not necessary
   y          <- f.t.data$y
@@ -78,7 +81,11 @@ peer.asyavg <- function(formula, Glist, data, nthread = 1) {
   nvec       <- unlist(lapply(Glist, ncol))
   
   ## Thread
-  nthread    <- fnthreads(nthread = nthread)
+  tp         <- fnthreads(nthread = nthread)
+  if ((tp == 1) & (nthread != 1)) {
+    warning("OpenMP is not available. Sequential processing is used.")
+    nthread  <- tp
+  }
   
   if (sum(nvec) != nrow(X)) {
     stop("Glist and V do not match")

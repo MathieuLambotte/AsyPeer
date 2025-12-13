@@ -101,14 +101,18 @@ asypeer.estim <- function(formula,
                           nthread = 1,
                           ...){
   ## Thread
-  nthread  <- fnthreads(nthread = nthread)
+  tp        <- fnthreads(nthread = nthread)
+  if ((tp == 1) & (nthread != 1)) {
+    warning("OpenMP is not available. Sequential processing is used.")
+    nthread <- tp
+  }
   
   ## Instrument
   Z        <- NULL
   detInst  <- list()
   if (missing(excluded.instruments)) {
     if (missing(data)) {
-      data <- NULL
+      data <- env(formula)
     }
     excluded.instruments <- NULL
     ARG    <-  list(formula = formula, Glist = Glist, data = data, 
@@ -118,7 +122,10 @@ asypeer.estim <- function(formula,
     detInst$power     <- Z$model.info$power
     Z                 <- Z$instruments
   }  else {
-    if(length(excluded.instruments) != 2) stop("The `excluded.instruments` argument must be in the format `~ INS`.")
+    if(length(excluded.instruments) != 2) stop("The `excluded.instruments` argument must be in the format ~ z1 + z2 + ...")
+    if (missing(data)) {
+      data  <- env(formula)
+    }
     f.t.data    <- formula2data(formula = excluded.instruments, 
                                    data = data, fixed.effects = FALSE, 
                                    simulations = TRUE)
@@ -194,9 +201,6 @@ asypeer.estim <- function(formula,
   
   ## Formula to data
   formula  <- as.formula(formula)
-  if (length(as.formula(formula)) != 3) {
-    stop("formula is expected to be y ~ x1 + x2 + ...")
-  }
   f.t.data <- formula2data(formula = formula, data = data, fixed.effects = fixed.effects,
                               simulations = FALSE)
   
@@ -381,7 +385,11 @@ summary.asypeer.estim <- function(object,
   stopifnot(inherits(object, "asypeer.estim"))
   diagn   <- NULL
   if (diagnostic || diagnostics) {
-    nthread <- fnthreads(nthread = nthread)
+    tp        <- fnthreads(nthread = nthread)
+    if ((tp == 1) & (nthread != 1)) {
+      warning("OpenMP is not available. Sequential processing is used.")
+      nthread <- tp
+    }
     diagn   <- fdiagnostic(object, KPtest, nthread)
   }
   yname   <- object$model.info$yname

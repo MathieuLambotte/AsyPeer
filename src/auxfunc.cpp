@@ -1,6 +1,6 @@
 // [[Rcpp::depends(RcppEigen)]]
 #include <RcppEigen.h>
-#if defined(_OPENMP)
+#ifdef _OPENMP
 #include <omp.h>
 // [[Rcpp::plugins(openmp)]]
 #endif
@@ -18,12 +18,9 @@ using namespace std;
 // This function set nthreads
 //[[Rcpp::export]]
 int fnthreads(const int& nthread) {
-#if defined(_OPENMP)
+#ifdef _OPENMP
   return nthread;
 #else
-  if (nthread > 1) {
-    Rf_warning("OpenMP is not available. Sequential processing is used.");
-  }
   return 1;
 #endif
 }
@@ -41,7 +38,7 @@ List highlowstat1(const Eigen::MatrixXd& X,
   Eigen::ArrayXXd Xb(n, K), Xbh(n, K), Xbl(n, K), gl(n, K), gh(n, K);
   Eigen::ArrayXd g(n);
   
-#if defined(_OPENMP)
+#ifdef _OPENMP
   omp_set_num_threads(nthread);
 #pragma omp parallel for schedule(static)
   for (int m = 0; m < ngroup; ++ m) {
@@ -100,7 +97,7 @@ List highlowstat2(const Eigen::VectorXd& y,
   Eigen::ArrayXd yb(n), ybh(n), ybl(n), gl(n), gh(n), g(n);
   Eigen::ArrayXXd Xb(n, K), Xbh(n, K), Xbl(n, K);
   
-#if defined(_OPENMP)
+#ifdef _OPENMP
   omp_set_num_threads(nthread);
 #pragma omp parallel for schedule(static)
   for (int m = 0; m < ngroup; ++ m) {
@@ -160,7 +157,7 @@ Eigen::MatrixXd peeravgpower(const std::vector<Eigen::MatrixXd>& G,
   int kV(V.cols()), n(nvec.sum()), ngroup(nvec.size());
   Eigen::MatrixXd out(n, kV * power);
   out.block(0, 0, n, kV) = V;
-#if defined(_OPENMP)
+#ifdef _OPENMP
   omp_set_num_threads(nthread);
 #pragma omp parallel for schedule(static)
   for (int m = 0; m < ngroup; ++m) {
@@ -229,7 +226,7 @@ Eigen::ArrayXXd Demean(const Eigen::ArrayXXd& X,
                        const int& nthread){
   int ngroup(cumsn.size() - 1);
   Eigen::ArrayXXd out(X);
-#if defined(_OPENMP)
+#ifdef _OPENMP
   omp_set_num_threads(nthread);
 #pragma omp parallel for schedule(static)
   for (int s = 0; s < ngroup; ++ s) {
@@ -261,7 +258,7 @@ Eigen::ArrayXXd Demean(const Eigen::ArrayXXd& X,
 std::vector<Eigen::ArrayXXd> fGnormalise(std::vector<Eigen::ArrayXXd>& G, 
                                          const int& nthread = 1) {
   int S(G.size());
-#if defined(_OPENMP)
+#ifdef _OPENMP
   omp_set_num_threads(nthread);
 #pragma omp parallel for schedule(static)
   for(int s = 0; s < S; ++s) {
@@ -295,7 +292,7 @@ Rcpp::List fFstat(const Eigen::MatrixXd& y,
   Eigen::MatrixXd b(iXX * X.transpose() * y);
   Eigen::ArrayXXd e(y - X * b);
   Eigen::VectorXd F(Ky);
-#if defined(_OPENMP)
+#ifdef _OPENMP
  omp_set_num_threads(nthread);
 #pragma omp parallel for schedule(static)
   for (int k = 0; k < Ky; ++ k) {

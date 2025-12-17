@@ -9,11 +9,14 @@ asypeer.estim(
   excluded.instruments,
   Glist,
   data,
+  spillover = TRUE,
+  asymmetry = TRUE,
   weight = "IV",
   HAC = "group-iid",
   fixed.effects = FALSE,
   tol = 1e-10,
   nthread = 1,
+  drop = NULL,
   ...
 )
 }
@@ -39,6 +42,10 @@ data frame via \link[base]{as.data.frame}) containing the variables in the model
 is not found in \code{data}, it is taken from \code{environment(formula)}, typically the environment
 from which \code{asypeer.estim} is called.}
 
+\item{spillover}{A logical value indicating if the model included a spillover component in additional to the asymmetric conformity effect.}
+
+\item{asymmetry}{A logical value indicating if the preference for conformity is asymmetric or not.}
+
 \item{weight}{A character string specifying the weighting matrix used in the GMM estimation.
 Available options are: \code{"identity"} for GMM with the identity matrix as the weighting matrix;
 \code{"IV"} for the standard instrumental-variable GMM estimator; and \code{"optimal"} for GMM with the
@@ -57,6 +64,10 @@ matrices of explanatory variables and instruments, ensuring a full-rank matrix (
 \link[base]{qr}).}
 
 \item{nthread}{Number of CPU cores (threads) used to run parts of the estimation in parallel.}
+
+\item{drop}{A dummy vector of the same length as the sample, indicating whether an observation should be dropped.
+This can be used, for example, to remove false isolates or to estimate the model only on non-isolated agents.
+These observations cannot be directly removed from the network by the user because they may still be friends with other agents.}
 
 \item{...}{Further arguments passed to or from other methods.}
 }

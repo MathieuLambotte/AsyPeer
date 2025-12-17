@@ -1,4 +1,4 @@
-## AsyPeer: An R package for Simulating and Estimation Asymetric Peer Effect Models
+## AsyPeer: An R package for Simulating and Estimation Asymmetric Peer Effect Models
 
 **Aristide Houndetoungan and Mathieu Lambotte**
 
@@ -16,7 +16,7 @@
 
 ### Overview
 
-The **AsyPeer** package implements estimation and simulation routines for asymetric peer effect models introduced in [Houndetoungan and Lambotte (2026)](https://doi.org/xxx).
+The **AsyPeer** package implements estimation and simulation routines for asymmetric peer effect models introduced in [Houndetoungan and Lambotte (2026)](https://doi.org/xxx).
 Replication code for all results in the paper is available in the [Replication](https://github.com/MathieuLambotte/AsyPeer/tree/main/Results) folder.
 
 ## Installation

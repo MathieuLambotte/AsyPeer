@@ -31,12 +31,17 @@
 #'   characteristics separately.
 #'
 #' @param nfold A strictly positive integer specifying the number of folds used when estimating the probability model via cross-fitting.
+#' @param drop A dummy vector of the same length as the sample, indicating whether an observation should be dropped.
+#' This can be used, for example, to remove false isolates or to estimate the model only on non-isolated agents.
+#' These observations cannot be directly removed from the network by the user because they may still be friends with other agents.
 #'
 #' @param checkrank A logical value indicating whether the linearly dependent columns in the matrix of generated instruments should be drooped.
 #' @param nthread Number of CPU cores (threads) used to run parts of the estimation in parallel.
 #' @param tol A numeric tolerance used in QR factorization to detect linearly dependent columns in the 
 #'   matrices of explanatory variables and instruments, ensuring a full-rank matrix 
 #'   (see \link[base]{qr}).
+#' @param asymmetry A logical value indicating if the preference for conformity is asymmetric or not.
+#' 
 #' @description
 #' `gen.instrument` generates instruments for the endogenous variables in asymmetric peer effects models.
 #' @return A list containing:
@@ -81,6 +86,7 @@
 gen.instrument <- function(formula,
                            Glist, 
                            data,
+                           asymmetry = TRUE,
                            estimator = "ols",
                            power     = c(1, 1),
                            sepiso    = TRUE,
@@ -89,6 +95,7 @@ gen.instrument <- function(formula,
                            checkrank = TRUE,
                            tol       = 1e-10,
                            nthread   = 1,
+                           drop = NULL,
                            ...) {
   ## power for G
   power   <- as.integer(power)
@@ -119,7 +126,6 @@ gen.instrument <- function(formula,
     nthread <- tp
   }
 
-  
   ## Network
   if (!is.list(Glist)) {
     if (is.matrix(Glist)) {
@@ -150,9 +156,7 @@ gen.instrument <- function(formula,
     data  <- env(formula)
   }
   f.t.data <- formula2data(formula = formula, data = data, fixed.effects = TRUE,
-                              simulations = FALSE)
-  ### We sta rt with instruments fro check y
-  ## Row data
+                           simulations = FALSE)
   y        <- f.t.data$y
   X        <- f.t.data$X
   Kx       <- ncol(X)
@@ -165,67 +169,94 @@ gen.instrument <- function(formula,
     X          <- cbind(1, X)
     xname <- c("(Intercept)", xname)
   }
-  Xtp      <- peeravgpower(G = Glist, V = X, cumsn = cumsn, nvec = nvec, 
-                           power = power[2], nthread = nthread)
-  ## Dyadic dada
-  group    <- rep(0:(S - 1), nvec)
-  IDi      <- unlist(lapply(1:S, \(s) 0:(nvec[s] - 1)))
-  gij      <- lapply(1:n, \(i) Glist[[group[i] + 1]][IDi[i] + 1, idpeer[[i]] + 1])
-  ddni     <- sapply(gij, length)
-  ddncs    <- c(0, cumsum(ddni))
   
-  tp       <- fdataML(y = y, X = Xtp, group = group, IDi = IDi, gij = gij,
-                      idpeer = idpeer, ddni = ddni, ddncs = ddncs, ncs = cumsn,
-                      nthread = nthread)
-  
-  ddy      <- tp$ddy[,7]
-  ddX      <- NULL
-  if (diffX) {
-    ddX    <- tp$ddXj - tp$ddXi
-  } else {
-    ddX    <- cbind(tp$ddXi, tp$ddXj)
+  ### Drop
+  if (is.null(drop)){
+    drop  <- rep(0, n)
   }
-  
-  ## Check rank of ddX
-  ddX      <- ddX[, fcheckrank(X = ddX, tol = tol) + 1, drop = FALSE]
-  
-  ## Fold construction
-  nfold    <- as.integer(nfold)
-  if (nfold > S) {
-    nfold  <- S
-    warning("The number of folds exceeds the number of subnets; it has been reset to the number of subnets.")
-  } 
-  if (nfold == 1) {
-    stop("At lead two folds is required.")
+  if (any(!(drop %in% 0:1) | !is.finite(drop))) {
+    stop("`drop` must be a binary (0/1) variable.")
   }
-  id_fold  <- fassignfold(tp$ddy[,1], nfold = nfold)
+  if (length(drop) != n) {
+    stop("`drop` must be a vector of length n.")
+  }
+  keep    <- !as.logical(drop)
   
-  ## Prediction
-  ARG      <- list(ddy = ddy, ddX = ddX, id_fold = id_fold, estimator = estimator, 
-                   nthread = nthread, ...)
-  rhoddX   <- tp$ddy[,4] * do.call(mpredict, ARG) * (tp$ddXj - tp$ddXi)
-  insChey  <- fInstChecky(rhoddX = rhoddX, ddni = ddni, nthread = nthread)
-  
-  ### Instrument for 
-  insBary  <- peeravgpower(G = Glist, V = X, cumsn = cumsn, nvec = nvec, 
+  ### Instrument for ybar
+  insBary <- peeravgpower(G = Glist, V = X, cumsn = cumsn, nvec = nvec, 
                            power = power[1], nthread = nthread)
   
-  out      <- cbind(insBary, insChey)
-  colnames(out) <- c(c(sapply(paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_"), \(x) paste0(x, xname))),
-                     c(sapply(paste0("rhoG", ifelse(1:power[2] == 1, "", 1:power[2]), "_"), \(x) paste0(x, xname))))
-  
-  out[, fcheckrank(X = out, tol = tol) + 1, drop = FALSE]
+  ### Instrument for ycheck
+  out     <- NULL
+  if(asymmetry){
+    Xtp      <- peeravgpower(G = Glist, V = X, cumsn = cumsn, nvec = nvec, 
+                             power = power[2], nthread = nthread)
+    ## Dyadic dada
+    group    <- rep(0:(S - 1), nvec)
+    IDi      <- unlist(lapply(1:S, \(s) 0:(nvec[s] - 1)))
+    gij      <- lapply(1:n, \(i) Glist[[group[i] + 1]][IDi[i] + 1, idpeer[[i]] + 1])
+    ddni     <- sapply(gij, length)
+    ddncs    <- c(0, cumsum(ddni))
+    ddkeep   <- rep(keep, ddni)
+    
+    tp       <- fdataML(y = y, X = Xtp, group = group, IDi = IDi, gij = gij,
+                        idpeer = idpeer, ddni = ddni, ddncs = ddncs, ncs = cumsn,
+                        nthread = nthread)
+    
+    ddy      <- tp$ddy[ddkeep, 7]
+    ddX      <- NULL
+    if (diffX) {
+      ddX    <- tp$ddXj - tp$ddXi
+    } else {
+      ddX    <- cbind(tp$ddXi, tp$ddXj)
+    }
+    ddX      <- ddX[ddkeep, ,drop = FALSE]
+    
+    ## Check rank of ddX
+    ddX      <- ddX[, fcheckrank(X = ddX, tol = tol) + 1, drop = FALSE]
+    
+    ## Fold construction
+    nfold    <- as.integer(nfold)
+    if (nfold > S) {
+      nfold  <- S
+      warning("The number of folds exceeds the number of subnets; it has been reset to the number of subnets.")
+    } 
+    if (nfold == 1) {
+      stop("At lead two folds is required.")
+    }
+    id_fold  <- fassignfold(tp$ddy[ddkeep, 1], nfold = nfold)
+    
+    ## Prediction
+    ARG      <- list(ddy = ddy, ddX = ddX, id_fold = id_fold, estimator = estimator, nthread = nthread, ...)
+    rhoddX          <- matrix(0, nrow = nrow(tp$ddy), ncol = ncol(tp$ddXi))
+    rhoddX[ddkeep,] <- tp$ddy[ddkeep, 4] * do.call(mpredict, ARG) * (tp$ddXj[ddkeep, , drop = FALSE] - 
+                                                                                      tp$ddXi[ddkeep, , drop = FALSE])
+    insChey  <- fInstChecky(rhoddX = rhoddX, ddni = ddni, nthread = nthread)
+    out      <- cbind(insBary, insChey)
+    colnames(out) <- c(c(sapply(paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_"), \(x) paste0(x, xname))),
+                       c(sapply(paste0("rhoG", ifelse(1:power[2] == 1, "", 1:power[2]), "_"), \(x) paste0(x, xname))))
+  } else {
+    out      <- insBary
+    colnames(out) <- c(sapply(paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_"), \(x) paste0(x, xname)))
+    
+  }
+  if (checkrank) {
+    keepcol    <- fcheckrank(X = out[keep, , drop = FALSE], tol = tol) + 1
+    out        <- out[, keepcol, drop = FALSE]
+  }
+  out[!keep, ] <- NA
   list(model.info  = list(power = power, estimator = estimator,
                           sepiso = sepiso, diffX = diffX,
                           nfold = nfold, tol = tol),
        instruments = out)
-}
+  }
 
 #' @rdname gen.instrument
 #' @export
 gen.instruments <- function(formula,
                             Glist, 
                             data,
+                            asymmetry = TRUE,
                             estimator = "ols",
                             power     = c(1, 1),
                             sepiso    = TRUE,
@@ -234,10 +265,15 @@ gen.instruments <- function(formula,
                             checkrank = TRUE,
                             tol       = 1e-10,
                             nthread   = 1,
+                            drop      = NULL,
                             ...) { 
-  ARG <- list(formula = formula, Glist = Glist, data = data, estimator = estimator,
-              power = power, sepiso = sepiso, diffX = diffX, nfold = nfold,
-              checkrank = checkrank, tol = tol, nthread = nthread, ...)
+  if (missing(data)) {
+    data  <- env(formula)
+  }
+  ARG <- list(formula = formula, Glist = Glist, data = data, asymmetry = asymmetry, 
+              estimator = estimator, power = power, sepiso = sepiso, diffX = diffX, 
+              nfold = nfold, checkrank = checkrank, tol = tol, nthread = nthread,
+              drop = drop, ...)
   do.call(gen.instrument, ARG)
 }
 
@@ -246,6 +282,7 @@ gen.instruments <- function(formula,
 gen.insts <- function(formula,
                       Glist, 
                       data,
+                      asymmetry = TRUE,
                       estimator = "ols",
                       power     = c(1, 1),
                       sepiso    = TRUE,
@@ -254,10 +291,15 @@ gen.insts <- function(formula,
                       checkrank = TRUE,
                       tol       = 1e-10,
                       nthread   = 1,
+                      drop      = NULL,
                       ...) { 
-  ARG <- list(formula = formula, Glist = Glist, data = data,  estimator = estimator,
-              power = power, sepiso = sepiso, diffX = diffX, nfold = nfold,
-              checkrank = checkrank, tol = tol, nthread = nthread, ...)
+  if (missing(data)) {
+    data  <- env(formula)
+  }
+  ARG <- list(formula = formula, Glist = Glist, data = data, asymmetry = asymmetry, 
+              estimator = estimator, power = power, sepiso = sepiso, diffX = diffX, 
+              nfold = nfold, checkrank = checkrank, tol = tol, nthread = nthread,
+              drop = drop, ...)
   do.call(gen.instrument, ARG)
 }
 
@@ -266,6 +308,7 @@ gen.insts <- function(formula,
 gen.inst <- function(formula,
                      Glist, 
                      data,
+                     asymmetry = TRUE,
                      estimator = "ols",
                      power     = c(1, 1),
                      sepiso    = TRUE,
@@ -274,9 +317,14 @@ gen.inst <- function(formula,
                      checkrank = TRUE,
                      tol       = 1e-10,
                      nthread   = 1,
+                     drop      = NULL,
                      ...) { 
-  ARG <- list(formula = formula, Glist = Glist, data = data,  estimator = estimator,
-              power = power, sepiso = sepiso, diffX = diffX, nfold = nfold,
-              checkrank = checkrank, tol = tol, nthread = nthread, ...)
+  if (missing(data)) {
+    data  <- env(formula)
+  }
+  ARG <- list(formula = formula, Glist = Glist, data = data, asymmetry = asymmetry, 
+              estimator = estimator, power = power, sepiso = sepiso, diffX = diffX, 
+              nfold = nfold, checkrank = checkrank, tol = tol, nthread = nthread,
+              drop = drop, ...)
   do.call(gen.instrument, ARG)
 }

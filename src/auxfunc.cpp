@@ -219,11 +219,11 @@ Eigen::ArrayXi fassignfold(const Eigen::ArrayXi& ddgroup,
 }
 
 //[[Rcpp::export]]
-Eigen::ArrayXXd Demean(const Eigen::ArrayXXd& X,
-                       const Eigen::ArrayXi& cumsn,
-                       const std::vector<Eigen::ArrayXi>& lIso,
-                       const std::vector<Eigen::ArrayXi>& lnIso,
-                       const int& nthread){
+Eigen::ArrayXXd Demean_separate(const Eigen::ArrayXXd& X,
+                                const Eigen::ArrayXi& cumsn,
+                                const std::vector<Eigen::ArrayXi>& lIso,
+                                const std::vector<Eigen::ArrayXi>& lnIso,
+                                const int& nthread){
   int ngroup(cumsn.size() - 1);
   Eigen::ArrayXXd out(X);
 #ifdef _OPENMP
@@ -249,6 +249,29 @@ Eigen::ArrayXXd Demean(const Eigen::ArrayXXd& X,
     if (lnIso[s].size() > 0) {
       out(lnIso[s], Eigen::all).rowwise() -= out(lnIso[s], Eigen::all).colwise().mean();
     }
+  }
+#endif
+  return out;
+}
+
+
+//[[Rcpp::export]]
+Eigen::ArrayXXd Demean_common(const Eigen::ArrayXXd& X,
+                              const Eigen::ArrayXi& cumsn,
+                              const int& nthread){
+  int ngroup(cumsn.size() - 1);
+  Eigen::ArrayXXd out(X);
+#ifdef _OPENMP
+  omp_set_num_threads(nthread);
+#pragma omp parallel for schedule(static)
+  for (int s = 0; s < ngroup; ++ s) {
+    int n1(cumsn(s)), ns(cumsn(s + 1) - cumsn(s));
+    out(Eigen::seq(n1, ns), Eigen::all).rowwise() -= out(Eigen::seq(n1, ns), Eigen::all).colwise().mean();
+  }
+#else
+  for (int s = 0; s < ngroup; ++ s) {
+    int n1(cumsn(s)), ns(cumsn(s + 1) - cumsn(s));
+    out(Eigen::seq(n1, ns), Eigen::all).rowwise() -= out(Eigen::seq(n1, ns), Eigen::all).colwise().mean();
   }
 #endif
   return out;
@@ -293,7 +316,7 @@ Rcpp::List fFstat(const Eigen::MatrixXd& y,
   Eigen::ArrayXXd e(y - X * b);
   Eigen::VectorXd F(Ky);
 #ifdef _OPENMP
- omp_set_num_threads(nthread);
+  omp_set_num_threads(nthread);
 #pragma omp parallel for schedule(static)
   for (int k = 0; k < Ky; ++ k) {
     Eigen::MatrixXd V(Eigen::MatrixXd::Zero(K, K));

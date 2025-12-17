@@ -39,7 +39,15 @@
 #' @param fixed.effects A logical value indicating whether the model includes subnetwork fixed effects.
 #'
 #' @param nthread Number of CPU cores (threads) used to run parts of the estimation in parallel.
+#' 
+#' @param drop A dummy vector of the same length as the sample, indicating whether an observation should be dropped.
+#' This can be used, for example, to remove false isolates or to estimate the model only on non-isolated agents.
+#' These observations cannot be directly removed from the network by the user because they may still be friends with other agents.
 #'   
+#' @param spillover A logical value indicating if the model included a spillover component in additional to the asymmetric conformity effect.
+#'    
+#' @param asymmetry A logical value indicating if the preference for conformity is asymmetric or not.
+#'    
 #' @param ... Further arguments passed to or from other methods.   
 #'
 #' @return A list containing:
@@ -94,11 +102,14 @@ asypeer.estim <- function(formula,
                           excluded.instruments,
                           Glist,
                           data,
+                          spillover = TRUE,
+                          asymmetry = TRUE,
                           weight = "IV",
                           HAC = "group-iid",
                           fixed.effects = FALSE,
                           tol = 1e-10,
                           nthread = 1,
+                          drop = NULL,
                           ...){
   ## Thread
   tp        <- fnthreads(nthread = nthread)
@@ -110,27 +121,29 @@ asypeer.estim <- function(formula,
   ## Instrument
   Z        <- NULL
   detInst  <- list()
+  zname    <- NULL
   if (missing(excluded.instruments)) {
     if (missing(data)) {
       data <- env(formula)
     }
     excluded.instruments <- NULL
     ARG    <-  list(formula = formula, Glist = Glist, data = data, 
-                    nthread = nthread, tol = tol, ...) ## Remember to add ... when the function is completed
+                    nthread = nthread, drop = drop, tol = tol, ...) ## Remember to add ... when the function is completed
     Z      <- do.call(gen.inst, ARG)
     detInst$estimator <- Z$model.info$estimator
     detInst$power     <- Z$model.info$power
     Z                 <- Z$instruments
+    zname             <- colnames(Z)
   }  else {
     if(length(excluded.instruments) != 2) stop("The `excluded.instruments` argument must be in the format ~ z1 + z2 + ...")
     if (missing(data)) {
-      data  <- env(formula)
+      data      <- env(formula)
     }
     f.t.data    <- formula2data(formula = excluded.instruments, 
-                                   data = data, fixed.effects = FALSE, 
-                                   simulations = TRUE)
+                                data = data, fixed.effects = FALSE, 
+                                simulations = TRUE)
     Z           <- f.t.data$X
-    colnames(Z) <- f.t.data$xname
+    zname       <- f.t.data$xname
   } 
   
   ## Network
@@ -170,8 +183,7 @@ asypeer.estim <- function(formula,
   } else {
     stop("This HAC option is not available.")
   }
-  
-  if (HACn == 2 & fixed.effects == 3) {
+  if (HACn == 2 & fixed.effects > 0) {
     HAC   <- "cluster"
     HACn  <- 3
   }
@@ -179,11 +191,9 @@ asypeer.estim <- function(formula,
   ## sizes
   dg       <- fnetwork(Glist = Glist)
   S        <- dg$S
+  ldg      <- dg$ldg
   SIso     <- dg$SIs
   SnIso    <- dg$SnIs
-  if (S < 2) {
-    stop("At least two subnets are required.")
-  }
   nvec     <- dg$nvec
   n        <- dg$n
   cumsn    <- dg$cumsn
@@ -202,7 +212,7 @@ asypeer.estim <- function(formula,
   ## Formula to data
   formula  <- as.formula(formula)
   f.t.data <- formula2data(formula = formula, data = data, fixed.effects = fixed.effects,
-                              simulations = FALSE)
+                           simulations = FALSE)
   
   # X, exogenous variables
   X      <- f.t.data$X
@@ -216,49 +226,76 @@ asypeer.estim <- function(formula,
   # endogenous variables
   endo   <- highlowstat1(X = as.matrix(y), G = Glist, cumsn = cumsn, nvec = nvec, 
                          ngroup = S, nthread = nthread)
+  if(asymmetry){
   endo   <- cbind(yb = endo$Xbar, ydot = endo$Xbh - endo$gh * y)
   colnames(endo) <- paste0(yname, c("_bar", "_dot"))
-  
-  # Create X_iso and X_niso
-  X_iso  <- X * (1 - dg)
-  X_niso <- X * dg
-  
-  # Instruments
-  zname       <- c(paste0("iso_",xname), paste0("niso_",xname), colnames(Z))
-  Z           <- cbind(X_iso, X_niso, Z)
-  colnames(Z) <- zname
+  } else {
+    endo   <- endo$Xbar
+    colnames(endo) <- paste0(yname, "_bar")
+  }
+  #drop
+  if (!is.null(drop)) {
+    dg       <- fdrop(drop = drop, ldg = ldg, S = S, nvec = nvec, y = y, 
+                      X = X, Z = Z, endo = endo)
+    S        <- dg$S
+    SIso     <- dg$SIs
+    SnIso    <- dg$SnIs
+    nvec     <- dg$nvec
+    n        <- dg$n
+    cumsn    <- c(0, cumsum(nvec))
+    Iso      <- dg$Is
+    lIso     <- dg$lIs
+    nIso     <- dg$nIs
+    lnIso    <- dg$lnIs
+    n_iso    <- length(Iso)
+    n_niso   <- n - n_iso
+    y        <- dg$y
+    X        <- dg$X
+    Z        <- dg$Z
+    endo     <- dg$endo
+    dg       <- dg$dg
+  }
+  invisible(gc())
+  if (spillover && SnIso == 0) {
+    stop("At least one subnet containing isolated nodes is required to estimate spillover effects.")
+  }
+  if (SnIso < 2) {
+    stop("At least two subnets containing non-isolated nodes are required.")
+  }
   
   # Demean
-  Z0     <- Z # To export
-  endo0  <- endo # To export
   if (fixed.effects) {
-    y      <- c(Demean(X = as.matrix(y), cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
-                       nthread = nthread))
-    endo   <- Demean(X = endo, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
-                     nthread = nthread)
-    X_iso  <- Demean(X = X_iso, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
-                     nthread = nthread)
-    X_niso <- Demean(X = X_niso, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
-                     nthread = nthread)
-    Z      <- Demean(X = Z, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
-                     nthread = nthread)
+    y      <- c(Demean_separate(X = as.matrix(y), cumsn = cumsn, lIso = lIso, 
+                                lnIso = lnIso, nthread = nthread))
+    endo   <- Demean_separate(X = endo, cumsn = cumsn, lIso = lIso, 
+                              lnIso = lnIso, nthread = nthread)
+    X      <- Demean_separate(X = X, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
+                              nthread = nthread)
+    Z      <- Demean_separate(X = Z, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
+                              nthread = nthread)
   }
   
-  # Check rank
+  # X variables 
+  colnames(X) <- xname
+  X_iso       <- X * (1 - dg)
+  X_niso      <- X * dg
   ## [endo, X_iso, X_niso] should be full rank
-  if (length(fcheckrank(X = cbind(endo, X_iso, X_niso), tol = tol)) < Kx + 2L) {
+  if (length(fcheckrank(X = cbind(endo, X_iso, X_niso), tol = tol)) < (Kx + 1L + asymmetry + spillover)) {
     stop("The design matrix is not full rank.")
   }
+  
+  # Instruments
+  Z           <- cbind(X_iso, X_niso, Z)
+  zname       <- c(paste0("iso_", xname), paste0("niso_", xname), zname)
+  colnames(Z) <- zname
   ## Remove unecessary instruments
   keepZ <- fcheckrank(X = Z, tol = tol) + 1
   Z     <- Z[, keepZ, drop = FALSE]
   zname <- zname[keepZ]  
-  Z0    <- Z0[, keepZ, drop = FALSE]
   
-  #excluname <-setdiff(zname,c(paste0("iso_",xname),paste0("niso_",xname)))
   ## Check the number of instruments
   Kz     <- ncol(Z)
-  if (Kz < (Kx + 3L)) {
+  if (Kz < (Kx + 1L + asymmetry + spillover)) {
     stop("Insufficient number of instruments: the model is not identified.")
   }
   if ((HAC == "cluster") & (Kz >= S)) {
@@ -269,15 +306,15 @@ asypeer.estim <- function(formula,
   dfiso    <- NULL
   dfniso   <- NULL
   if (fixed.effects) {
-    Kxiso  <- length(fcheckrank(X = X[Iso + 1,], tol = tol))
+    Kxiso  <- length(fcheckrank(X = X_iso[Iso + 1,], tol = tol))
     dfiso  <- n_iso - SIso - Kxiso
-    dfniso <- n_niso - SnIso - 3 - Kx + Kxiso
+    dfniso <- n_niso - SnIso - asymmetry -1  - spillover - Kx + Kxiso
   } else {
-    Kxiso  <- length(fcheckrank(X = X[Iso + 1,], tol = tol))
+    Kxiso  <- length(fcheckrank(X = X_iso[Iso + 1,], tol = tol))
     dfiso  <- n_iso - Kxiso
-    dfniso <- n_niso - 3 - Kx + Kxiso
+    dfniso <- n_niso - 1 - asymmetry - spillover - Kx + Kxiso
   }
-  if (dfiso <= 0) {
+  if (spillover && (dfiso <= 0)) {
     stop("Insufficient number of observations for isolated nodes.")
   }
   if (dfniso <= 0) {
@@ -286,13 +323,23 @@ asypeer.estim <- function(formula,
   
   ## Weight
   if (weight == "I"){
-    W    <- diag(nrow = Kz)
+    W    <- diag(nrow = ncol(Z))
   } else if(weight %in% c("IV", "optimal")){ 
     W    <- solve(crossprod(Z) / n)
   }
   
+  ## Optimization
+  fGMM     <- gmm_obj_nospil
+  fWopt    <- W_optimal_nospil
+  fest     <- compute_estimate_nospil
+  if (spillover){
+    fGMM   <- gmm_obj
+    fWopt  <- W_optimal
+    fest   <- compute_estimate
+  }
+  
   # solve with the first step weighting matrix
-  gmm    <- optimize(f = gmm_obj, Z = Z, y = y, endo = endo, X_iso = X_iso, 
+  gmm    <- optimize(f = fGMM, Z = Z, y = y, endo = endo, X_iso = X_iso, 
                      X_niso = X_niso, W = W, S = S, lower = -0.999, upper =  20)
   
   #get the estimate of beta_l
@@ -300,12 +347,12 @@ asypeer.estim <- function(formula,
   
   # get the optimal weighting matrice given the estimated beta_l
   if(weight == "optimal"){
-    W    <- W_optimal(betal = betal, Z = Z, y = y, endo = endo, X_iso = X_iso,
-                      X_niso = X_niso, W = W, Iso = Iso, nIso = nIso, cumsn = cumsn,
-                      dfiso = dfiso, dfniso = dfniso, HAC = HACn, S = S)
+    W    <- fWopt(betal = betal, Z = Z, y = y, endo = endo, X_iso = X_iso,
+                  X_niso = X_niso, W = W, Iso = Iso, nIso = nIso, cumsn = cumsn,
+                  dfiso = dfiso, dfniso = dfniso, HAC = HACn, S = S)
     
     #gmm with optimal W
-    gmm  <- optimize(f = gmm_obj, Z = Z, y = y, endo = endo, X_iso = X_iso, 
+    gmm  <- optimize(f = fGMM, Z = Z, y = y, endo = endo, X_iso = X_iso, 
                      X_niso = X_niso, W = W, S = S, lower = -0.999, upper =  20)
     
     #get the optimal estimate of beta_l
@@ -313,9 +360,9 @@ asypeer.estim <- function(formula,
   }
   
   # and the associated estimates of phi
-  estim   <- compute_estimate(betal = betal, Z = Z, y = y, endo = endo, X_iso = X_iso,
-                              X_niso = X_niso, W = W, Iso = Iso, nIso = nIso, 
-                              cumsn = cumsn, dfiso = dfiso, dfniso = dfniso, HAC = HACn, S = S)
+  estim   <- fest(betal = betal, Z = Z, y = y, endo = endo, X_iso = X_iso,
+                  X_niso = X_niso, W = W, Iso = Iso, nIso = nIso, 
+                  cumsn = cumsn, dfiso = dfiso, dfniso = dfniso, HAC = HACn, S = S)
   
   ## Shape the output
   gmm     <- list(redparms = estim$redparm,
@@ -326,21 +373,40 @@ asypeer.estim <- function(formula,
                   Sargan   = list(stat   = ifelse(estim$Jdf > 0, estim$JStat, NA),
                                   df     = estim$Jdf,
                                   pvalue = ifelse(estim$Jdf > 0, 1 - pchisq(estim$JStat, estim$Jdf), NA)))
+  if(spillover){
+    if(asymmetry){
+    names(gmm$redparms) <- colnames(gmm$redcov) <- rownames(gmm$redcov) <- 
+      c("betal", "theta1", "theta2", paste0("gamma:", xname)) 
+    names(gmm$strparms) <- colnames(gmm$strcov) <- rownames(gmm$strcov) <- 
+      c("betal", "betah", "delta", paste0("gamma:", xname))
+    } else {
+      names(gmm$redparms) <- colnames(gmm$redcov) <- rownames(gmm$redcov) <- 
+        c("beta", "theta1", paste0("gamma:", xname)) 
+      names(gmm$strparms) <- colnames(gmm$strcov) <- rownames(gmm$strcov) <- 
+        c("beta", "delta", paste0("gamma:", xname))
+    }
+  } else {
+    if(asymmetry){
+    names(gmm$redparms) <- colnames(gmm$redcov) <- rownames(gmm$redcov) <- 
+      c("theta1","theta2", paste0("gamma:", xname)) 
+    names(gmm$strparms) <- colnames(gmm$strcov) <- rownames(gmm$strcov) <- 
+      c("betal", "betah", paste0("gamma:", xname))
+    } else {
+      names(gmm$redparms) <- colnames(gmm$redcov) <- rownames(gmm$redcov) <- 
+        c("theta1", paste0("gamma:", xname)) 
+      names(gmm$strparms) <- colnames(gmm$strcov) <- rownames(gmm$strcov) <- 
+        c("beta", paste0("gamma:", xname))
+    }
+  }
   
-  names(gmm$redparms) <- colnames(gmm$redcov) <- rownames(gmm$redcov) <- 
-    c("betal", "theta1", "theta2", paste0("gamma:", xname)) 
-  names(gmm$strparms) <- colnames(gmm$strcov) <- rownames(gmm$strcov) <- 
-    c("betal", "betah", "delta", paste0("gamma:", xname))
-  
-  
-  out     <- list(model.info  = c(list(n = n, ngroup = S, nvec = nvec, formula = formula, 
-                                     excluded.instruments = excluded.instruments, 
-                                     weight = weight, HAC = HAC, fixed.effects = fixed.effects, 
-                                     tol = tol, xname = xname, yname = yname, zname = zname, 
-                                     dfiso = dfiso, dfniso = dfniso), detInst),
+  out     <- list(model.info  = c(list(n = n, n_iso=n_iso, ngroup = S, nvec = nvec, formula = formula, 
+                                       excluded.instruments = excluded.instruments, spillover=spillover,
+                                       weight = weight, HAC = HAC, fixed.effects = fixed.effects, asymmetry=asymmetry,
+                                       tol = tol, xname = xname, yname = yname, zname = zname, 
+                                       dfiso = dfiso, dfniso = dfniso), detInst),
                   gmm         = gmm,
-                  data        = list(dependent = f.t.data$y, exogenous = f.t.data$X,
-                                     endogenous.variables = endo0, instruments = Z0, 
+                  data        = list(dependent = y, exogenous = X,
+                                     endogenous.variables = endo, instruments = Z, 
                                      degree = dg, isolates = lapply(lIso, \(x) x + 1),
                                      non.isolates = lapply(lnIso, \(x) x + 1)))
   class(out) <- "asypeer.estim"
@@ -430,6 +496,9 @@ print.summary.asypeer.estim <- function(x, ...) {
                                          paste("(G^p)X with max(p) =", max(x$model.info$power),"and", 
                                                ifelse(x$model.info$estimator == "rf", "Random Forest", 
                                                       toupper(x$model.info$estimator)), "predictions")),
+      "\n# Subnetworks:", x$model.info$ngroup,
+      "\n# Isolates:", x$model.info$n_iso,
+      ", # Non-isolates:", x$model.info$n - x$model.info$n_iso,
       "\n\nEstimator: ", esti,
       "\nFixed effects: ", ifelse(FE, "Yes", "No"), "\n", sep = "")
   
@@ -448,16 +517,56 @@ print.summary.asypeer.estim <- function(x, ...) {
   cat("---\nSignif. codes:  0 \u2018***\u2019 0.001 \u2018**\u2019 0.01 \u2018*\u2019 0.05 \u2018.\u2019 0.1 \u2018 \u2019 1\n")
   
   cat("\nHAC: ", hete, sep = "")
-  if (!is.null(sig_iso)) {
-    if (!is.null(sig_niso)) {
-      cat(", sigma (isolates): ", format(sig_iso, digits = 5), ", (non-isolates): ", format(sig_niso, digits = 5), sep = "")
+  if(hete%in%c("IID","Group - IID")){
+    if (!is.null(sig_iso)) {
+      if (!is.null(sig_niso)) {
+        cat(", sigma (isolates): ", format(sig_iso, digits = 5), ", (non-isolates): ", format(sig_niso, digits = 5), sep = "")
+      } else {
+        cat(", sigma (isolates): ", format(sig_iso, digits = 5), sep = "")
+      }
     } else {
-      cat(", sigma (isolated): ", format(sig_iso, digits = 5), sep = "")
+      if (!is.null(sig_overall)) {
+        cat(", sigma: ", format(sig_overall, digits = 5), sep = "")
+      }
     }
+  }
+  if(x$model.info$asymmetry){
+  if(x$model.info$spillover){
+    boundl<-unname((x$gmm$strparms["delta"]+min(x$gmm$strparms["betal"],x$gmm$strparms["betah"]))/
+                     (1+max(x$gmm$strparms["betal"],x$gmm$strparms["betah"])))
+    boundh<-unname((x$gmm$strparms["delta"]+max(x$gmm$strparms["betal"],x$gmm$strparms["betah"]))/
+                     (1+min(x$gmm$strparms["betal"],x$gmm$strparms["betah"])))
   } else {
-    if (!is.null(sig_overall)) {
-      cat(", sigma: ", format(sig_overall, digits = 5), sep = "")
+    boundl<-unname(min(x$gmm$strparms["betal"],x$gmm$strparms["betah"])/
+                     (1+max(x$gmm$strparms["betal"],x$gmm$strparms["betah"])))
+    boundh<-unname(max(x$gmm$strparms["betal"],x$gmm$strparms["betah"])/
+                     (1+min(x$gmm$strparms["betal"],x$gmm$strparms["betah"])))
+  }
+  if(x$gmm$strparms["betal"]>-1){
+    if((-1 < boundl && boundl < 1 && -1 < boundh && boundh < 1)){
+      cat("\nTotal Peer Effects Range:", " [",deparse(round(boundl,4)),", ",deparse(round(boundh,4)),"]", sep = "")
+    } else{
+      warning("Total Peer effects are outside the [-1,1] interval, there might be multiple equilibria.")
     }
+  } else{
+    warning("betal<-1, the model is mispecified.")
+  }
+  } else {
+    if(x$model.info$spillover){
+      boundhl<-unname((x$gmm$strparms["delta"]+x$gmm$strparms["beta"])/
+                       (1+x$gmm$strparms["beta"]))
+    } else {
+      boundhl<-unname(x$gmm$strparms["beta"]/(1+x$gmm$strparms["beta"]))
+    }
+    if(x$gmm$strparms["beta"]>-1){
+      if((-1 < boundhl && boundhl < 1)){
+        cat("\nTotal Peer Effects: ",deparse(round(boundhl,4)), sep = "")
+      } else{
+        warning("Total Peer effects are outside the [-1,1] interval, there might be multiple equilibria.")
+      }
+    } else{
+      warning("beta<-1, the model is mispecified.")
+    } 
   }
   class(x) <- "print.summary.asypeer.estim"
   invisible(x)

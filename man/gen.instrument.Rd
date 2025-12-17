@@ -11,6 +11,7 @@ gen.instrument(
   formula,
   Glist,
   data,
+  asymmetry = TRUE,
   estimator = "ols",
   power = c(1, 1),
   sepiso = TRUE,
@@ -19,6 +20,7 @@ gen.instrument(
   checkrank = TRUE,
   tol = 1e-10,
   nthread = 1,
+  drop = NULL,
   ...
 )
 
@@ -26,6 +28,7 @@ gen.instruments(
   formula,
   Glist,
   data,
+  asymmetry = TRUE,
   estimator = "ols",
   power = c(1, 1),
   sepiso = TRUE,
@@ -34,6 +37,7 @@ gen.instruments(
   checkrank = TRUE,
   tol = 1e-10,
   nthread = 1,
+  drop = NULL,
   ...
 )
 
@@ -41,6 +45,7 @@ gen.insts(
   formula,
   Glist,
   data,
+  asymmetry = TRUE,
   estimator = "ols",
   power = c(1, 1),
   sepiso = TRUE,
@@ -49,6 +54,7 @@ gen.insts(
   checkrank = TRUE,
   tol = 1e-10,
   nthread = 1,
+  drop = NULL,
   ...
 )
 
@@ -56,6 +62,7 @@ gen.inst(
   formula,
   Glist,
   data,
+  asymmetry = TRUE,
   estimator = "ols",
   power = c(1, 1),
   sepiso = TRUE,
@@ -64,6 +71,7 @@ gen.inst(
   checkrank = TRUE,
   tol = 1e-10,
   nthread = 1,
+  drop = NULL,
   ...
 )
 }
@@ -82,6 +90,8 @@ is an \eqn{n_s \times n_s} adjacency matrix, and \eqn{n_s} is the number of node
 data frame via \link[base]{as.data.frame}) containing the variables in the model. If a variable
 is not found in \code{data}, it is searched for in \code{environment(formula)}, typically the
 environment from which \code{gen.instrument} is called.}
+
+\item{asymmetry}{A logical value indicating if the preference for conformity is asymmetric or not.}
 
 \item{estimator}{A character string indicating the estimator used to approximate
 the probability that a friend has a higher outcome than the agent. Valid options are \code{"ols"}
@@ -107,6 +117,10 @@ matrices of explanatory variables and instruments, ensuring a full-rank matrix
 (see \link[base]{qr}).}
 
 \item{nthread}{Number of CPU cores (threads) used to run parts of the estimation in parallel.}
+
+\item{drop}{A dummy vector of the same length as the sample, indicating whether an observation should be dropped.
+This can be used, for example, to remove false isolates or to estimate the model only on non-isolated agents.
+These observations cannot be directly removed from the network by the user because they may still be friends with other agents.}
 
 \item{...}{Further arguments passed to or from other methods.}
 }

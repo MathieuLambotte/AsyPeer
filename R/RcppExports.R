@@ -25,8 +25,12 @@ fassignfold <- function(ddgroup, nfold) {
     .Call(`_AsyPeer_fassignfold`, ddgroup, nfold)
 }
 
-Demean <- function(X, cumsn, lIso, lnIso, nthread) {
-    .Call(`_AsyPeer_Demean`, X, cumsn, lIso, lnIso, nthread)
+Demean_separate <- function(X, cumsn, lIso, lnIso, nthread) {
+    .Call(`_AsyPeer_Demean_separate`, X, cumsn, lIso, lnIso, nthread)
+}
+
+Demean_common <- function(X, cumsn, nthread) {
+    .Call(`_AsyPeer_Demean_common`, X, cumsn, nthread)
 }
 
 fGnormalise <- function(G, nthread = 1L) {
@@ -53,12 +57,24 @@ gmm_obj <- function(betal, Z, y, endo, X_iso, X_niso, W, S) {
     .Call(`_AsyPeer_gmm_obj`, betal, Z, y, endo, X_iso, X_niso, W, S)
 }
 
+gmm_obj_nospil <- function(betal, Z, y, endo, X_iso, X_niso, W, S) {
+    .Call(`_AsyPeer_gmm_obj_nospil`, betal, Z, y, endo, X_iso, X_niso, W, S)
+}
+
 W_optimal <- function(betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, S) {
     .Call(`_AsyPeer_W_optimal`, betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, S)
 }
 
+W_optimal_nospil <- function(betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, S) {
+    .Call(`_AsyPeer_W_optimal_nospil`, betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, S)
+}
+
 compute_estimate <- function(betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, S) {
     .Call(`_AsyPeer_compute_estimate`, betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, S)
+}
+
+compute_estimate_nospil <- function(betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, S) {
+    .Call(`_AsyPeer_compute_estimate_nospil`, betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, S)
 }
 
 fNashE <- function(y, alpha, G, peffects, cumsn, nvec, idpeer, d, ngroup, tol, maxit, nthread, print) {

@@ -1,10 +1,47 @@
 #' @importFrom formula.tools env
 #' @importFrom stats model.frame terms model.response model.matrix as.formula lm glm runif predict binomial
-#' @importFrom randomForest randomForest
+#' @importFrom ranger ranger
 #' @importFrom parallel makeCluster stopCluster
 #' @importFrom doParallel registerDoParallel  
 #' @importFrom doRNG registerDoRNG "%dorng%"
 #' @importFrom foreach foreach
+fdrop <- function(drop, ldg, nvec, S, y, X, Z, endo) {
+  n        <- sum(nvec)
+  if (any(!(drop %in% 0:1) | !is.finite(drop))) {
+    stop("`drop` must be a binary (0/1) variable.")
+  }
+  if (length(drop) != n) {
+    stop("`drop` must be a vector of length n.")
+  }
+  ncs      <- c(0, cumsum(nvec))
+  lkeep    <- lapply(1:S, function(s) drop[(ncs[s] + 1):ncs[s + 1]] != 1)
+  keep     <- unlist(lkeep)
+  gkeep    <- sapply(1:S, function(s) sum(lkeep[[s]]) >= 1) # Groups We keep
+  ldg      <- lapply(1:S, function(s) ldg[[s]][lkeep[[s]]])[gkeep]
+  dg       <- unlist(ldg)
+  S        <- length(ldg)
+  nvec     <- sapply(ldg, length)
+  n        <- sum(nvec)
+  ncs      <- c(0, cumsum(nvec))
+  SIs      <- sum(sapply(ldg, function(s) any(s == 0)))
+  SnIs     <- sum(sapply(ldg, function(s) any(s != 0)))
+  lIs      <- lapply(1:S, function(s) which(ldg[[s]] == 0) - 1 + ncs[s])
+  Is       <- unlist(lIs)
+  lnIs     <- lapply(1:S, function(s) which(ldg[[s]] != 0) - 1 + ncs[s])
+  nIs      <- unlist(lnIs)
+  y        <- y[keep]
+  X        <- X[keep, , drop = FALSE]
+  Z        <- Z[keep, , drop = FALSE]
+  endo     <- endo[keep, , drop = FALSE]
+  list(dg = dg, S = S, nvec = nvec, n = n,
+       Is = Is, nIs = nIs, lIs = lIs, lnIs = lnIs, SIs = SIs, 
+       SnIs = SnIs,  y = y, X = X, Z = Z, endo = endo)
+}
+
+fcheckrank <- function(X, tol = 1e-10) {
+  which(fcheckrankEigen(X, tol)) - 1
+}
+
 mpredict  <- function(ddy, ddX, id_fold, estimator, nthread, ...){
   #Given a vector of fold id, create a list of the corresponding row of each ddyad
   # belonging in each fold
@@ -15,8 +52,8 @@ mpredict  <- function(ddy, ddX, id_fold, estimator, nthread, ...){
   registerDoParallel(cl)
   registerDoRNG(seed)
   lrho    <- foreach(k         = id_list, 
-                     # .export   = "mpredict_fold",
-                     .packages = c("randomForest", "AsyPeer") #Remember to add "NameOfThePackage"
+                      .export   = "mpredict_fold", #comment out
+                     .packages = c("ranger", "AsyPeer") #Remember to add "NameOfThePackage"
   ) %dorng% {
     #each observation in fold k is predicted using a model trained
     #on the observations of the other folds
@@ -55,16 +92,16 @@ mpredict_fold <-function(ddX, ddy, id_listk, estimator, ...){
   } else if (estimator == "RF") {
     ddy_train   <- as.factor(ddy_train)
     ARG         <- list(formula = ddy_train ~ ., data = ddX_train, ...)
-    model_train <- do.call(randomForest, ARG)  
-    rho_k       <- predict(model_train, newdata=ddX_k,type="prob")[,"1"]
+    model_train <- do.call(ranger, ARG)  
+    rho_k       <- predict(model_train, data=ddX_k)$predictions
   }
   return(rho_k)
 }
 
 formula2data <- function(formula,
-                            data, 
-                            simulations   = FALSE,
-                            fixed.effects = FALSE) {
+                         data, 
+                         simulations   = FALSE,
+                         fixed.effects = FALSE) {
   
   ## Extract data from the formula
   if (missing(data)) {
@@ -150,13 +187,13 @@ fprintcoeft <- function(coef) {
 }
 
 testStargan <-function(object, y, X_iso, X_niso, endo, Z,
-                      S, cumsn, lIso, lnIso, weight, HACn){
+                       S, cumsn, lIso, lnIso, weight, HACn){
   ## degree of freedom
   Iso    <- unlist(lIso)
   nIso   <- unlist(lnIso)
   dfiso  <- object$model.info$dfiso
   dfniso <- object$model.info$dfniso
-
+  spillover <- object$model.info$spillover
   # GMM OLS
   Z      <- cbind(endo, Z)
   Z      <- Z[, fcheckrank(X = Z, tol = object$model.info$tol) + 1, 
@@ -167,25 +204,35 @@ testStargan <-function(object, y, X_iso, X_niso, endo, Z,
   } else if(weight %in% c("IV", "optimal")){ 
     W    <- solve(crossprod(Z) / S)
   }
-  gmm    <- optimize(f = gmm_obj, Z = Z, y = y, endo = endo, X_iso = X_iso, 
+  
+  fGMM     <- gmm_obj_nospil
+  fWopt    <- W_optimal_nospil
+  fest     <- compute_estimate_nospil
+  if (spillover){
+    fGMM   <- gmm_obj
+    fWopt  <- W_optimal
+    fest   <- compute_estimate
+  }
+  
+  gmm    <- optimize(f = fGMM, Z = Z, y = y, endo = endo, X_iso = X_iso, 
                      X_niso = X_niso, W = W, S = S, lower = -0.999, upper =  20)
   betal  <- gmm$minimum
   
   if(weight == "optimal"){
-    W    <- W_optimal(betal = betal, Z = Z, y = y, endo = endo, X_iso = X_iso,
+    W    <- fWopt(betal = betal, Z = Z, y = y, endo = endo, X_iso = X_iso,
                       X_niso = X_niso, W = W, Iso = Iso, nIso = nIso, cumsn = cumsn,
                       dfiso = dfiso, dfniso = dfniso, HAC = HACn, S = S)
     
     #gmm with optimal W
-    gmm  <- optimize(f = gmm_obj, Z = Z, y = y, endo = endo, X_iso = X_iso, 
+    gmm  <- optimize(f = fGMM, Z = Z, y = y, endo = endo, X_iso = X_iso, 
                      X_niso = X_niso, W = W, S = S, lower = -0.999, upper =  20)
     
     #get the optimal estimate of beta_l
     betal <- gmm$minimum
   }
-  ols     <- compute_estimate(betal = betal, Z = Z, y = y, endo = endo, X_iso = X_iso,
-                          X_niso = X_niso, W = W, Iso = Iso, nIso = nIso, 
-                          cumsn = cumsn, dfiso = dfiso, dfniso = dfniso, HAC = HACn, S = S)
+  ols     <- fest(betal = betal, Z = Z, y = y, endo = endo, X_iso = X_iso,
+                              X_niso = X_niso, W = W, Iso = Iso, nIso = nIso, 
+                              cumsn = cumsn, dfiso = dfiso, dfniso = dfniso, HAC = HACn, S = S)
   
   #J stat
   Jstat      <- ols$JStat - object$gmm$Sargan$stat
@@ -199,6 +246,8 @@ testStargan <-function(object, y, X_iso, X_niso, endo, Z,
 #' @importFrom stats pf
 fdiagnostic <- function(object, KPtest, nthread) {
   fixed.effects <- object$model.info$fixed.effects
+  spillover <- object$model.info$spillover
+  asymmetry <- object$model.info$asymmetry
   nvec      <- object$model.info$nvec
   lIso      <- lapply(object$data$isolates, \(x) x - 1)
   lnIso     <- lapply(object$data$non.isolates, \(x) x - 1)
@@ -215,15 +264,15 @@ fdiagnostic <- function(object, KPtest, nthread) {
   weight    <- object$model.info$weight
   S         <- object$model.info$ngroup
   if (fixed.effects) {
-    y       <- c(Demean(X = y, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
+    y       <- c(Demean_separate(X = y, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
                         nthread = nthread))
-    endo    <- Demean(X = endo, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
+    endo    <- Demean_separate(X = endo, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
                       nthread = nthread)
-    X_iso   <- Demean(X = X_iso, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
+    X_iso   <- Demean_separate(X = X_iso, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
                       nthread = nthread)
-    X_niso  <- Demean(X = X_niso, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
+    X_niso  <- Demean_separate(X = X_niso, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
                       nthread = nthread)
-    Z       <- Demean(X = Z, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
+    Z       <- Demean_separate(X = Z, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
                       nthread = nthread)
   }
   index  <- which(!(object$model.info$zname %in% 
@@ -239,21 +288,25 @@ fdiagnostic <- function(object, KPtest, nthread) {
     zname <- object$model.info$zname
     X     <- cbind(X_iso, X_niso)[, c(paste0("iso_", xname), paste0("niso_", xname)) %in% zname, drop = FALSE]
     tpKP  <- fKPstat(endo_ = endo, X = X, Z_ = Z, index = index, cumsn = cumsn, 
-                      HAC = HACn)
+                     HAC = HACn)
   }
-
+  
   ## Endogeneity test
   tpend  <- testStargan(object = object, y = y, X_iso = X_iso, X_niso = X_niso, 
                         endo = endo, Z = Z, S = S, cumsn = cumsn, lIso = lIso,
                         lnIso = lnIso, weight = weight, HACn = HACn)
-  out    <- cbind(df1        = unlist(c(rep(tpF$df1, 2), tpKP$df, tpend["df"], 
+  out    <- cbind(df1        = unlist(c(rep(tpF$df1, 1+asymmetry), tpKP$df, tpend["df"], 
                                         object$gmm$Sargan["df"])),
-                  df2        = c(rep(tpF$df2, 2), rep(NA, 2 + KPtest)),
+                  df2        = c(rep(tpF$df2, 1+asymmetry), rep(NA, 2 + KPtest)),
                   statistic  = unlist(c(tpF$F, tpKP$stat, tpend["Jstat"], object$gmm$Sargan["stat"])),
-                  "p-value"  = unlist(c(rep(NA, 2 + KPtest), tpend["pvalue"], object$gmm$Sargan["pvalue"])))
-  out[1:2, 4]   <- pf(out[1:2, 3], out[1:2, 1], out[1:2, 2], lower.tail = FALSE)
+                  "p-value"  = unlist(c(rep(NA, 1+asymmetry + KPtest), tpend["pvalue"], object$gmm$Sargan["pvalue"])))
+  out[1:(1+asymmetry), 4]   <- pf(out[1:(1+asymmetry), 3], out[1:(1+asymmetry), 1], out[1:(1+asymmetry), 2], lower.tail = FALSE)
   out[3, 4]     <- pchisq(out[3, 3], out[3, 1], lower.tail = FALSE)
-  rn            <- paste0("Weak instruments (", c("ybar", "ydot"), ")")
+  rn            <- if (asymmetry) {
+    paste0("Weak instruments (", c("ybar", "ydot"), ")")
+  } else {
+    "Weak instruments (ybar)"
+  }
   if (KPtest) {
     rn          <- c(rn, "Kleibergen-Paap rk Wald", "Hausman", "Sargan J")
   } else {
@@ -262,4 +315,3 @@ fdiagnostic <- function(object, KPtest, nthread) {
   rownames(out) <- rn
   out
 }
-

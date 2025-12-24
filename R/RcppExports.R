@@ -53,28 +53,28 @@ fInstChecky <- function(rhoddX, ddni, nthread) {
     .Call(`_AsyPeer_fInstChecky`, rhoddX, ddni, nthread)
 }
 
-gmm_obj <- function(betal, Z, y, endo, X_iso, X_niso, W, S) {
-    .Call(`_AsyPeer_gmm_obj`, betal, Z, y, endo, X_iso, X_niso, W, S)
+gmm_obj <- function(betal, Z, y, endo, X_iso, X_niso, W, c_gamma, nc_gamma, S) {
+    .Call(`_AsyPeer_gmm_obj`, betal, Z, y, endo, X_iso, X_niso, W, c_gamma, nc_gamma, S)
 }
 
-gmm_obj_nospil <- function(betal, Z, y, endo, X_iso, X_niso, W, S) {
-    .Call(`_AsyPeer_gmm_obj_nospil`, betal, Z, y, endo, X_iso, X_niso, W, S)
+gmm_obj_nospil <- function(betal, Z, y, endo, X_iso, X_niso, W, c_gamma, nc_gamma, S) {
+    .Call(`_AsyPeer_gmm_obj_nospil`, betal, Z, y, endo, X_iso, X_niso, W, c_gamma, nc_gamma, S)
 }
 
-W_optimal <- function(betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, S) {
-    .Call(`_AsyPeer_W_optimal`, betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, S)
+W_optimal <- function(betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, c_gamma, nc_gamma, S) {
+    .Call(`_AsyPeer_W_optimal`, betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, c_gamma, nc_gamma, S)
 }
 
-W_optimal_nospil <- function(betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, S) {
-    .Call(`_AsyPeer_W_optimal_nospil`, betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, S)
+W_optimal_nospil <- function(betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, c_gamma, nc_gamma, S) {
+    .Call(`_AsyPeer_W_optimal_nospil`, betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, c_gamma, nc_gamma, S)
 }
 
-compute_estimate <- function(betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, S) {
-    .Call(`_AsyPeer_compute_estimate`, betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, S)
+compute_estimate <- function(betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, c_gamma, nc_gamma, S) {
+    .Call(`_AsyPeer_compute_estimate`, betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, c_gamma, nc_gamma, S)
 }
 
-compute_estimate_nospil <- function(betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, S) {
-    .Call(`_AsyPeer_compute_estimate_nospil`, betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, S)
+compute_estimate_nospil <- function(betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, c_gamma, nc_gamma, S) {
+    .Call(`_AsyPeer_compute_estimate_nospil`, betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, c_gamma, nc_gamma, S)
 }
 
 fNashE <- function(y, alpha, G, peffects, cumsn, nvec, idpeer, d, ngroup, tol, maxit, nthread, print) {

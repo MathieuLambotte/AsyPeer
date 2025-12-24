@@ -50,3 +50,6 @@ inst/doc
 /[^/]*.R
 # /doc/
 /doc/
+
+# MAC File
+*.DS_Store

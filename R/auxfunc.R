@@ -52,7 +52,7 @@ mpredict  <- function(ddy, ddX, id_fold, estimator, nthread, ...){
   registerDoParallel(cl)
   registerDoRNG(seed)
   lrho    <- foreach(k         = id_list, 
-                      .export   = "mpredict_fold", #comment out
+                     .export   = "mpredict_fold", #comment out
                      .packages = c("ranger", "AsyPeer") #Remember to add "NameOfThePackage"
   ) %dorng% {
     #each observation in fold k is predicted using a model trained
@@ -186,14 +186,16 @@ fprintcoeft <- function(coef) {
   print(out)
 }
 
-testStargan <-function(object, y, X_iso, X_niso, endo, Z,
-                       S, cumsn, lIso, lnIso, weight, HACn){
+testSargan <-function(object, y, X_iso, X_niso, endo, Z,
+                      S, cumsn, lIso, lnIso, weight, HACn){
   ## degree of freedom
   Iso    <- unlist(lIso)
   nIso   <- unlist(lnIso)
   dfiso  <- object$model.info$dfiso
   dfniso <- object$model.info$dfniso
   spillover <- object$model.info$spillover
+  cgamma    <- which(object$model.info$xname %in% object$model.info$common.gamma) - 1
+  ncgamma   <- which(object$model.info$xname %in% object$model.info$ncommon.gamma) - 1
   # GMM OLS
   Z      <- cbind(endo, Z)
   Z      <- Z[, fcheckrank(X = Z, tol = object$model.info$tol) + 1, 
@@ -215,30 +217,35 @@ testStargan <-function(object, y, X_iso, X_niso, endo, Z,
   }
   
   gmm    <- optimize(f = fGMM, Z = Z, y = y, endo = endo, X_iso = X_iso, 
-                     X_niso = X_niso, W = W, S = S, lower = -0.999, upper =  20)
+                     X_niso = X_niso, W = W, S = S, c_gamma = cgamma, 
+                     nc_gamma = ncgamma, lower = -0.999, upper =  20)
   betal  <- gmm$minimum
   
   if(weight == "optimal"){
     W    <- fWopt(betal = betal, Z = Z, y = y, endo = endo, X_iso = X_iso,
-                      X_niso = X_niso, W = W, Iso = Iso, nIso = nIso, cumsn = cumsn,
-                      dfiso = dfiso, dfniso = dfniso, HAC = HACn, S = S)
+                  X_niso = X_niso, W = W, Iso = Iso, nIso = nIso, cumsn = cumsn,
+                  dfiso = dfiso, dfniso = dfniso, HAC = HACn, S = S,
+                  c_gamma = cgamma, nc_gamma = ncgamma)
     
     #gmm with optimal W
     gmm  <- optimize(f = fGMM, Z = Z, y = y, endo = endo, X_iso = X_iso, 
-                     X_niso = X_niso, W = W, S = S, lower = -0.999, upper =  20)
+                     X_niso = X_niso, W = W, S = S, c_gamma = cgamma, 
+                     nc_gamma = ncgamma, lower = -0.999, upper =  20)
     
     #get the optimal estimate of beta_l
     betal <- gmm$minimum
   }
   ols     <- fest(betal = betal, Z = Z, y = y, endo = endo, X_iso = X_iso,
-                              X_niso = X_niso, W = W, Iso = Iso, nIso = nIso, 
-                              cumsn = cumsn, dfiso = dfiso, dfniso = dfniso, HAC = HACn, S = S)
+                  X_niso = X_niso, W = W, Iso = Iso, nIso = nIso, 
+                  cumsn = cumsn, dfiso = dfiso, dfniso = dfniso, HAC = HACn, 
+                  c_gamma = cgamma, nc_gamma = ncgamma, S = S)
   
   #J stat
   Jstat      <- ols$JStat - object$gmm$Sargan$stat
   df         <- ols$Jdf - object$gmm$Sargan$df
   pvalue     <- 1 - pchisq(Jstat, df)
   out        <- c(Jstat, df, pvalue)
+  print(ols)
   names(out) <- c("Jstat", "df", "pvalue")
   return(out)
 }
@@ -265,15 +272,15 @@ fdiagnostic <- function(object, KPtest, nthread) {
   S         <- object$model.info$ngroup
   if (fixed.effects) {
     y       <- c(Demean_separate(X = y, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
-                        nthread = nthread))
+                                 nthread = nthread))
     endo    <- Demean_separate(X = endo, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
-                      nthread = nthread)
+                               nthread = nthread)
     X_iso   <- Demean_separate(X = X_iso, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
-                      nthread = nthread)
+                               nthread = nthread)
     X_niso  <- Demean_separate(X = X_niso, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
-                      nthread = nthread)
+                               nthread = nthread)
     Z       <- Demean_separate(X = Z, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
-                      nthread = nthread)
+                               nthread = nthread)
   }
   index  <- which(!(object$model.info$zname %in% 
                       c(paste0("iso_", object$model.info$xname), 
@@ -289,28 +296,28 @@ fdiagnostic <- function(object, KPtest, nthread) {
     X     <- cbind(X_iso, X_niso)[, c(paste0("iso_", xname), paste0("niso_", xname)) %in% zname, drop = FALSE]
     tpKP  <- fKPstat(endo_ = endo, X = X, Z_ = Z, index = index, cumsn = cumsn, 
                      HAC = HACn)
+    tpKP$pvalue <- pchisq(tpKP$stat, tpKP$df, lower.tail = FALSE)
   }
   
   ## Endogeneity test
-  tpend  <- testStargan(object = object, y = y, X_iso = X_iso, X_niso = X_niso, 
-                        endo = endo, Z = Z, S = S, cumsn = cumsn, lIso = lIso,
-                        lnIso = lnIso, weight = weight, HACn = HACn)
-  out    <- cbind(df1        = unlist(c(rep(tpF$df1, 1+asymmetry), tpKP$df, tpend["df"], 
+  # tpend  <- testSargan(object = object, y = y, X_iso = X_iso, X_niso = X_niso, 
+  #                      endo = endo, Z = Z, S = S, cumsn = cumsn, lIso = lIso,
+  #                      lnIso = lnIso, weight = weight, HACn = HACn)
+  out    <- cbind(df1        = unlist(c(rep(tpF$df1, 1 + asymmetry), tpKP$df, 
                                         object$gmm$Sargan["df"])),
-                  df2        = c(rep(tpF$df2, 1+asymmetry), rep(NA, 2 + KPtest)),
-                  statistic  = unlist(c(tpF$F, tpKP$stat, tpend["Jstat"], object$gmm$Sargan["stat"])),
-                  "p-value"  = unlist(c(rep(NA, 1+asymmetry + KPtest), tpend["pvalue"], object$gmm$Sargan["pvalue"])))
-  out[1:(1+asymmetry), 4]   <- pf(out[1:(1+asymmetry), 3], out[1:(1+asymmetry), 1], out[1:(1+asymmetry), 2], lower.tail = FALSE)
-  out[3, 4]     <- pchisq(out[3, 3], out[3, 1], lower.tail = FALSE)
+                  df2        = c(rep(tpF$df2, 1 + asymmetry), rep(NA, 1 + KPtest)),
+                  statistic  = unlist(c(tpF$F, tpKP$stat, object$gmm$Sargan["stat"])),
+                  "p-value"  = unlist(c(rep(NA, 1 + asymmetry), tpKP["pvalue"], object$gmm$Sargan["pvalue"])))
+  out[1:(1 + asymmetry), 4]   <- pf(out[1:(1 + asymmetry), 3], out[1:(1 + asymmetry), 1], out[1:(1 + asymmetry), 2], lower.tail = FALSE)
   rn            <- if (asymmetry) {
-    paste0("Weak instruments (", c("ybar", "ydot"), ")")
+    paste0("Weak instruments (", c("ybar", "ycheck"), ")")
   } else {
-    "Weak instruments (ybar)"
+    "Weak instruments"
   }
   if (KPtest) {
-    rn          <- c(rn, "Kleibergen-Paap rk Wald", "Hausman", "Sargan J")
+    rn          <- c(rn, "Kleibergen-Paap rk Wald", "Sargan J")
   } else {
-    rn          <- c(rn, "Hausman", "Sargan J")
+    rn          <- c(rn, "Sargan J")
   }
   rownames(out) <- rn
   out

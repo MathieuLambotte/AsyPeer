@@ -63,6 +63,7 @@ peer.asyavg <- function(formula, Glist, data, nthread = 1) {
       stop("Glist is neither a matrix nor a list")
     }
   }
+  Glist      <- fGnormalise(Glist, nthread)
   
   formula    <- as.formula(formula)
   hasy       <- (length(as.formula(formula)) == 3)

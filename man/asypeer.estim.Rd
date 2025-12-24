@@ -9,6 +9,7 @@ asypeer.estim(
   excluded.instruments,
   Glist,
   data,
+  common.gamma,
   spillover = TRUE,
   asymmetry = TRUE,
   weight = "IV",
@@ -41,6 +42,9 @@ adjacency matrix, where \eqn{n_s} is the number of nodes in the \code{s}-th subn
 data frame via \link[base]{as.data.frame}) containing the variables in the model. If a variable
 is not found in \code{data}, it is taken from \code{environment(formula)}, typically the environment
 from which \code{asypeer.estim} is called.}
+
+\item{common.gamma}{A character vector indicating the control variables assumed to have the same marginal effect on marginal utility for isolated and non-isolated agents.
+If omitted, all control variables are included. A value of \code{NULL} or \code{character(0)} indicates that none of the variables.}
 
 \item{spillover}{A logical value indicating if the model included a spillover component in additional to the asymmetric conformity effect.}
 

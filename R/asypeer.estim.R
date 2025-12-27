@@ -367,7 +367,7 @@ asypeer.estim <- function(formula,
   # solve with the first step weighting matrix
   gmm    <- optimize(f = fGMM, Z = Z, y = y, endo = endo, X_iso = X_iso,
                      c_gamma = cgamma, nc_gamma = ncgamma,
-                     X_niso = X_niso, W = W, S = S, lower = -0.999, upper =  20)
+                     X_niso = X_niso, W = W, S = S, lower = -0.999, upper =  100)
   
   #get the estimate of beta_l
   betal  <- gmm$minimum
@@ -382,7 +382,7 @@ asypeer.estim <- function(formula,
     #gmm with optimal W
     gmm  <- optimize(f = fGMM, Z = Z, y = y, endo = endo, X_iso = X_iso, 
                      c_gamma = cgamma, nc_gamma = ncgamma,
-                     X_niso = X_niso, W = W, S = S, lower = -0.999, upper =  20)
+                     X_niso = X_niso, W = W, S = S, lower = -0.999, upper =  100)
     
     #get the optimal estimate of beta_l
     betal <- gmm$minimum

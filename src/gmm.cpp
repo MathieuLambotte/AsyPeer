@@ -409,6 +409,13 @@ Rcpp::List compute_estimate(const double& betal,              // beta_l paramete
   Eigen::VectorXd Ze(Z.transpose() * eta.matrix());
   double stat(Ze.dot(Vm.colPivHouseholderQr().solve(Ze)) / S); // because Vm is / S
   
+  // test for asymmetry
+  Eigen::ArrayXd TestAsym(2);
+  if (Kendo == 2) {
+    TestAsym(0) = phistr(1) - phistr(0); // betah - betal
+    TestAsym(1) = Vstr(0, 0) + Vstr(1, 1) - 2 * Vstr(0, 1);
+  } 
+  
   return Rcpp::List::create(Rcpp::_["redparm"] = phired, // Reduced form parameter 
                             Rcpp::_["strparm"] = phistr, // Structural parameter 
                             Rcpp::_["redcov"]  = Vred,   // Reduced form covariance matrix     
@@ -417,7 +424,8 @@ Rcpp::List compute_estimate(const double& betal,              // beta_l paramete
                             Rcpp::_["s2iso"]   = s2iso,
                             Rcpp::_["s2niso"]  = s2niso,
                             Rcpp::_["JStat"]   = stat,
-                            Rcpp::_["Jdf"]     = Kz - (Kendo + 1 + Kx + Knc));
+                            Rcpp::_["Jdf"]     = Kz - (Kendo + 1 + Kx + Knc),
+                            Rcpp::_["testAsy"] = TestAsym);
 }
 
 
@@ -554,6 +562,13 @@ Rcpp::List compute_estimate_nospil(const double& betal,              // beta_l p
   Eigen::VectorXd Ze(Z.transpose() * eta.matrix());
   double stat(Ze.dot(Vm.colPivHouseholderQr().solve(Ze)) / S); // because Vm is / S
   
+  // test for asymmetry
+  Eigen::ArrayXd TestAsym(2);
+  if (Kendo == 2) {
+    TestAsym(0) = phistr(1) - phistr(0); // betah - betal
+    TestAsym(1) = Vstr(0, 0) + Vstr(1, 1) - 2 * Vstr(0, 1);
+  } 
+  
   return Rcpp::List::create(Rcpp::_["redparm"] = phired, // Reduced form parameter 
                             Rcpp::_["strparm"] = phistr, // Structural parameter 
                             Rcpp::_["redcov"]  = Vred,   // Reduced form covariance matrix     
@@ -562,5 +577,6 @@ Rcpp::List compute_estimate_nospil(const double& betal,              // beta_l p
                             Rcpp::_["s2iso"]   = s2iso,
                             Rcpp::_["s2niso"]  = s2niso,
                             Rcpp::_["JStat"]   = stat,
-                            Rcpp::_["Jdf"]     = Kz - (Kendo + Kx + Knc));
+                            Rcpp::_["Jdf"]     = Kz - (Kendo + Kx + Knc),
+                            Rcpp::_["testAsy"] = TestAsym);
 }

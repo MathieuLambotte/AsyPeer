@@ -404,6 +404,13 @@ asypeer.estim <- function(formula,
                                   df     = estim$Jdf,
                                   pvalue = ifelse(estim$Jdf > 0, 1 - pchisq(estim$JStat, estim$Jdf), NA)))
   
+  ## Test for asymmetry
+  if (asymmetry) {
+    gmm   <- c(gmm, list("diffbeta" = c("Estimate" = estim$testAsy[1],
+                                        "SE"       = estim$testAsy[2],
+                                        "p-value"  = 1 - pchisq((estim$testAsy[1]^2) / estim$testAsy[2], df = 1))))
+  }
+  
   gname   <- paste0("gamma:", xname)
   if (length(ncgamma) > 0) {
     gname <- c(gname, paste0("isogamma:", xname[ncgamma + 1]))
@@ -434,10 +441,10 @@ asypeer.estim <- function(formula,
     }
   }
   
-  out     <- list(model.info  = c(list(n = n, n_iso=n_iso, ngroup = S, nvec = nvec, formula = formula, 
-                                       excluded.instruments = excluded.instruments, spillover = spillover,
-                                       weight = weight, HAC = HAC, fixed.effects = fixed.effects, asymmetry = asymmetry,
-                                       tol = tol, xname = xname, yname = yname, zname = zname, 
+  out     <- list(model.info  = c(list(n = n, nisolates = n_iso, ngroup = S, nvec = nvec, formula = formula, 
+                                       excluded.instruments = excluded.instruments, xname = xname, yname = yname, 
+                                       zname = zname, spillover = spillover, asymmetry = asymmetry, 
+                                       fixed.effects = fixed.effects, weight = weight, HAC = HAC, tol = tol, 
                                        dfiso = dfiso, dfniso = dfniso, common.gamma = xname[cgamma + 1],
                                        ncommon.gamma = xname[ncgamma + 1]), detInst),
                   gmm         = gmm,
@@ -525,7 +532,7 @@ print.summary.asypeer.estim <- function(x, ...) {
   sig_overall  <- x$gmm$s2["overall"]
   sig_iso      <- x$gmm$s2["isolates"]
   sig_niso     <- x$gmm$s2["nonisolates"]
-  FE   <- x$model.info$fixed.effects
+  FE           <- x$model.info$fixed.effects
   
   inst   <- paste("(G^p)X with max(p) =", max(x$model.info$power))
   if (x$model.info$asymmetry) {
@@ -538,8 +545,8 @@ print.summary.asypeer.estim <- function(x, ...) {
                                          deparse(x$model.info$excluded.instruments),
                                          inst),
       "\n\n# Subnetworks: ", x$model.info$ngroup,
-      "\n# Isolates: ", x$model.info$n_iso,
-      "\n# Non-isolates: ", x$model.info$n - x$model.info$n_iso,
+      "\n# Isolates: ", x$model.info$nisolates,
+      "\n# Non-isolates: ", x$model.info$n - x$model.info$nisolates,
       "\n\nEstimator: ", esti,
       "\nFixed effects: ", ifelse(FE, "Yes", "No"), "\n", sep = "")
   
@@ -556,6 +563,12 @@ print.summary.asypeer.estim <- function(x, ...) {
     fprintcoeft(coef) 
   }
   cat("---\nSignif. codes:  0 \u2018***\u2019 0.001 \u2018**\u2019 0.01 \u2018*\u2019 0.05 \u2018.\u2019 0.1 \u2018 \u2019 1\n")
+  
+  if (x$model.info$asymmetry) {
+    cat("\nTesting for Symmetry\n")
+    cat("betah - betal:", unname(x$gmm$diffbeta[1]))
+    cat(" (p-value: ", ifelse(x$gmm$diffbeta[3] < 2e-16, "<2e-16", format(unname(x$gmm$diffbeta[3]), digit = 4)), ")\n", sep = "")
+  }
   
   cat("\nHAC: ", hete, sep = "")
   if(hete %in% c("group-iid")){

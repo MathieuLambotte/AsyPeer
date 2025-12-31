@@ -10,7 +10,7 @@ asypeer.estim(
   Glist,
   data,
   common.gamma,
-  spillover = TRUE,
+  spillover = FALSE,
   asymmetry = TRUE,
   weight = "IV",
   HAC = "group-iid",

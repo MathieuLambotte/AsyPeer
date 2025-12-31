@@ -526,15 +526,20 @@ print.summary.asypeer.estim <- function(x, ...) {
   sig_iso      <- x$gmm$s2["isolates"]
   sig_niso     <- x$gmm$s2["nonisolates"]
   FE   <- x$model.info$fixed.effects
+  
+  inst   <- paste("(G^p)X with max(p) =", max(x$model.info$power))
+  if (x$model.info$asymmetry) {
+    inst <- paste(inst, "and", 
+          ifelse(x$model.info$estimator == "rf", "Random Forest", 
+                 toupper(x$model.info$estimator)), "predictions")
+  } 
   cat("Formula: ", deparse(x$model.info$formula),
       "\nExcluded instruments: ", ifelse(!is.null(x$model.info$excluded.instruments), 
                                          deparse(x$model.info$excluded.instruments),
-                                         paste("(G^p)X with max(p) =", max(x$model.info$power),"and", 
-                                               ifelse(x$model.info$estimator == "rf", "Random Forest", 
-                                                      toupper(x$model.info$estimator)), "predictions")),
-      "\n\n# Subnetworks:", x$model.info$ngroup,
-      "\n# Isolates:", x$model.info$n_iso,
-      "\n# Non-isolates:", x$model.info$n - x$model.info$n_iso,
+                                         inst),
+      "\n\n# Subnetworks: ", x$model.info$ngroup,
+      "\n# Isolates: ", x$model.info$n_iso,
+      "\n# Non-isolates: ", x$model.info$n - x$model.info$n_iso,
       "\n\nEstimator: ", esti,
       "\nFixed effects: ", ifelse(FE, "Yes", "No"), "\n", sep = "")
   

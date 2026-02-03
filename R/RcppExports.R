@@ -45,6 +45,18 @@ fKPstat <- function(endo_, X, Z_, index, cumsn, HAC = 0L) {
     .Call(`_AsyPeer_fKPstat`, endo_, X, Z_, index, cumsn, HAC)
 }
 
+fCESdata <- function(X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, nvec, yFMiMa, zFMiMa, n, Kx, S, rho, FE, deriv, nthread) {
+    .Call(`_AsyPeer_fCESdata`, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, nvec, yFMiMa, zFMiMa, n, Kx, S, rho, FE, deriv, nthread)
+}
+
+fCESplotdata <- function(gridrho, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, idXiso, idXniso, sel, FE, maxit, eps_f, eps_g, nthread) {
+    .Call(`_AsyPeer_fCESplotdata`, gridrho, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, idXiso, idXniso, sel, FE, maxit, eps_f, eps_g, nthread)
+}
+
+fCESMain <- function(setrho, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, idXiso, idXniso, sel, n, Kx, S, HACn, dfiso, dfniso, FE, rhomin, rhomax, maxit, eps_f, eps_g, nthread) {
+    .Call(`_AsyPeer_fCESMain`, setrho, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, idXiso, idXniso, sel, n, Kx, S, HACn, dfiso, dfniso, FE, rhomin, rhomax, maxit, eps_f, eps_g, nthread)
+}
+
 fdataML <- function(y, X, group, IDi, gij, idpeer, ddni, ddncs, ncs, nthread) {
     .Call(`_AsyPeer_fdataML`, y, X, group, IDi, gij, idpeer, ddni, ddncs, ncs, nthread)
 }
@@ -53,28 +65,8 @@ fInstChecky <- function(rhoddX, ddni, nthread) {
     .Call(`_AsyPeer_fInstChecky`, rhoddX, ddni, nthread)
 }
 
-gmm_obj <- function(betal, Z, y, endo, X_iso, X_niso, W, c_gamma, nc_gamma, S) {
-    .Call(`_AsyPeer_gmm_obj`, betal, Z, y, endo, X_iso, X_niso, W, c_gamma, nc_gamma, S)
-}
-
-gmm_obj_nospil <- function(betal, Z, y, endo, X_iso, X_niso, W, c_gamma, nc_gamma, S) {
-    .Call(`_AsyPeer_gmm_obj_nospil`, betal, Z, y, endo, X_iso, X_niso, W, c_gamma, nc_gamma, S)
-}
-
-W_optimal <- function(betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, c_gamma, nc_gamma, S) {
-    .Call(`_AsyPeer_W_optimal`, betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, c_gamma, nc_gamma, S)
-}
-
-W_optimal_nospil <- function(betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, c_gamma, nc_gamma, S) {
-    .Call(`_AsyPeer_W_optimal_nospil`, betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, c_gamma, nc_gamma, S)
-}
-
-compute_estimate <- function(betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, c_gamma, nc_gamma, S) {
-    .Call(`_AsyPeer_compute_estimate`, betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, c_gamma, nc_gamma, S)
-}
-
-compute_estimate_nospil <- function(betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, c_gamma, nc_gamma, S) {
-    .Call(`_AsyPeer_compute_estimate_nospil`, betal, Z, y, endo, X_iso, X_niso, W, Iso, nIso, cumsn, dfiso, dfniso, HAC, c_gamma, nc_gamma, S)
+fAsyMain <- function(betal0, Z, y, endo, X, W, Iso, nIso, cumsn, nc_gamma, dfiso, dfniso, HAC, weight, S, maxit, eps_f, eps_g, spillover) {
+    .Call(`_AsyPeer_fAsyMain`, betal0, Z, y, endo, X, W, Iso, nIso, cumsn, nc_gamma, dfiso, dfniso, HAC, weight, S, maxit, eps_f, eps_g, spillover)
 }
 
 fNashE <- function(y, alpha, G, peffects, cumsn, nvec, idpeer, d, ngroup, tol, maxit, nthread, print) {

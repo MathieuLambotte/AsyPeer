@@ -18,6 +18,7 @@ asypeer.estim(
   tol = 1e-10,
   nthread = 1,
   drop = NULL,
+  ctl.lbfgs = list(),
   ...
 )
 }
@@ -72,6 +73,9 @@ matrices of explanatory variables and instruments, ensuring a full-rank matrix (
 \item{drop}{A dummy vector of the same length as the sample, indicating whether an observation should be dropped.
 This can be used, for example, to remove false isolates or to estimate the model only on non-isolated agents.
 These observations cannot be directly removed from the network by the user because they may still be friends with other agents.}
+
+\item{ctl.lbfgs}{A list of control parameters, such as \code{maxit}, \code{eps_f}, and \code{eps_g},
+to be passed to \code{optim_lbfgs()} from the \pkg{RcppNumerical} package.}
 
 \item{...}{Further arguments passed to or from other methods.}
 }

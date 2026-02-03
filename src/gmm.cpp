@@ -1,4 +1,6 @@
 // [[Rcpp::depends(RcppEigen)]]
+// [[Rcpp::depends(RcppNumerical)]]
+#include <RcppNumerical.h>
 #include <RcppEigen.h>
 #ifdef _OPENMP 
 #include <omp.h>
@@ -12,571 +14,685 @@
 // typedef Eigen::Map<Eigen::MatrixXd> MapMatr;
 // typedef Eigen::Map<Eigen::VectorXd> MapVect;
 
-// GMM objective function 
-// [[Rcpp::export]]
-double gmm_obj(const double&  betal,             // beta_l parameter
-               const Eigen::MatrixXd& Z,         // instrument matrix
-               const Eigen::VectorXd& y,         // dependent variable
-               const Eigen::MatrixXd& endo,      // matrix of endo
-               const Eigen::MatrixXd& X_iso,     // covariates for iso
-               const Eigen::MatrixXd& X_niso,    // covariates for niso
-               const Eigen::MatrixXd& W,         // weighting matrix
-               const Eigen::ArrayXi& c_gamma,    // index of common columns in Xiso 
-               const Eigen::ArrayXi& nc_gamma,   // index of not common columns in Xiso 
-               const int& S) {                   // Number of subnets
-  int n(endo.rows()), Kendo(endo.cols()), Kx(X_niso.cols()), Kc(c_gamma.size()), Knc(nc_gamma.size()); 
-  // 1. psi
-  Eigen::MatrixXd psi(n, Kendo + Kx + Knc);
-  if (Knc == 0){
-    psi << endo, X_niso / (1.0 + betal);
-  } else {
-    psi << endo, X_niso / (1.0 + betal), X_iso(Eigen::all, nc_gamma);
+///////////////////////////////////////////////////////////////////////
+////////////////////////////// Structures /////////////////////////////
+///////////////////////////////////////////////////////////////////////
+struct strEstim { // output for fAsyGmmEstim and fAsyGmmEstim_nospill
+  Eigen::VectorXd theta;
+  Eigen::VectorXd eta;
+  Eigen::MatrixXd sV;
+  Eigen::VectorXd sVphi;
+  double objective;
+  Eigen::VectorXd gradient;
+  int  status;
+}; 
+
+struct strCov { // output for fAsyparms and fAsyparms_nospill
+  Eigen::VectorXd estimate;
+  Eigen::MatrixXd cov;
+  double serr;
+  double serriso;
+  double serrniso;
+  double Jstat;
+  double Jdf;
+  Eigen::ArrayXd TestAsym;                
+};
+
+////////////////////////////////////////////////////////////////////////
+//////////////// A class for the numerical optimization ////////////////
+////////////// It will be used for models with spillover ///////////////
+////////////////////////////////////////////////////////////////////////
+class ClassAsyGMM: public Numer::MFuncGrad {
+private:
+  const Eigen::MatrixXd& Z;   // instrument matrix
+  const Eigen::VectorXd& y;   // dependent variable
+  const Eigen::MatrixXd& V;   // matrix V = [endo, X, X_iso_noncommon]
+  const Eigen::MatrixXd& W;   // weighting matrix
+  const Eigen::ArrayXi& nIso; // Indices nonisolates
+  const int& n;               // Sample size
+  const int& Ktheta;          // Number of parameters
+public:
+  ClassAsyGMM(const Eigen::MatrixXd& Z_,
+              const Eigen::VectorXd& y_,
+              const Eigen::MatrixXd& V_,
+              const Eigen::MatrixXd& W_,
+              const Eigen::ArrayXi& nIso_,
+              const int& n_,
+              const int& Ktheta_) :
+  Z(Z_),
+  y(y_),
+  V(V_),
+  W(W_),
+  nIso(nIso_),
+  n(n_),
+  Ktheta(Ktheta_){}
+  
+  Eigen::VectorXd eta;   // residual will be exported
+  Eigen::VectorXd theta; // the full reduced-form parameter
+  Eigen::MatrixXd sV;    // Scale V (for non-isolated)
+  Eigen::VectorXd sVphi; // sV * phi
+  Eigen::VectorXd Grad;  // Gradient to be exported
+  
+  // function computing the objective function and gradient
+  double f_grad(Numer::Constvec& tbetal, Numer::Refvec grad) {
+    // 0. betal
+    double betal  = tbetal(0);
+    if (betal <= -0.5) {
+      grad << 1e300;
+      Grad = grad; // exported
+      return 1e300;
+    }
+    
+    // 1. Scale V for non-isolated
+    sV = V;
+    sV(nIso, Eigen::all) /= (1 + betal);
+    
+    // 2. Closed-form GMM parameters:
+    Eigen::MatrixXd ZtsV(Z.transpose() * sV); // kz x ksV: Z'sV
+    Eigen::VectorXd Zty(Z.transpose() * y);  // kz x 1: Z'y
+    Eigen::MatrixXd sVtZW(ZtsV.transpose() * W);   //  ksV x kz: sV'Z W
+    Eigen::ColPivHouseholderQR<Eigen::MatrixXd> Adec(sVtZW * ZtsV); // cholesky decomposition for A = sV'Z W Z' sV
+    Eigen::VectorXd b(sVtZW * Zty); // ksV x 1: sV'Z W Z'y
+    Eigen::VectorXd phi(Adec.solve(b));
+    
+    // Full parameter
+    theta.resize(Ktheta);
+    theta << betal, phi;
+    
+    // 3. residual (but scaled for nonisolated)
+    sVphi = sV * phi;
+    eta   = y - sVphi;
+    
+    // 4. Objective function
+    Eigen::VectorXd mom(Z.transpose() * eta);
+    Eigen::VectorXd Wmom = W * mom;
+    double f = mom.dot(Wmom);
+    
+    // 5. Gradient with respect to betal
+    // 5.1 dV: derivative of V
+    Eigen::MatrixXd dsV(Eigen::MatrixXd::Zero(n, Ktheta - 1)); 
+    dsV(nIso, Eigen::all) = -sV(nIso, Eigen::all) / (1 + betal); // dsV/dbetal
+    
+    // 5.2 dphi: derivative of phi
+    Eigen::MatrixXd ZtdsV(Z.transpose() * dsV); // kz x ksV: Z'dsV
+    Eigen::VectorXd ZtdsVphi(ZtdsV * phi);
+    Eigen::MatrixXd WZteta(W * Z.transpose() * eta); // kz x 1: W Z' eta
+    Eigen::VectorXd dphi = Adec.solve(ZtdsV.transpose() * WZteta - sVtZW * ZtdsVphi);
+    grad = 2 * Wmom.transpose() * (-ZtdsVphi - ZtsV * dphi);
+    Grad = grad; // exported
+    
+    return f;
   }
-  if (Kc > 0) {
-    psi(Eigen::all, Kendo + c_gamma) += X_iso(Eigen::all, c_gamma);
-  }
+};
+
+
+////////////////////////////////////////////////////////////////////////
+///////////////// Computes the reduced form parameters /////////////////
+/////////////////////////// And residuals //////////////////////////////
+////////////////////////////////////////////////////////////////////////
+strEstim fAsyGmmEstim(const double betal,             // starting value for betal
+                      const Eigen::MatrixXd& Z,       // instrument matrix
+                      const Eigen::VectorXd& y,       // dependent variable
+                      const Eigen::MatrixXd& V,       // Model's variables
+                      const Eigen::MatrixXd& W,       // weighting matrix
+                      const Eigen::ArrayXi& nIso,     // Indices for nonisolated
+                      const int& n,                   // Sample size
+                      const int& S,                   // Number of subnetworks
+                      const int& Ktheta,              // Number of parameters
+                      const int& maxit,               // optimizer controls
+                      const double& eps_f,
+                      const double& eps_g){
   
-  // 2. Closed-form GMM parameters: 
-  Eigen::MatrixXd Ztpsi(Z.transpose() * psi); // kz x kpsi  Z'psi
-  Eigen::MatrixXd Zty(Z.transpose() * y);  // kz x 1 Z'y
-  Eigen::MatrixXd ZtpsiW(Ztpsi.transpose()* W);   //  kpsi x kz psi'Z W
-  Eigen::MatrixXd A(ZtpsiW*Ztpsi); // kpsi x kpsi psi'Z W Z' psi
-  Eigen::VectorXd b(ZtpsiW * Zty); // kpsi x 1  psi'Z W Z'Y
+  // 1. Optimization
+  double fopt; // objective
+  Eigen::VectorXd tbetal(1);
+  tbetal << log(betal + 0.5); // optimizer tbetal
+  ClassAsyGMM f(Z, y, V, W, nIso, n, Ktheta);
+  int status(optim_lbfgs(f, tbetal, fopt, maxit, eps_f, eps_g));
   
-  Eigen::VectorXd phi(A.colPivHouseholderQr().solve(b)); // (psi'Z W Z' psi)^{-1} psi'Z W Z'Y
+  // 2. Output. Put element in the structure Estim
+  strEstim out;
+  out.theta     = f.theta;
+  out.eta       = f.eta;
+  out.sV        = f.sV;
+  out.sVphi     = f.sVphi;
+  out.objective = fopt / pow(S, 2);
+  out.gradient  = f.Grad;
+  out.status    = status;
   
-  // 3. Compute moments: moments = Z * (y - psi * phi)
-  Eigen::VectorXd eta(y - psi * phi);
-  Eigen::VectorXd m(Z.transpose() * eta / S); // kz x 1
-  
-  // 4. GMM objective function: g' W g
-  return m.dot(W * m);
+  return out;
 }
 
 
-
-// GMM objective function without spillovers 
-// [[Rcpp::export]]
-double gmm_obj_nospil(const double&  betal,             // beta_l parameter
-                      const Eigen::MatrixXd& Z,         // instrument matrix
-                      const Eigen::VectorXd& y,         // dependent variable
-                      const Eigen::MatrixXd& endo,      // matrix of endo
-                      const Eigen::MatrixXd& X_iso,     // covariates for iso
-                      const Eigen::MatrixXd& X_niso,    // covariates for niso
-                      const Eigen::MatrixXd& W,         // weighting matrix
-                      const Eigen::ArrayXi& c_gamma,    // index of common columns in Xiso 
-                      const Eigen::ArrayXi& nc_gamma,   // index of not common columns in Xiso 
-                      const int& S) {                   // Number of subnets
-  int n(endo.rows()), Kendo(endo.cols()), Kx(X_niso.cols()), Kc(c_gamma.size()), Knc(nc_gamma.size()); 
-  double theta1(betal / (1 + betal)); // coefficient of ybar
+////////////////////////////////////////////////////////////////////////
+//////////////// A class for the numerical optimization ////////////////
+//////////// It will be used for models without spillover //////////////
+////////////////////////////////////////////////////////////////////////
+class ClassAsyGMM_nospill: public Numer::MFuncGrad {
+private:
+  const Eigen::MatrixXd& Z;   // instrument matrix
+  const Eigen::VectorXd& y;   // dependent variable
+  const Eigen::VectorXd& Gy;  // Gy
+  const Eigen::MatrixXd& V;   // matrix V = [endo, X, X_iso_noncommon]
+  const Eigen::MatrixXd& W;   // weighting matrix
+  const Eigen::ArrayXi& nIso; // Indices nonisolates
+  const int& n;               // Sample size
+  const int& Ktheta;          // Number of parameters 
+public:
+  ClassAsyGMM_nospill(const Eigen::MatrixXd& Z_,         
+                      const Eigen::VectorXd& y_,    
+                      const Eigen::VectorXd& Gy_,  
+                      const Eigen::MatrixXd& V_,        
+                      const Eigen::MatrixXd& W_,  
+                      const Eigen::ArrayXi& nIso_,
+                      const int& n_,
+                      const int& Ktheta_) : 
+  Z(Z_),        
+  y(y_),    
+  Gy(Gy_),
+  V(V_),        
+  W(W_),
+  nIso(nIso_),
+  n(n_),
+  Ktheta(Ktheta_){}
   
-  // 1. psi 
-  Eigen::MatrixXd psi(n, Kendo - 1 + Kx + Knc);
-  if (Kendo == 2) {
-    if (Knc == 0){
-      psi << endo.col(1), X_niso / (1.0 + betal);
-    } else {
-      psi << endo.col(1), X_niso / (1.0 + betal), X_iso(Eigen::all, nc_gamma);
+  Eigen::VectorXd eta;   // residual will be exported
+  Eigen::VectorXd theta; // the full reduced-form parameter
+  Eigen::MatrixXd sV;    // Scale V (for non-isolated)
+  Eigen::VectorXd sVphi; // sV * phi
+  Eigen::VectorXd Grad;  // Gradient to be exported
+  
+  // function computing the objective function and gradient
+  double f_grad(Numer::Constvec& tbetal, Numer::Refvec grad) {
+    // 0. betal and theta0 (coefficient of Gy)
+    double betal  = tbetal(0);
+    double theta0 = betal / (1.0 + betal);
+    if (betal <= -0.5) {
+      grad << 1e300;
+      Grad = grad; // exported
+      return 1e300;
     }
-    if (Kc > 0) {
-      psi(Eigen::all, 1 + c_gamma) += X_iso(Eigen::all, c_gamma);
-    }
-  } else if (Kendo == 1) {
-    if (Knc == 0){
-      psi << X_niso / (1.0 + betal);
-    } else {
-      psi << X_niso / (1.0 + betal), X_iso(Eigen::all, nc_gamma);
-    }
-    if (Kc > 0) {
-      psi(Eigen::all, c_gamma) += X_iso(Eigen::all, c_gamma);
-    }
-  } else {
-    Rcpp::stop("endo should not have more than 2 columns.");
+    
+    // 1. Scale V for non-isolated
+    sV = V;
+    sV(nIso, Eigen::all) /= (1.0 + betal);
+    
+    // 2. Closed-form GMM parameters: 
+    Eigen::VectorXd u = y - theta0 * Gy;
+    Eigen::MatrixXd ZtsV(Z.transpose() * sV); // kz x ksV: Z'sV
+    Eigen::VectorXd Ztu(Z.transpose() * u);  // kz x 1: Z'u
+    Eigen::MatrixXd sVtZW(ZtsV.transpose() * W);   //  ksV x kz: sV'Z W
+    Eigen::ColPivHouseholderQR<Eigen::MatrixXd> Adec(sVtZW * ZtsV); // cholesky decomposition for A = sV'Z W Z' sV
+    Eigen::VectorXd b(sVtZW * Ztu); // ksV x 1: sV'Z W Z'u
+    Eigen::VectorXd phi(Adec.solve(b));
+    // Full parameter
+    theta.resize(Ktheta);
+    theta << betal, phi; 
+    
+    // 3. residual (but scaled for nonisolated)
+    sVphi = sV * phi;
+    eta = u - sVphi;
+    // 4. Objective function
+    Eigen::VectorXd mom(Z.transpose() * eta);
+    Eigen::VectorXd Wmom = W * mom;
+    double f = mom.dot(Wmom);
+    
+    // 5. Gradient with respect to betal
+    // 5.1 du: derivative of u
+    Eigen::VectorXd du(-Gy / pow(1.0 + betal, 2));
+    
+    // 5.2 dV: derivative of V
+    Eigen::MatrixXd dsV(Eigen::MatrixXd::Zero(n, Ktheta - 1)); 
+    dsV(nIso, Eigen::all) = -sV(nIso, Eigen::all) / (1 + betal); // dsV/dbetal
+    
+    // 5.3 dphi: derivative of phi
+    Eigen::MatrixXd ZtdsV(Z.transpose() * dsV); // kz x ksV: Z'dsV
+    Eigen::VectorXd ZtdudsV((Z.transpose() * du) - (ZtdsV * phi)); // Z' (du - dsV * phi)
+    Eigen::VectorXd WZteta(W * (Z.transpose() * eta)); // kz x 1: W Z' eta
+    Eigen::VectorXd dphi = Adec.solve(ZtdsV.transpose() * WZteta + sVtZW * ZtdudsV);
+    
+    grad = 2 * Wmom.transpose() * (ZtdudsV - ZtsV * dphi);
+    Grad = grad; // exported
+    
+    return f;
   }
+};
+
+////////////////////////////////////////////////////////////////////////
+///////////////// Computes the reduced form parameters /////////////////
+//////////////////// And residuals without spillovers///////////////////
+////////////////////////////////////////////////////////////////////////
+strEstim fAsyGmmEstim_nospill(const double betal,             // starting value for betal
+                              const Eigen::MatrixXd& Z,       // instrument matrix
+                              const Eigen::VectorXd& y,       // dependent variable
+                              const Eigen::VectorXd& Gy,      // Average peer friend
+                              const Eigen::MatrixXd& V,       // Model's variables
+                              const Eigen::MatrixXd& W,       // weighting matrix
+                              const Eigen::ArrayXi& nIso,     // Indices for nonisolated
+                              const int& n,                   // Sample size
+                              const int& S,                   // Number of subnetworks
+                              const int& Ktheta,              // Number of parameters
+                              const int& maxit,               // optimizer controls
+                              const double& eps_f,
+                              const double& eps_g){      
   
-  // 2. Closed-form GMM parameters: 
-  Eigen::MatrixXd Ztpsi(Z.transpose() * psi); // kz x (1+kx)  Z'psi
-  Eigen::MatrixXd Zty(Z.transpose() * (y - theta1 * endo.col(0)));  // kz x 1 Z'(y - theta1 * ybar)
-  Eigen::MatrixXd ZtpsiW(Ztpsi.transpose()* W);   //  (1+kx) x kz psi'Z W
-  Eigen::MatrixXd A(ZtpsiW*Ztpsi); // (1+kx) x (1+kx) psi'Z W Z' psi
-  Eigen::VectorXd b(ZtpsiW * Zty); // (1+kx) x 1  psi'Z W Z'Y
+  // 1. Optimization 
+  double fopt; // objective
+  Eigen::VectorXd tbetal(1);
+  tbetal << log(betal + 0.5); // optimizer tbetal
+  ClassAsyGMM_nospill f(Z, y, Gy, V, W, nIso, n, Ktheta);
+  int status(optim_lbfgs(f, tbetal, fopt, maxit, eps_f, eps_g));
   
-  Eigen::VectorXd phi(A.colPivHouseholderQr().solve(b)); // (psi'Z W Z' psi)^{-1} psi'Z W Z'(Y - theta1 * ybar)
+  // 2. Output. Put element in the structure Estim
+  strEstim out;
+  out.theta     = f.theta;
+  out.eta       = f.eta;
+  out.sV        = f.sV;
+  out.sVphi     = f.sVphi;
+  out.objective = fopt / pow(S, 2);
+  out.gradient  = f.Grad;
+  out.status    = status;
   
-  // 3. Compute moments: moments = Z * (y - theta1 * ybar - psi * phi)
-  Eigen::VectorXd eta(y - theta1 * endo.col(0) - psi * phi);
-  Eigen::VectorXd m(Z.transpose() * eta / S); // kz x 1
-  
-  // 4. GMM objective function: g' W g
-  return m.dot(W * m);
+  return out;
 }
 
 
-// Optimal Weighting Matrix
-// [[Rcpp::export]]
-Eigen::MatrixXd W_optimal(const double& betal,              // beta_l parameter
-                          const Eigen::MatrixXd& Z,         // instrument matrix (n x k)
-                          const Eigen::VectorXd& y,         // dependent variable (n x 1)
-                          const Eigen::MatrixXd& endo,      // matrix for iso group
-                          const Eigen::MatrixXd& X_iso,     // covariates for iso
-                          const Eigen::MatrixXd& X_niso,    // covariates for niso
-                          const Eigen::MatrixXd& W,         // weighting matrix
-                          const Eigen::ArrayXi& Iso,        // Indice for isolated
-                          const Eigen::ArrayXi& nIso,       // Indice for nonisolated
-                          const Eigen::VectorXd& cumsn,     // cumulative group indices 
-                          const int& dfiso,                 // degree of freedom for isolated
-                          const int& dfniso,                // degree of freedom for nonisolated
-                          const int& HAC,                   // HAC type
-                          const Eigen::ArrayXi& c_gamma,    // index of common columns in Xiso 
-                          const Eigen::ArrayXi& nc_gamma,   // index of not common columns in Xiso 
-                          const int& S) {                   // Number of subnets
-  int n(endo.rows()), Kx(X_niso.cols()), Kz(Z.cols()), Kendo(endo.cols()), Kc(c_gamma.size()), Knc(nc_gamma.size()) ;
-  // 1. psi
-  Eigen::MatrixXd psi(n, Kendo + Kx + Knc);
-  if (Knc == 0){
-    psi << endo, X_niso / (1.0 + betal);
-  } else {
-    psi << endo, X_niso / (1.0 + betal), X_iso(Eigen::all, nc_gamma);
-  }
-  if (Kc > 0) {
-    psi(Eigen::all, Kendo + c_gamma) += X_iso(Eigen::all, c_gamma);
-  }
+////////////////////////////////////////////////////////////////////////
+/////////////////// Computes the optimal GMM weight ////////////////////
+////////////////////////////////////////////////////////////////////////
+Eigen::MatrixXd fAsyWopt(const Eigen::VectorXd& theta,     // Parameters
+                         const Eigen::MatrixXd& Z,         // instrument matrix (n x k)
+                         const Eigen::VectorXd& eta,       // residuals
+                         const Eigen::ArrayXi& cumsn,     // cumulative group indices 
+                         const Eigen::ArrayXi& Iso,        // Indice for isolated
+                         const Eigen::ArrayXi& nIso,       // Indice for nonisolated
+                         const int& dfiso,                 // degree of freedom for isolated
+                         const int& dfniso,                // degree of freedom for nonisolated
+                         const int& HAC,                   // HAC type
+                         const int& S) {                   // Number of subnets
+  int Kz(Z.cols());
+  // 0. unscaled residuals
+  Eigen::VectorXd uneta(eta);
+  uneta(nIso) *= (1 + theta(0));
   
-  // 2. Closed-form GMM parameters: phi = (psi' Z W Z' psi)^{-1} psi' Z W Z' y
-  Eigen::MatrixXd Ztpsi(Z.transpose() * psi); // kz x kx  Z'psi
-  Eigen::MatrixXd Zty(Z.transpose() * y);  // kz x 1 Z'y
-  Eigen::MatrixXd ZtpsiW(Ztpsi.transpose()* W);   //  kx x kz psi'Z W
-  Eigen::MatrixXd A(ZtpsiW*Ztpsi); // kx x kx psi'Z W Z' psi
-  Eigen::VectorXd b(ZtpsiW * Zty); // kx x 1  psi'Z W Z'Y
-  
-  Eigen::VectorXd phi(A.colPivHouseholderQr().solve(b)); // (psi'Z W Z' psi)^{-1} psi'Z W Z'Y
-  
-  // 3. residual
-  Eigen::VectorXd eta(y - psi * phi);
-  
-  // 4.Variance of the moment
+  // 1. Variance of the moment
   Eigen::MatrixXd Vm(Eigen::MatrixXd::Zero(Kz, Kz));
-  if (HAC == 0) { //4.1 iid
-    eta(nIso) *= (1 + betal);
-    double s2(eta.dot(eta) / (dfiso + dfniso));
-    Eigen::MatrixXd Zs2(Z * s2);
-    Zs2(nIso, Eigen::all) /= pow(1 + betal, 2);
-    Vm = Zs2.transpose() * Z / pow(S, 2);
-  } else if (HAC == 1) {// 4.2 iid separately
-    double s2iso(eta(Iso).dot(eta(Iso)) / dfiso);
-    double s2niso(eta(nIso).dot(eta(nIso)) / dfniso);
-    Eigen::MatrixXd Zs2(Z);
-    Zs2(Iso, Eigen::all)  *= s2iso;
-    Zs2(nIso, Eigen::all) *= s2niso;
-    Vm = Zs2.transpose() * Z / pow(S, 2);
-  } else if (HAC == 2) { // 4.3 heteroskedasticity
-    Eigen::MatrixXd Z_eta(Z.array().colwise() * eta.array());
-    Vm = Z_eta.transpose() * Z_eta / pow(S, 2);
+  if (HAC == 0) { //1.1 iid
+    
+    double serr(sqrt(uneta.dot(uneta) / (dfiso + dfniso)));
+    Eigen::MatrixXd Ze = Z * serr;
+    Ze(nIso, Eigen::all) /= (1 + theta(0));
+    Vm = Ze.transpose() * Ze / pow(S, 2); 
+    
+  } else if (HAC == 1) {// 1.2 iid separately
+    
+    double serriso(sqrt(eta(Iso).dot(eta(Iso)) / dfiso));
+    double serrniso(sqrt(eta(nIso).dot(eta(nIso)) / dfniso));
+    Eigen::MatrixXd Ze = Z;
+    Ze(Iso, Eigen::all)  *= serriso;
+    Ze(nIso, Eigen::all) *= serrniso;
+    Vm = Ze.transpose() * Ze / pow(S, 2);
+    
+  } else if (HAC == 2) { // 1.3 heteroskedasticity
+    
+    Eigen::MatrixXd Ze    = Z.array().colwise() * eta.array();
+    Vm = Ze.transpose() * Ze / pow(S, 2);
+    
   } else {
-    for (int s(0); s < S; ++ s) { // 4.4 clustering
+    
+    Eigen::ArrayXXd Ze    = Z.array().colwise() * eta.array();
+    for (int s(0); s < S; ++ s) { // 1.4 clustering
       int n1(cumsn(s)), n2(cumsn(s + 1) - 1); 
-      Eigen::VectorXd Zes(Z(Eigen::seq(n1, n2), Eigen::all).transpose() * eta(Eigen::seq(n1, n2)));
-      Vm += Zes * Zes.transpose();
+      Eigen::RowVectorXd Zes(Ze(Eigen::seq(n1, n2), Eigen::all).colwise().sum());
+      Vm += Zes.transpose() * Zes;
     }
     Vm /= pow(S, 2);
+    
   }
   
-  // 5 Optimal weighting
+  // 2. Optimal weighting
   return Vm.inverse();
 }
 
 
-// Optimal Weighting Matrix
-// [[Rcpp::export]]
-Eigen::MatrixXd W_optimal_nospil(const double& betal,              // beta_l parameter
-                                 const Eigen::MatrixXd& Z,         // instrument matrix (n x k)
-                                 const Eigen::VectorXd& y,         // dependent variable (n x 1)
-                                 const Eigen::MatrixXd& endo,      // matrix for iso group
-                                 const Eigen::MatrixXd& X_iso,     // covariates for iso
-                                 const Eigen::MatrixXd& X_niso,    // covariates for niso
-                                 const Eigen::MatrixXd& W,         // weighting matrix
-                                 const Eigen::ArrayXi& Iso,        // Indice for isolated
-                                 const Eigen::ArrayXi& nIso,       // Indice for nonisolated
-                                 const Eigen::VectorXd& cumsn,     // cumulative group indices 
-                                 const int& dfiso,                 // degree of freedom for isolated
-                                 const int& dfniso,                // degree of freedom for nonisolated
-                                 const int& HAC,                   // HAC type
-                                 const Eigen::ArrayXi& c_gamma,    // index of common columns in Xiso 
-                                 const Eigen::ArrayXi& nc_gamma,   // index of not common columns in Xiso 
-                                 const int& S) {                   // Number of subnets
-  int n(endo.rows()), Kx(X_niso.cols()), Kz(Z.cols()), Kendo(endo.cols()), Kc(c_gamma.size()), Knc(nc_gamma.size());
-  double theta1(betal / (1 + betal)); // coefficient of ybar
-  
-  // 1. psi
-  Eigen::MatrixXd psi(n, Kendo - 1 + Kx + Knc);
-  if (Kendo == 2) {
-    if (Knc == 0){
-      psi << endo.col(1), X_niso / (1.0 + betal);
-    } else {
-      psi << endo.col(1), X_niso / (1.0 + betal), X_iso(Eigen::all, nc_gamma);
-    }
-    if (Kc > 0) {
-      psi(Eigen::all, 1 + c_gamma) += X_iso(Eigen::all, c_gamma);
-    }
-  } else if (Kendo == 1) {
-    if (Knc == 0){
-      psi << X_niso / (1.0 + betal);
-    } else {
-      psi << X_niso / (1.0 + betal), X_iso(Eigen::all, nc_gamma);
-    }
-    if (Kc > 0) {
-      psi(Eigen::all, c_gamma) += X_iso(Eigen::all, c_gamma);
-    }
-  } else {
-    Rcpp::stop("endo should not have more than 2 columns.");
-  }
-  
-  // 2. Closed-form GMM parameters: 
-  Eigen::MatrixXd Ztpsi(Z.transpose() * psi); // kz x kx  Z'psi
-  Eigen::MatrixXd Zty(Z.transpose() * (y - theta1 * endo.col(0)));  // kz x 1 Z'(y - theta1 * ybar)
-  Eigen::MatrixXd ZtpsiW(Ztpsi.transpose()* W);   //  kx x kz psi'Z W
-  Eigen::MatrixXd A(ZtpsiW*Ztpsi); // kx x kx psi'Z W Z' psi
-  Eigen::VectorXd b(ZtpsiW * Zty); // kx x 1  psi'Z W Z'Y
-  
-  Eigen::VectorXd phi(A.colPivHouseholderQr().solve(b)); // (psi'Z W Z' psi)^{-1} psi'Z W Z'(Y - theta1 * ybar)
-  
-  // 3. residual
-  Eigen::VectorXd eta(y - theta1 * endo.col(0) - psi * phi);
-  
-  // 4.Variance of the moment
-  Eigen::MatrixXd Vm(Eigen::MatrixXd::Zero(Kz, Kz));
-  if (HAC == 0) { //4.1 iid
-    eta(nIso) *= (1 + betal);
-    double s2(eta.dot(eta) / (dfiso + dfniso));
-    Eigen::MatrixXd Zs2(Z * s2);
-    Zs2(nIso, Eigen::all) /= pow(1 + betal, 2);
-    Vm = Zs2.transpose() * Z / pow(S, 2);
-  } else if (HAC == 1) {// 4.2 iid separately
-    double s2iso(eta(Iso).dot(eta(Iso)) / dfiso);
-    double s2niso(eta(nIso).dot(eta(nIso)) / dfniso);
-    Eigen::MatrixXd Zs2(Z);
-    Zs2(Iso, Eigen::all)  *= s2iso;
-    Zs2(nIso, Eigen::all) *= s2niso;
-    Vm = Zs2.transpose() * Z / pow(S, 2);
-  } else if (HAC == 2) { // 4.3 heteroskedasticity
-    Eigen::MatrixXd Z_eta(Z.array().colwise() * eta.array());
-    Vm = Z_eta.transpose() * Z_eta / pow(S, 2);
-  } else {
-    for (int s(0); s < S; ++ s) { // 4.4 clustering
-      int n1(cumsn(s)), n2(cumsn(s + 1) - 1); 
-      Eigen::VectorXd Zes(Z(Eigen::seq(n1, n2), Eigen::all).transpose() * eta(Eigen::seq(n1, n2)));
-      Vm += Zes * Zes.transpose();
-    }
-    Vm /= pow(S, 2);
-  }
-  
-  // 5 Optimal weighting
-  return Vm.inverse();
-}
 
-
-// Compute parameters and variance, with spillover
-// [[Rcpp::export]]
-Rcpp::List compute_estimate(const double& betal,              // beta_l parameter
-                            const Eigen::MatrixXd& Z,         // instrument matrix (n x k)
-                            const Eigen::VectorXd& y,         // dependent variable (n x 1)
-                            const Eigen::MatrixXd& endo,      // matrix for iso group
-                            const Eigen::MatrixXd& X_iso,     // covariates for iso
-                            const Eigen::MatrixXd& X_niso,    // covariates for niso
-                            const Eigen::MatrixXd& W,         // weighting matrix
-                            const Eigen::ArrayXi& Iso,        // Indice for isolated
-                            const Eigen::ArrayXi& nIso,       // Indice for nonisolated
-                            const Eigen::VectorXd& cumsn,     // cumulative group indices 
-                            const int& dfiso,                 // degree of freedom for isolated
-                            const int& dfniso,                // degree of freedom for nonisolated
-                            const int& HAC,                   // HAC type
-                            const Eigen::ArrayXi& c_gamma,    // index of common columns in Xiso 
-                            const Eigen::ArrayXi& nc_gamma,   // index of not common columns in Xiso 
-                            const int& S) {                   // Number of subnets
-  int n(endo.rows()), Kx(X_niso.cols()), Kz(Z.cols()), Kendo(endo.cols()), Kc(c_gamma.size()), Knc(nc_gamma.size());
+////////////////////////////////////////////////////////////////////////
+//////////////// Computes the structural parameters ////////////////////
+/////////////////////// and Asymmetric Variance ////////////////////////
+////////////////////////////////////////////////////////////////////////
+strCov fAsyparms(const Eigen::VectorXd& theta,     // reduced-form parameters
+                 const Eigen::VectorXd& eta,       // residuals
+                 const Eigen::MatrixXd& sV,        // Scale V (for non-isolated)
+                 const Eigen::VectorXd& sVphi,     // sV * phi
+                 const Eigen::MatrixXd& Z,         // instrument matrix (n x k)
+                 const Eigen::VectorXd& y,         // dependent variable (n x 1)
+                 const Eigen::MatrixXd& endo,      // Endogenous variables
+                 const Eigen::MatrixXd& X,         // covariates for niso
+                 const Eigen::MatrixXd& W,         // weighting matrix
+                 const Eigen::ArrayXi& Iso,        // Indice for isolated
+                 const Eigen::ArrayXi& nIso,       // Indice for nonisolated
+                 const Eigen::ArrayXi& cumsn,     // cumulative group indices 
+                 const Eigen::ArrayXi& nc_gamma,   // index of not common columns in Xiso 
+                 const int& dfiso,                 // degree of freedom for isolated
+                 const int& dfniso,                // degree of freedom for nonisolated
+                 const int& HAC,                   // HAC type
+                 const int& S) {                   // Number of subnets
   
-  // 1. psi
-  Eigen::MatrixXd psi(n, Kendo + Kx + Knc);
-  if (Knc == 0){
-    psi << endo, X_niso / (1.0 + betal);
-  } else {
-    psi << endo, X_niso / (1.0 + betal), X_iso(Eigen::all, nc_gamma);
-  }
-  if (Kc > 0) {
-    psi(Eigen::all, Kendo + c_gamma) += X_iso(Eigen::all, c_gamma);
-  }
+  int Kx(X.cols()), Kendo(endo.cols()), Knc(nc_gamma.size()),
+  Ktheta(1 + Kendo + Kx + Knc), Kz(Z.cols());
   
-  // 2. Closed-form GMM parameters: 
-  Eigen::MatrixXd Ztpsi(Z.transpose() * psi); // kz x kx  Z'psi
-  Eigen::MatrixXd Zty(Z.transpose() * y);  // kz x 1 Z'y
-  Eigen::MatrixXd ZtpsiW(Ztpsi.transpose()* W);   //  kx x kz psi'Z W
-  Eigen::MatrixXd A(ZtpsiW*Ztpsi); // kx x kx psi'Z W Z' psi
-  Eigen::VectorXd b(ZtpsiW * Zty); // kx x 1  psi'Z W Z'Y
+  // 0. unscaled residuals
+  Eigen::VectorXd uneta(eta);
+  uneta(nIso) *= (1 + theta(0));
   
-  // 3. estimate
-  // 3.1 reduced form  [betal, theta1, theta2, gamma]
-  Eigen::VectorXd phired(1 + Kendo + Kx + Knc);
-  phired << betal, A.colPivHouseholderQr().solve(b); // betal, (psi'Z W Z' psi)^{-1} psi'Z W Z'Y
-  
-  // 3.2 structural [betal, betah, delta, gamma]
-  Eigen::VectorXd phistr(1 + Kendo + Kx + Knc);
-  phistr(0)   = phired(0); //betal
-  if(Kendo == 2){
-    phistr(1) = phired(2) * (1 + phired(0)) + phired(0); // betah = theta 2 * (1 + betal) + betal
-    phistr(2) = phired(1) * (1 + phired(0)) - phired(0); // delta = theta 1 * (1 + betal) - betal
-  } else if (Kendo == 1) {
-    phistr(1) = phired(1) * (1 + phired(0)) - phired(0); // delta = theta 1 * (1 + betal) - betal
-  } else {
-    Rcpp::stop("endo should not have more than 2 columns.");
-  }
-  phistr.tail(Kx + Knc) = phired.tail(Kx + Knc); // gamma
-  
-  // 4. Covariance matrice for the reduced form parameters
-  // 4.0 residual
-  Eigen::VectorXd eta(y - psi * phired.tail(Kendo + Kx + Knc));
-  
-  // 4.1 Variance of S^0.5 * moment
+  // 1. Variance of S^0.5 * moment
   Eigen::MatrixXd Vm(Eigen::MatrixXd::Zero(Kz, Kz));
-  double s2(std::numeric_limits<double>::quiet_NaN());
-  double s2iso(std::numeric_limits<double>::quiet_NaN());
-  double s2niso(std::numeric_limits<double>::quiet_NaN());
-  if (HAC == 0) { //4.1 iid
-    eta(nIso) *= (1 + betal);
-    s2         = eta.dot(eta) / (dfiso + dfniso);
-    Eigen::MatrixXd Zs2(Z * s2);
-    Zs2(nIso, Eigen::all) /= pow(1 + betal, 2);
-    Vm                     = Zs2.transpose() * Z / S;
-  } else if (HAC == 1) {// 4.2 iid separately
-    s2iso  = eta(Iso).dot(eta(Iso)) / dfiso;
-    s2niso = eta(nIso).dot(eta(nIso)) / dfniso;
-    Eigen::MatrixXd Zs2(Z);
-    Zs2(Iso, Eigen::all)  *= s2iso;
-    Zs2(nIso, Eigen::all) *= s2niso;
-    Vm      = Zs2.transpose() * Z / S;
-    s2niso *= pow(1 + betal, 2);
-  } else if (HAC == 2) { // 4.3 heteroskedasticity
-    Eigen::MatrixXd Z_eta(Z.array().colwise() * eta.array());
-    Vm = Z_eta.transpose() * Z_eta / S;
+  double serr(std::numeric_limits<double>::quiet_NaN());
+  double serriso(std::numeric_limits<double>::quiet_NaN());
+  double serrniso(std::numeric_limits<double>::quiet_NaN());
+  if (HAC == 0) { //1.1 iid
+    
+    serr = sqrt(uneta.dot(uneta) / (dfiso + dfniso));
+    Eigen::MatrixXd Ze = Z * serr;
+    Ze(nIso, Eigen::all) /= (1 + theta(0));
+    Vm = Ze.transpose() * Ze / S;
+    
+  } else if (HAC == 1) {// 1.2 iid separately
+    
+    serriso  = sqrt(eta(Iso).dot(eta(Iso)) / dfiso);
+    serrniso = sqrt(eta(nIso).dot(eta(nIso)) / dfniso);
+    Eigen::MatrixXd Ze = Z;
+    Ze(Iso, Eigen::all)  *= serriso;
+    Ze(nIso, Eigen::all) *= serrniso;
+    Vm = Ze.transpose() * Ze / S;
+    serrniso *= (1 + theta(0));
+    
+  } else if (HAC == 2) { // 1.3 heteroskedasticity
+    
+    Eigen::MatrixXd Ze    = Z.array().colwise() * eta.array();
+    Vm = Ze.transpose() * Ze / S;
+    
   } else {
-    for (int s(0); s < S; ++ s) { // 4.4 clustering
+    
+    Eigen::ArrayXXd Ze    = Z.array().colwise() * eta.array();
+    for (int s(0); s < S; ++ s) { // 1.4 clustering
       int n1(cumsn(s)), n2(cumsn(s + 1) - 1); 
-      Eigen::VectorXd Zes(Z(Eigen::seq(n1, n2), Eigen::all).transpose() * eta(Eigen::seq(n1, n2)));
-      Vm += Zes * Zes.transpose();
+      Eigen::RowVectorXd Zes(Ze(Eigen::seq(n1, n2), Eigen::all).colwise().sum());
+      Vm += Zes.transpose() * Zes;
     }
     Vm /= S;
+    
   }
-
-  // 4.2 Jacobian G = 1/S Z'(X_niso gamma1 / (1.0 + betal)^2, -endo, -X_iso - X_niso / (1.0 + betal))
-  Eigen::MatrixXd  G(Kz, 1 + Kendo + Kx + Knc);
-  G << Z.transpose()* (X_niso * phired.segment(Kendo + 1, Kx) / (S  * pow(1.0 + betal, 2))),
-       -Z.transpose() * psi / S;
   
-  // 4.3 Compute variance: Var = (G'WG)^-1 when W=Omega^-1 (optimal), otherwise
-  // Var = (G'WG)^-1 G'W Omega W'G (G'WG)'^-1, Omega=Vm
-  Eigen::MatrixXd GtW(G.transpose() * W); 
-  Eigen::MatrixXd bread_inv((GtW * G).inverse());
-  Eigen::MatrixXd meat(GtW * Vm * GtW.transpose());
+  // 2. Jacobian J = d Z'eta / d theta, where eta= y-Vphi/(1+betal) for niso and eta = y - Vphi for iso
+  Eigen::MatrixXd  J(Kz, Ktheta);
+  J << Z(nIso, Eigen::all).transpose() * sVphi(nIso) / (S * (1 + theta(0))), 
+       -Z.transpose() * sV / S;
+  
+  // 3 Estimator's variance: Var = (J'WJ)^-1 J'W Vm W'J (J'WJ)'^-1,
+  Eigen::MatrixXd JtW(J.transpose() * W); 
+  Eigen::MatrixXd bread_inv((JtW * J).inverse());
+  Eigen::MatrixXd meat(JtW * Vm * JtW.transpose());
   Eigen::MatrixXd Vred(bread_inv * meat * bread_inv.transpose() / S);
   
-  // 5. Covariance matrice for the structural parameters (DELTA METHOD)
+  // 4 Variance matrice for the structural parameters (DELTA METHOD)
   // Vstr = D Vred D'
-  Eigen::MatrixXd D = Eigen::MatrixXd::Identity(1 + Kendo + Kx + Knc, 1 + Kendo + Kx + Knc);
-  if (Kendo == 2) {
-    // derivative for phistr(1) = phired(2) * (1 + phired(0)) + phired(0)
-    // d/d phired0 = phired(2) + 1
-    // d/d phired2 = 1 + phired(0)
-    D(1, 0) = phired(2) + 1.0;
-    D(1, 1) = 0;
-    D(1, 2) = 1.0 + phired(0);
+  Eigen::MatrixXd D = Eigen::MatrixXd::Identity(Ktheta, Ktheta);
+  if (Kendo == 2) {// conformity is asymmetric
+    // betal = theta(0)
+    // theta(1) = delta + betal, so delta = theta(1) - theta(0)
+    // betah - betal = theta(2), so betah = theta(0) + theta(2)
     
-    // derivative for phistr(2) = phired(1) * (1 + phired(0)) - phired(0)
-    // d/d phired0 = phired(1) - 1
-    // d/d phired1 = 1 + phired(0)
-    D(2, 0) = phired(1) - 1.0;
-    D(2, 1) = 1.0 + phired(0);
-    D(2, 2) = 0;
-  } else {
-    // derivative for  phistr(1) = phired(1) * (1 + phired(0)) - phired(0)
-    // d/d phired0 = phired(1) - 1
-    // d/d phired1 = 1 + phired(0)
-    D(1, 0) = phired(1) - 1.0;
-    D(1, 1) = 1.0 + phired(0);
-  }
-  Eigen::MatrixXd Vstr(D * Vred * D.transpose());  
-  
-  // 6 J-stat (Sargan overidentification test)
-  // overidentification
-  Eigen::VectorXd Ze(Z.transpose() * eta.matrix());
-  double stat(Ze.dot(Vm.colPivHouseholderQr().solve(Ze)) / S); // because Vm is / S
-  
-  // test for asymmetry
-  Eigen::ArrayXd TestAsym(2);
-  if (Kendo == 2) {
-    TestAsym(0) = phistr(1) - phistr(0); // betah - betal
-    TestAsym(1) = Vstr(0, 0) + Vstr(1, 1) - 2 * Vstr(0, 1);
+    // dbetal / dtheta(0) = 1, dbetal / dtheta(1) = 0, dbetal / dtheta(2) = 0
+    // dbetah / dtheta(0) = 1, dbetah / dtheta(1) = 0, dbetah / dtheta(2) = 1
+    // ddelta / dtheta(0) = -1, ddelta / dtheta(1) = 1, ddelta / dtheta(2) = 0
+    
+    D(1,0) = 1.0;
+    D(1,1) = 0;
+    D(1,2) = 1.0;
+    D(2,0) = -1.0;
+    D(2,1) = 1.0;
+    D(2,2) = 0;
   } 
   
-  return Rcpp::List::create(Rcpp::_["redparm"] = phired, // Reduced form parameter 
-                            Rcpp::_["strparm"] = phistr, // Structural parameter 
-                            Rcpp::_["redcov"]  = Vred,   // Reduced form covariance matrix     
-                            Rcpp::_["strcov"]  = Vstr,   // Structural covariance matrix
-                            Rcpp::_["s2"]      = s2,
-                            Rcpp::_["s2iso"]   = s2iso,
-                            Rcpp::_["s2niso"]  = s2niso,
-                            Rcpp::_["JStat"]   = stat,
-                            Rcpp::_["Jdf"]     = Kz - (Kendo + 1 + Kx + Knc),
-                            Rcpp::_["testAsy"] = TestAsym);
+  Eigen::MatrixXd Vstr(D * Vred * D.transpose());  
+  
+  // structural parameters [betal, betah, delta, gamma] or [beta, delta, gamma]
+  Eigen::VectorXd thetastr = D * theta; 
+  
+  // 5 J-stat (Sargan overidentification test)
+  Eigen::VectorXd Ze(Z.transpose() * eta.matrix());
+  double stat(Ze.dot(Vm.colPivHouseholderQr().solve(Ze)) / S); // because Vm is the variance of Vm * S^0.5
+  double df(Kz - Ktheta);
+  // 6 test for asymmetry
+  Eigen::ArrayXd TestAsym(2);
+  if (Kendo == 2) {
+    TestAsym(0) = thetastr(1) - thetastr(0); // betah - betal
+    TestAsym(1) = Vstr(0, 0) + Vstr(1, 1) - 2 * Vstr(0, 1);
+  } 
+  // 7. Output. Put element in the structure Str
+  strCov out;
+  out.estimate  = thetastr;
+  out.cov       = Vstr;
+  out.serr      = serr;
+  out.serriso   = serriso;
+  out.serrniso  = serrniso;
+  out.Jstat     = stat;
+  out.Jdf       = df;
+  out.TestAsym  = TestAsym;     
+  return out;
 }
 
-
-// Compute parameters and variance, without spillover
-// [[Rcpp::export]]
-Rcpp::List compute_estimate_nospil(const double& betal,              // beta_l parameter
-                                   const Eigen::MatrixXd& Z,         // instrument matrix (n x k)
-                                   const Eigen::VectorXd& y,         // dependent variable (n x 1)
-                                   const Eigen::MatrixXd& endo,      // matrix for iso group
-                                   const Eigen::MatrixXd& X_iso,     // covariates for iso
-                                   const Eigen::MatrixXd& X_niso,    // covariates for niso
-                                   const Eigen::MatrixXd& W,         // weighting matrix
-                                   const Eigen::ArrayXi& Iso,        // Indice for isolated
-                                   const Eigen::ArrayXi& nIso,       // Indice for nonisolated
-                                   const Eigen::VectorXd& cumsn,     // cumulative group indices 
-                                   const int& dfiso,                 // degree of freedom for isolated
-                                   const int& dfniso,                // degree of freedom for nonisolated
-                                   const int& HAC,                   // HAC type
-                                   const Eigen::ArrayXi& c_gamma,    // index of common columns in Xiso 
-                                   const Eigen::ArrayXi& nc_gamma,   // index of not common columns in Xiso 
-                                   const int& S) {                   // Number of subnets
-  int n(endo.rows()), Kx(X_niso.cols()), Kz(Z.cols()), Kendo(endo.cols()), Kc(c_gamma.size()), Knc(nc_gamma.size());
-  double theta1(betal / (1 + betal)); // coefficient of ybar
+////////////////////////////////////////////////////////////////////////
+//////////////// Computes the structural parameters ////////////////////
+/////////////////////// and Asymmetric Variance ////////////////////////
+///////////////// for the model without spillover //////////////////////
+////////////////////////////////////////////////////////////////////////
+strCov fAsyparms_nospill(const Eigen::VectorXd& theta,     // reduced-form parameters
+                         const Eigen::VectorXd& eta,       // residuals
+                         const Eigen::MatrixXd& sV,        // Scale V (for non-isolated)
+                         const Eigen::VectorXd& sVphi,     // sV * phi
+                         const Eigen::MatrixXd& Z,         // instrument matrix (n x k)
+                         const Eigen::VectorXd& y,         // dependent variable (n x 1)
+                         const Eigen::MatrixXd& endo,      // Endogenous variables
+                         const Eigen::MatrixXd& X,         // covariates for niso
+                         const Eigen::MatrixXd& W,         // weighting matrix
+                         const Eigen::ArrayXi& Iso,        // Indice for isolated
+                         const Eigen::ArrayXi& nIso,       // Indice for nonisolated
+                         const Eigen::ArrayXi& cumsn,     // cumulative group indices 
+                         const Eigen::ArrayXi& nc_gamma,   // index of not common columns in Xiso 
+                         const int& dfiso,                 // degree of freedom for isolated
+                         const int& dfniso,                // degree of freedom for nonisolated
+                         const int& HAC,                   // HAC type
+                         const int& S) {                   // Number of subnets
   
-  // 1. psi
-  Eigen::MatrixXd psi(n, Kendo - 1 + Kx + Knc);
-  if (Kendo == 2) {
-    if (Knc == 0){
-      psi << endo.col(1), X_niso / (1.0 + betal);
-    } else {
-      psi << endo.col(1), X_niso / (1.0 + betal), X_iso(Eigen::all, nc_gamma);
-    }
-    if (Kc > 0) {
-      psi(Eigen::all, 1 + c_gamma) += X_iso(Eigen::all, c_gamma);
-    }
-  } else if (Kendo == 1) {
-    if (Knc == 0){
-      psi << X_niso / (1.0 + betal);
-    } else {
-      psi << X_niso / (1.0 + betal), X_iso(Eigen::all, nc_gamma);
-    }
-    if (Kc > 0) {
-      psi(Eigen::all, c_gamma) += X_iso(Eigen::all, c_gamma);
-    }
-  } else {
-    Rcpp::stop("endo should not have more than 2 columns.");
-  }
+  int Kx(X.cols()), Kendo(endo.cols()), Knc(nc_gamma.size()), Ktheta(Kendo + Kx + Knc), 
+  Kz(Z.cols());
   
-  // 2. Closed-form GMM parameters: 
-  Eigen::MatrixXd Ztpsi(Z.transpose() * psi); // kz x kx  Z'psi
-  Eigen::MatrixXd Zty(Z.transpose() * (y - theta1 * endo.col(0)));  // kz x 1 Z'(y - theta1 * ybar)
-  Eigen::MatrixXd ZtpsiW(Ztpsi.transpose()* W);   //  kx x kz psi'Z W
-  Eigen::MatrixXd A(ZtpsiW*Ztpsi); // kx x kx psi'Z W Z' psi
-  Eigen::VectorXd b(ZtpsiW * Zty); // kx x 1  psi'Z W Z'Y
+  // 0. unscaled residuals
+  Eigen::VectorXd uneta(eta);
+  uneta(nIso) *= (1 + theta(0));
   
-  // 3. estimate
-  // 3.1 reduced form  [theta1, theta2, gamma]
-  Eigen::VectorXd phired(Kendo + Kx + Knc);
-  phired << theta1, A.colPivHouseholderQr().solve(b); // theta1, (psi'Z W Z' psi)^{-1} psi'Z W Z'(Y - theta1 * Ybar)
-
-  // 3.2 structural [betal, betah, gamma]
-  Eigen::VectorXd phistr(Kendo + Kx + Knc); 
-  phistr(0)   = betal; //betal
-  if (Kendo == 2) {
-    phistr(1) = phired(1) * (1 + betal) + betal; // betah = theta 2 * (1 + betal) + betal
-  } else if (Kendo > 2) {
-    Rcpp::stop("endo should not have more than 2 columns.");
-  }
-  phistr.tail(Kx + Knc) = phired.tail(Kx + Knc); // gamma
-  
-  // 4. Covariance matrice for the reduced form parameters
-  // 4.0 residual
-  Eigen::VectorXd eta(y - phired(0) * endo.col(0) - psi * phired.tail(Kendo - 1 + Kx + Knc));
-  
-  // 4.1 Variance of S^0.5 * moment
+  // 1. Variance of S^0.5 * moment
   Eigen::MatrixXd Vm(Eigen::MatrixXd::Zero(Kz, Kz));
-  double s2(std::numeric_limits<double>::quiet_NaN());
-  double s2iso(std::numeric_limits<double>::quiet_NaN());
-  double s2niso(std::numeric_limits<double>::quiet_NaN());
-  if (HAC == 0) { //4.1 iid
-    eta(nIso) *= (1 + betal);
-    s2         = eta.dot(eta) / (dfiso + dfniso);
-    Eigen::MatrixXd Zs2(Z * s2);
-    Zs2(nIso, Eigen::all) /= pow(1 + betal, 2);
-    Vm                     = Zs2.transpose() * Z / S;
-  } else if (HAC == 1) {// 4.2 iid separately
-    s2iso  = eta(Iso).dot(eta(Iso)) / dfiso;
-    s2niso = eta(nIso).dot(eta(nIso)) / dfniso;
-    Eigen::MatrixXd Zs2(Z);
-    Zs2(Iso, Eigen::all)  *= s2iso;
-    Zs2(nIso, Eigen::all) *= s2niso;
-    Vm      = Zs2.transpose() * Z / S;
-    s2niso *= pow(1 + betal, 2);
-  } else if (HAC == 2) { // 4.3 heteroskedasticity
-    Eigen::MatrixXd Z_eta(Z.array().colwise() * eta.array());
-    Vm = Z_eta.transpose() * Z_eta / S;
+  double serr(std::numeric_limits<double>::quiet_NaN());
+  double serriso(std::numeric_limits<double>::quiet_NaN());
+  double serrniso(std::numeric_limits<double>::quiet_NaN());
+  if (HAC == 0) { //1.1 iid
+    
+    serr = sqrt(uneta.dot(uneta) / (dfiso + dfniso));
+    Eigen::MatrixXd Ze = Z * serr;
+    Ze(nIso, Eigen::all) /= (1 + theta(0));
+    Vm = Ze.transpose() * Ze / S;
+    
+  } else if (HAC == 1) {// 1.2 iid separately
+    
+    serriso  = sqrt(eta(Iso).dot(eta(Iso)) / dfiso);
+    serrniso = sqrt(eta(nIso).dot(eta(nIso)) / dfniso);
+    Eigen::MatrixXd Ze = Z;
+    Ze(Iso, Eigen::all)  *= serriso;
+    Ze(nIso, Eigen::all) *= serrniso;
+    Vm = Ze.transpose() * Ze / S;
+    serrniso *= (1 + theta(0));
+    
+  } else if (HAC == 2) { // 1.3 heteroskedasticity
+    
+    Eigen::MatrixXd Ze    = Z.array().colwise() * eta.array();
+    Vm = Ze.transpose() * Ze / S;
+    
   } else {
-    for (int s(0); s < S; ++ s) { // 4.4 clustering
+    
+    Eigen::ArrayXXd Ze    = Z.array().colwise() * eta.array();
+    for (int s(0); s < S; ++ s) { // 1.4 clustering
       int n1(cumsn(s)), n2(cumsn(s + 1) - 1); 
-      Eigen::VectorXd Zes(Z(Eigen::seq(n1, n2), Eigen::all).transpose() * eta(Eigen::seq(n1, n2)));
-      Vm += Zes * Zes.transpose();
+      Eigen::RowVectorXd Zes(Ze(Eigen::seq(n1, n2), Eigen::all).colwise().sum());
+      Vm += Zes.transpose() * Zes;
     }
     Vm /= S;
+    
   }
   
-  // 4.2 Jacobian G
-  Eigen::MatrixXd  G(Kz, Kendo + Kx + Knc);
-  G << Z.transpose() * (X_niso * phired.segment(Kendo, Kx) - endo.col(0)) / S, // with respect to theta1
-       -Z.transpose() * psi / S;
+  // 2. Jacobian J = d Z'eta / d theta, where eta= y-Vphi/(1+betal) for niso and eta = y - Vphi for iso
+  Eigen::MatrixXd  J(Kz, Ktheta);
+  J << Z(nIso, Eigen::all).transpose() * (sVphi(nIso) - endo(nIso, 0) / (1 + theta(0))) / (S * (1 + theta(0))), 
+       -Z.transpose() * sV / S;
   
-  // 4.3 Compute variance: Var = (G'WG)^-1 when W=Omega^-1 (optimal), otherwise
-  // Var = (G'WG)^-1 G'W Omega W'G (G'WG)'^-1, Omega=Vm
-  Eigen::MatrixXd GtW(G.transpose() * W); // ((2+Kx) x Kz)x  (Kz x Kz) = (2+Kx) x Kz
-  Eigen::MatrixXd bread_inv((GtW * G).inverse()); // ((2+Kx) x Kz) x (Kz x (2+Kx)) = (2+Kx) x (2+Kx)
-  Eigen::MatrixXd meat(GtW * Vm * GtW.transpose()); // (2+Kx) x Kz * Kz x Kz * Kz x (2+Kx) = (2+Kx) x (2+Kx)
-  Eigen::MatrixXd Vred(bread_inv * meat * bread_inv.transpose() / S); // (2+Kx) x (2+Kx)
+  // 3 Estimator's variance: Var = (J'WJ)^-1 J'W Vm W'J (J'WJ)'^-1,
+  Eigen::MatrixXd JtW(J.transpose() * W); 
+  Eigen::MatrixXd bread_inv((JtW * J).inverse());
+  Eigen::MatrixXd meat(JtW * Vm * JtW.transpose());
+  Eigen::MatrixXd Vred(bread_inv * meat * bread_inv.transpose() / S);
   
-  // 5. Covariance matrice for the structural parameters (DELTA METHOD)
+  // 4. Covariance matrice for the structural parameters (DELTA METHOD)
   // Vstr = D Vred D'
-  Eigen::MatrixXd D = Eigen::MatrixXd::Identity(Kendo + Kx + Knc, Kendo + Kx + Knc);
-  // d betal / d theta1 = 1/(1 - theta1)^2 = (1 + betal)^2
-  D(0, 0) = pow(1.0 + betal, 2);
-  // betah = theta2 * (1 + betal) + betal = (theta1 + theta2) / (1 - theta1)
-  // d betah / d theta1 = (1 + theta2) / (1 - theta1)^2 = (1 + theta2) * (1 + betal)^2
-  // d betah / d theta2 = 1 / (1 - theta1) = 1 + betal
-  if(Kendo == 2){
-    D(1, 0) = (1.0 + phired(1)) * pow(1.0 + betal, 2);
-    D(1, 1) = 1.0 + betal;
-  }
+  Eigen::MatrixXd D = Eigen::MatrixXd::Identity(Ktheta, Ktheta);
+  if (Kendo == 2) {
+    // betal = theta(0)
+    // betah - betal = theta(1), so betah = theta(0) + theta(1)
+    
+    // dbetal / dtheta(0) = 1, dbetal / dtheta(1) = 0
+    // dbetah / dtheta(0) = 1, dbetah / dtheta(1) = 1
+    
+    D(1, 0) = 1.0;
+  } 
+  
   Eigen::MatrixXd Vstr(D * Vred * D.transpose());  
   
-  // 6 J-stat (Sargan overidentification test)
-  // overidentification
-  Eigen::VectorXd Ze(Z.transpose() * eta.matrix());
-  double stat(Ze.dot(Vm.colPivHouseholderQr().solve(Ze)) / S); // because Vm is / S
+  // Structural parameters [betal, betah, gamma] or [beta, gamma]
+  Eigen::VectorXd thetastr = D * theta; 
   
-  // test for asymmetry
+  // 5. J-stat (Sargan overidentification test)
+  Eigen::VectorXd Ze(Z.transpose() * eta.matrix());
+  double stat(Ze.dot(Vm.colPivHouseholderQr().solve(Ze)) / S); // because Vm is the variance of Vm * S^0.5
+  double df(Kz - Ktheta);
+  
+  // 6. test for asymmetry
   Eigen::ArrayXd TestAsym(2);
   if (Kendo == 2) {
-    TestAsym(0) = phistr(1) - phistr(0); // betah - betal
+    TestAsym(0) = thetastr(1) - thetastr(0); // betah - betal
     TestAsym(1) = Vstr(0, 0) + Vstr(1, 1) - 2 * Vstr(0, 1);
   } 
   
-  return Rcpp::List::create(Rcpp::_["redparm"] = phired, // Reduced form parameter 
-                            Rcpp::_["strparm"] = phistr, // Structural parameter 
-                            Rcpp::_["redcov"]  = Vred,   // Reduced form covariance matrix     
-                            Rcpp::_["strcov"]  = Vstr,   // Structural covariance matrix
-                            Rcpp::_["s2"]      = s2,
-                            Rcpp::_["s2iso"]   = s2iso,
-                            Rcpp::_["s2niso"]  = s2niso,
-                            Rcpp::_["JStat"]   = stat,
-                            Rcpp::_["Jdf"]     = Kz - (Kendo + Kx + Knc),
-                            Rcpp::_["testAsy"] = TestAsym);
+  // 7. Output. Put element in the structure Str
+  strCov out;
+  out.estimate  = thetastr;
+  out.cov       = Vstr;
+  out.serr      = serr;
+  out.serriso   = serriso;
+  out.serrniso  = serrniso;
+  out.Jstat     = stat;
+  out.Jdf       = df;
+  out.TestAsym  = TestAsym;     
+  return out;
+}
+
+////////////////////////////////////////////////////////////////////////
+//////////////////// Main function to call from R //////////////////////
+///////////// It computes the estimates and the cov matrice ////////////
+////////////////////////////////////////////////////////////////////////
+
+// [[Rcpp::export]]
+Rcpp::List fAsyMain(const double betal0,              // starting value for betal
+                    const Eigen::MatrixXd& Z,         // instrument matrix (n x k)
+                    const Eigen::VectorXd& y,         // dependent variable (n x 1)
+                    const Eigen::MatrixXd& endo,      // Endogenous variables
+                    const Eigen::MatrixXd& X,         // covariates for niso
+                    Eigen::MatrixXd& W,               // weighting matrix
+                    const Eigen::ArrayXi& Iso,        // Indice for isolated
+                    const Eigen::ArrayXi& nIso,       // Indice for nonisolated
+                    const Eigen::ArrayXi& cumsn,     // cumulative group indices 
+                    const Eigen::ArrayXi& nc_gamma,   // index of not common columns in Xiso 
+                    const int& dfiso,                 // degree of freedom for isolated
+                    const int& dfniso,                // degree of freedom for nonisolated
+                    const int& HAC,                   // HAC type
+                    const int& weight,                // weight type
+                    const int& S,                     // Number of subnets
+                    const int& maxit,                 // optimizer controls
+                    const double& eps_f,
+                    const double& eps_g,
+                    const bool& spillover) {
+  int n(y.size()), Kx(X.cols()), Kendo(endo.cols()), Knc(nc_gamma.size()), 
+  Ktheta(spillover + Kendo + Kx + Knc);
+
+  // 1. V
+  Eigen::MatrixXd V = Eigen::MatrixXd::Zero(n, Ktheta - 1);
+  if (spillover){
+    V(Eigen::all, Eigen::seqN(0, Kendo + Kx)) << endo, X;
+  } else {
+    if (Kendo == 2) {
+      V(nIso, 0) = endo(nIso, 1);
+    }
+    V(Eigen::all, Eigen::seqN(Kendo - 1, Kx)) = X;
+  }
+  if (Knc > 0) {
+    V(Iso, Kendo - (1 - spillover) + nc_gamma).setConstant(0); // These columns will have different coeff for iso
+    V(Iso, Eigen::seqN(Kendo - (1 - spillover) + Kx, Knc)) = X(Iso, nc_gamma); // Add them as additional columns for iso
+  }
+  
+  // First step GMM
+  strEstim gmm;
+  if (spillover) {
+    gmm = fAsyGmmEstim(betal0, Z, y, V, W, nIso, n, S, Ktheta, maxit, eps_f, eps_g);
+  } else {
+    gmm = fAsyGmmEstim_nospill(betal0, Z, y, endo.col(0), V, W, nIso, n, S, Ktheta, 
+                               maxit, eps_f, eps_g);
+  }
+  
+  // Optimal weighting matrix if necessary
+  if(weight == 2) { 
+    W = fAsyWopt(gmm.theta, Z, gmm.eta, cumsn, Iso, nIso, dfiso, dfniso, HAC, S);
+    // Optimal GMM
+    if (spillover) {
+      gmm = fAsyGmmEstim(betal0, Z, y, V, W, nIso, n, S, Ktheta, maxit, eps_f, eps_g);
+    } else {
+      gmm = fAsyGmmEstim_nospill(betal0, Z, y, endo.col(0), V, W, nIso, n, S, Ktheta, 
+                                 maxit, eps_f, eps_g);
+    }
+  }
+  
+  // Covariance
+  strCov final;
+  if (spillover) {
+    final = fAsyparms(gmm.theta, gmm.eta, gmm.sV, gmm.sVphi, Z, y, endo, X, W, Iso, 
+                      nIso, cumsn, nc_gamma, dfiso, dfniso, HAC, S);
+  } else {
+    final = fAsyparms_nospill(gmm.theta, gmm.eta, gmm.sV, gmm.sVphi, Z, y, endo, X, W, Iso, 
+                              nIso, cumsn, nc_gamma, dfiso, dfniso, HAC, S);
+  }
+  
+  // unscale residual
+  gmm.eta(nIso) *= (1 + gmm.theta(0));
+  
+  return Rcpp::List::create(Rcpp::_["estimate"]      = final.estimate,
+                            Rcpp::_["cov"]           = final.cov,
+                            Rcpp::_["serr"]          = final.serr,
+                            Rcpp::_["serr_iso"]      = final.serriso,
+                            Rcpp::_["serr_niso"]     = final.serrniso,
+                            Rcpp::_["Jstat"]         = final.Jstat,
+                            Rcpp::_["Jdf"]           = final.Jdf,
+                            Rcpp::_["TestAsym"]      = final.TestAsym,
+                            Rcpp::_["objective"]     = gmm.objective,  
+                            Rcpp::_["gradient"]      = gmm.gradient,  
+                            Rcpp::_["status"]        = gmm.status,
+                            Rcpp::_["unscale.resid"] = gmm.eta);
 }

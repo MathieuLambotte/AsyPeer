@@ -8,7 +8,6 @@
 \usage{
 \method{summary}{asypeer.estim}(
   object,
-  structural = TRUE,
   diagnostic = FALSE,
   diagnostics = FALSE,
   KPtest = diagnostics || diagnostic,
@@ -22,8 +21,6 @@
 }
 \arguments{
 \item{object}{An object of class \code{\link{asypeer.estim}} as returned by the function \link{asypeer.estim}.}
-
-\item{structural}{A logical value indicating whether the summary should display the structural parameters (\code{structural = TRUE}) or the reduced-form parameters (\code{structural = FALSE}).}
 
 \item{diagnostics, diagnostic}{A logical value indicating whether diagnostic tests for the IV GMM should be performed.
 These include an F-test of the first-stage regression for weak instruments, a Wu-Hausman test

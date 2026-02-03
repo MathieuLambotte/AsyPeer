@@ -50,7 +50,10 @@
 #' @param spillover A logical value indicating if the model included a spillover component in additional to the asymmetric conformity effect.
 #'    
 #' @param asymmetry A logical value indicating if the preference for conformity is asymmetric or not.
-#'    
+#' 
+#' @param ctl.lbfgs A list of control parameters, such as `maxit`, `eps_f`, and `eps_g`, 
+#' to be passed to `optim_lbfgs()` from the \pkg{RcppNumerical} package.
+#' 
 #' @param ... Further arguments passed to or from other methods.   
 #'
 #' @return A list containing:
@@ -114,6 +117,7 @@ asypeer.estim <- function(formula,
                           tol = 1e-10,
                           nthread = 1,
                           drop = NULL,
+                          ctl.lbfgs = list(),
                           ...){
   ## Thread
   tp        <- fnthreads(nthread = nthread)
@@ -159,17 +163,7 @@ asypeer.estim <- function(formula,
     }
   }
   Glist      <- fGnormalise(Glist, nthread)
-  ## Weight
-  if (tolower(weight) %in% c("i","identity")) {
-    weight   <- "I"
-  } else if (tolower(weight) %in% c("iv")) {
-    weight   <- "IV"
-  } else if (tolower(weight) %in% c("opti", "optimal","optim")) {
-    weight   <- "optimal"
-  } else {
-    stop("This weighting option is not available.")
-  }
-  
+
   ## HAC
   HACn    <- NULL
   if (tolower(HAC) %in% c("iid","i.i.d")) {
@@ -190,6 +184,21 @@ asypeer.estim <- function(formula,
   if (HACn == 2 & fixed.effects > 0) {
     HAC   <- "cluster"
     HACn  <- 3
+  }
+  
+  ## Weight
+  weightn    <- NULL
+  if (tolower(weight) %in% c("i","identity")) {
+    weight   <- "I"
+    weightn  <- 0
+  } else if (tolower(weight) %in% c("iv")) {
+    weight   <- "IV"
+    weightn  <- 1
+  } else if (tolower(weight) %in% c("opti", "optimal","optim")) {
+    weight   <- "optimal"
+    weightn  <- ifelse(HACn == 0, 1, 2)
+  } else {
+    stop("This weighting option is not available.")
   }
   
   ## sizes
@@ -231,12 +240,13 @@ asypeer.estim <- function(formula,
   endo   <- highlowstat1(X = as.matrix(y), G = Glist, cumsn = cumsn, nvec = nvec, 
                          ngroup = S, nthread = nthread)
   if(asymmetry){
-  endo   <- cbind(yb = endo$Xbar, ydot = endo$Xbh - endo$gh * y)
-  colnames(endo) <- paste0(yname, c("_bar", "_dot"))
+    endo   <- cbind(yb = endo$Xbar, ydot = endo$Xbh - endo$gh * y)
+    colnames(endo) <- paste0(yname, c("_bar", "_dot"))
   } else {
     endo   <- endo$Xbar
     colnames(endo) <- paste0(yname, "_bar")
   }
+  
   #drop
   if (!is.null(drop)) {
     dg       <- fdrop(drop = drop, ldg = ldg, S = S, nvec = nvec, y = y, 
@@ -297,6 +307,29 @@ asypeer.estim <- function(formula,
   ncgamma   <- setdiff(xnameiso, cgamma)
   cgamma    <- which(xname %in% cgamma) - 1
   ncgamma   <- which(xname %in% ncgamma) - 1
+  
+  ## degree of freedom
+  dfiso    <- NULL
+  dfniso   <- NULL
+  if (fixed.effects) {
+    Kxiso  <- length(xnameiso)
+    dfiso  <- n_iso - SIso - Kxiso
+    dfniso <- n_niso - SnIso - asymmetry -1  - spillover - Kx + Kxiso
+  } else {
+    Kxiso  <- length(xnameiso)
+    dfiso  <- n_iso - Kxiso
+    dfniso <- n_niso - 1 - asymmetry - spillover - Kx + Kxiso
+  }
+  if ((dfiso <= 0) && HACn == 1) {
+    HAC    <- "iid"
+    HACn   <- 0
+  }
+  if (spillover && (dfiso <= 0)) {
+    stop("Insufficient number of observations for isolated nodes.")
+  }
+  if (dfniso <= 0) {
+    stop("Insufficient number of observations for non-isolated nodes.")
+  }
   if ((length(cgamma) == 0) && spillover) {
     stop("`common.gamma` is needed to estimate spillover effects.")
   }
@@ -324,29 +357,6 @@ asypeer.estim <- function(formula,
     stop("Errors cannot be clustered because the number of instruments is larger than the number of subnets.")
   }
   
-  ## degree of freedom
-  dfiso    <- NULL
-  dfniso   <- NULL
-  if (fixed.effects) {
-    Kxiso  <- length(xnameiso)
-    dfiso  <- n_iso - SIso - Kxiso
-    dfniso <- n_niso - SnIso - asymmetry -1  - spillover - Kx + Kxiso
-  } else {
-    Kxiso  <- length(xnameiso)
-    dfiso  <- n_iso - Kxiso
-    dfniso <- n_niso - 1 - asymmetry - spillover - Kx + Kxiso
-  }
-  if ((dfiso <= 0) && HACn == 1) {
-    HAC    <- "iid"
-    HACn   <- 0
-  }
-  if (spillover && (dfiso <= 0)) {
-    stop("Insufficient number of observations for isolated nodes.")
-  }
-  if (dfniso <= 0) {
-    stop("Insufficient number of observations for non-isolated nodes.")
-  }
-  
   ## Weight
   if (weight == "I"){
     W    <- diag(nrow = ncol(Z))
@@ -354,62 +364,34 @@ asypeer.estim <- function(formula,
     W    <- solve(crossprod(Z) / n)
   }
   
-  ## Optimization
-  fGMM     <- gmm_obj_nospil
-  fWopt    <- W_optimal_nospil
-  fest     <- compute_estimate_nospil
-  if (spillover){
-    fGMM   <- gmm_obj
-    fWopt  <- W_optimal
-    fest   <- compute_estimate
-  }
+  # control
+  maxit  <- ifnullset(ctl.lbfgs$maxit, 1e6)
+  eps_f  <- ifnullset(ctl.lbfgs$eps_f, 1e-9)
+  eps_g  <- ifnullset(ctl.lbfgs$eps_g, 1e-9)
   
-  # solve with the first step weighting matrix
-  gmm    <- optimize(f = fGMM, Z = Z, y = y, endo = endo, X_iso = X_iso,
-                     c_gamma = cgamma, nc_gamma = ncgamma,
-                     X_niso = X_niso, W = W, S = S, lower = -0.999, upper =  100)
-  
-  #get the estimate of beta_l
-  betal  <- gmm$minimum
-  
-  # get the optimal weighting matrice given the estimated beta_l
-  if(weight == "optimal"){
-    W    <- fWopt(betal = betal, Z = Z, y = y, endo = endo, X_iso = X_iso,
-                  c_gamma = cgamma, nc_gamma = ncgamma,
-                  X_niso = X_niso, W = W, Iso = Iso, nIso = nIso, cumsn = cumsn,
-                  dfiso = dfiso, dfniso = dfniso, HAC = HACn, S = S)
-    
-    #gmm with optimal W
-    gmm  <- optimize(f = fGMM, Z = Z, y = y, endo = endo, X_iso = X_iso, 
-                     c_gamma = cgamma, nc_gamma = ncgamma,
-                     X_niso = X_niso, W = W, S = S, lower = -0.999, upper =  100)
-    
-    #get the optimal estimate of beta_l
-    betal <- gmm$minimum
-  }
-  
-  # and the associated estimates of phi
-  estim   <- fest(betal = betal, Z = Z, y = y, endo = endo, X_iso = X_iso,
-                  c_gamma = cgamma, nc_gamma = ncgamma,
-                  X_niso = X_niso, W = W, Iso = Iso, nIso = nIso, 
-                  cumsn = cumsn, dfiso = dfiso, dfniso = dfniso, HAC = HACn, S = S)
-  
+  ## Estimation
+  est     <- suppressWarnings(
+    fAsyMain(betal0 = 1, Z = Z, y = y, endo = endo, X = X, W = W, Iso = Iso, 
+                     nIso = nIso, cumsn = cumsn, nc_gamma = ncgamma, dfiso = dfiso,
+                     dfniso = dfniso, HAC = HACn, weight = weightn, S = S, maxit = maxit,
+                     eps_f = eps_f, eps_g = eps_g, spillover = spillover)
+  )
+
   ## Shape the output
-  gmm     <- list(redparms = estim$redparm,
-                  strparms = estim$strparm,
-                  redcov   = estim$redcov,
-                  strcov   = estim$strcov,
-                  s2       = c(overall = estim$s2, isolates = estim$s2iso, nonisolates = estim$s2niso),
-                  Sargan   = list(stat   = ifelse(estim$Jdf > 0, estim$JStat, NA),
-                                  df     = estim$Jdf,
-                                  pvalue = ifelse(estim$Jdf > 0, 1 - pchisq(estim$JStat, estim$Jdf), NA)))
-  
+  gmm     <- list(Estimate = est$estimate,
+                  cov      = est$cov,
+                  sigma    = c(overall = est$serr, isolates = est$serr_iso, nonisolates = est$serr_niso),
+                  Sargan   = list(stat   = ifelse(est$Jdf > 0, est$Jstat, NA),
+                                  df     = est$Jdf,
+                                  pvalue = ifelse(est$Jdf > 0, 1 - pchisq(est$Jstat, est$Jdf), NA)))
   ## Test for asymmetry
   if (asymmetry) {
-    gmm   <- c(gmm, list("diffbeta" = c("Estimate" = estim$testAsy[1],
-                                        "SE"       = estim$testAsy[2],
-                                        "p-value"  = 1 - pchisq((estim$testAsy[1]^2) / estim$testAsy[2], df = 1))))
+    gmm   <- c(gmm, list("diffbeta" = c("Estimate" = est$TestAsym[1],
+                                        "SE"       = est$TestAsym[2],
+                                        "p-value"  = 1 - pchisq((est$TestAsym[1]^2) / est$TestAsym[2], df = 1))))
   }
+  gmm     <- c(gmm, list(unscale.resid = est$unscale.resid,
+                         lbfgs = est[c("objective", "gradient", "status")]))
   
   gname   <- paste0("gamma:", xname)
   if (length(ncgamma) > 0) {
@@ -417,26 +399,18 @@ asypeer.estim <- function(formula,
   }
   if(spillover){
     if(asymmetry){
-    names(gmm$redparms) <- colnames(gmm$redcov) <- rownames(gmm$redcov) <- 
-      c("betal", "theta1", "theta2", gname) 
-    names(gmm$strparms) <- colnames(gmm$strcov) <- rownames(gmm$strcov) <- 
-      c("betal", "betah", "delta", gname)
+      names(gmm$Estimate) <- colnames(gmm$cov) <- rownames(gmm$cov) <- 
+        c("betal", "betah", "delta", gname)
     } else {
-      names(gmm$redparms) <- colnames(gmm$redcov) <- rownames(gmm$redcov) <- 
-        c("beta", "theta1", gname) 
-      names(gmm$strparms) <- colnames(gmm$strcov) <- rownames(gmm$strcov) <- 
+      names(gmm$Estimate) <- colnames(gmm$cov) <- rownames(gmm$cov) <- 
         c("beta", "delta", gname)
     }
   } else {
     if(asymmetry){
-    names(gmm$redparms) <- colnames(gmm$redcov) <- rownames(gmm$redcov) <- 
-      c("theta1","theta2", gname) 
-    names(gmm$strparms) <- colnames(gmm$strcov) <- rownames(gmm$strcov) <- 
-      c("betal", "betah", gname)
+      names(gmm$Estimate) <- colnames(gmm$cov) <- rownames(gmm$cov) <- 
+        c("betal", "betah", gname)
     } else {
-      names(gmm$redparms) <- colnames(gmm$redcov) <- rownames(gmm$redcov) <- 
-        c("theta1", gname) 
-      names(gmm$strparms) <- colnames(gmm$strcov) <- rownames(gmm$strcov) <- 
+      names(gmm$Estimate) <- colnames(gmm$cov) <- rownames(gmm$cov) <- 
         c("beta", gname)
     }
   }
@@ -458,7 +432,6 @@ asypeer.estim <- function(formula,
 
 #' @title Summary and Print Methods for the Asymmetric Peer Effects Model
 #' @param object An object of class \code{\link{asypeer.estim}} as returned by the function \link{asypeer.estim}.
-#' @param structural A logical value indicating whether the summary should display the structural parameters (\code{structural = TRUE}) or the reduced-form parameters (\code{structural = FALSE}).
 #' @param diagnostics,diagnostic A logical value indicating whether diagnostic tests for the IV GMM should be performed.
 #'   These include an F-test of the first-stage regression for weak instruments, a Wu-Hausman test
 #'   for endogeneity, and a Hansen's J-test for overidentifying restrictions (the latter only when
@@ -483,33 +456,28 @@ asypeer.estim <- function(formula,
 #'     and related statistics.}
 #'
 #' @export
-
+#' @method summary asypeer.estim
 summary.asypeer.estim <- function(object, 
-                                  structural  = TRUE, 
                                   diagnostic  = FALSE, 
                                   diagnostics = FALSE,
                                   KPtest      = diagnostics || diagnostic,  
                                   nthread     = 1L,
                                   ...) {
   stopifnot(inherits(object, "asypeer.estim"))
-  diagn   <- NULL
+  diagn  <- NULL
   if (diagnostic || diagnostics) {
-    tp        <- fnthreads(nthread = nthread)
+    tp   <- fnthreads(nthread = nthread)
     if ((tp == 1) & (nthread != 1)) {
       warning("OpenMP is not available. Sequential processing is used.")
       nthread <- tp
     }
-    diagn   <- fdiagnostic(object, KPtest, nthread)
+    diagn <- fdiagnostic(object, KPtest, nthread)
   }
   yname   <- object$model.info$yname
   xnames  <- object$model.info$xnames
-  if (structural) {
-    est   <- object$gmm$strparms
-    covt  <- object$gmm$strcov
-  } else{
-    est   <- object$gmm$redparms
-    covt  <- object$gmm$redcov
-  }
+  
+  est     <- object$gmm$Estimate
+  covt    <- object$gmm$cov
   
   coef    <- fcoef(Estimate = est, cov = covt)
   out     <- c(object["model.info"], 
@@ -529,16 +497,16 @@ print.summary.asypeer.estim <- function(x, ...) {
   hete <- x$model.info$HAC
   hete <- ifelse(hete %in% c("iid", "group-iid"), hete,
                  ifelse(hete == "hetero", "Individual", "Cluster"))
-  sig_overall  <- x$gmm$s2["overall"]
-  sig_iso      <- x$gmm$s2["isolates"]
-  sig_niso     <- x$gmm$s2["nonisolates"]
+  sig_overall  <- x$gmm$sigma["overall"]
+  sig_iso      <- x$gmm$sigma["isolates"]
+  sig_niso     <- x$gmm$sigma["nonisolates"]
   FE           <- x$model.info$fixed.effects
   
   inst   <- paste("(G^p)X with max(p) =", max(x$model.info$power))
   if (x$model.info$asymmetry) {
     inst <- paste(inst, "and", 
-          ifelse(x$model.info$estimator == "rf", "Random Forest", 
-                 toupper(x$model.info$estimator)), "predictions")
+                  ifelse(x$model.info$estimator == "rf", "Random Forest", 
+                         toupper(x$model.info$estimator)), "predictions")
   } 
   cat("Formula: ", deparse(x$model.info$formula),
       "\nExcluded instruments: ", ifelse(!is.null(x$model.info$excluded.instruments), 
@@ -580,14 +548,14 @@ print.summary.asypeer.estim <- function(x, ...) {
   ## range
   delta   <- 0
   if (x$model.info$spillover) {
-    delta <- x$gmm$strparms["delta"]
+    delta <- x$gmm$Estimate["delta"]
   }
-  minbeta <- ifelse(x$model.info$asymmetry, min(x$gmm$strparms[c("betal", "betah")]), x$gmm$strparms["beta"])
-  maxbeta <- ifelse(x$model.info$asymmetry, max(x$gmm$strparms[c("betal", "betah")]), x$gmm$strparms["beta"])
+  minbeta <- ifelse(x$model.info$asymmetry, min(x$gmm$Estimate[c("betal", "betah")]), x$gmm$Estimate["beta"])
+  maxbeta <- ifelse(x$model.info$asymmetry, max(x$gmm$Estimate[c("betal", "betah")]), x$gmm$Estimate["beta"])
   if (minbeta > -1) {
     if(x$model.info$asymmetry){ 
-      boundl <- unname((delta + minbeta) / (1 + maxbeta))
-      boundh <- unname((delta + maxbeta) / (1 + minbeta))
+      boundl <- unname((delta + minbeta) / (1 + minbeta))
+      boundh <- unname((delta + maxbeta) / (1 + maxbeta))
       if ((abs(boundl) < 1) && (abs(boundh) < 1)) {
         cat("\nTotal Peer Effects Range:", " [", deparse(round(boundl,4)),", ", deparse(round(boundh,4)),"]\n", sep = "")
       } else{
@@ -602,7 +570,7 @@ print.summary.asypeer.estim <- function(x, ...) {
       }
     }
   } else{
-    warning("Conformity parameter lower than -1")
+    warning("Conformity parameter lower than -0.5; total Peer effects are outside the [-1, 1] interval.")
   }
   
   class(x) <- "print.summary.asypeer.estim"
@@ -614,3 +582,12 @@ print.summary.asypeer.estim <- function(x, ...) {
 print.asypeer.estim <- function(x, ...) {
   print(summary(x))
 }
+
+
+ifnullset <- function(x, value) {
+  if (is.null(x)) {
+    return(value)
+  }
+  x
+}
+

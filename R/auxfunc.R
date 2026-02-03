@@ -186,70 +186,6 @@ fprintcoeft <- function(coef) {
   print(out)
 }
 
-testSargan <-function(object, y, X_iso, X_niso, endo, Z,
-                      S, cumsn, lIso, lnIso, weight, HACn){
-  ## degree of freedom
-  Iso    <- unlist(lIso)
-  nIso   <- unlist(lnIso)
-  dfiso  <- object$model.info$dfiso
-  dfniso <- object$model.info$dfniso
-  spillover <- object$model.info$spillover
-  cgamma    <- which(object$model.info$xname %in% object$model.info$common.gamma) - 1
-  ncgamma   <- which(object$model.info$xname %in% object$model.info$ncommon.gamma) - 1
-  # GMM OLS
-  Z      <- cbind(endo, Z)
-  Z      <- Z[, fcheckrank(X = Z, tol = object$model.info$tol) + 1, 
-              drop = FALSE]
-  
-  if (weight == "I"){
-    W    <- diag(nrow = ncol(Z))
-  } else if(weight %in% c("IV", "optimal")){ 
-    W    <- solve(crossprod(Z) / S)
-  }
-  
-  fGMM     <- gmm_obj_nospil
-  fWopt    <- W_optimal_nospil
-  fest     <- compute_estimate_nospil
-  if (spillover){
-    fGMM   <- gmm_obj
-    fWopt  <- W_optimal
-    fest   <- compute_estimate
-  }
-  
-  gmm    <- optimize(f = fGMM, Z = Z, y = y, endo = endo, X_iso = X_iso, 
-                     X_niso = X_niso, W = W, S = S, c_gamma = cgamma, 
-                     nc_gamma = ncgamma, lower = -0.999, upper =  20)
-  betal  <- gmm$minimum
-  
-  if(weight == "optimal"){
-    W    <- fWopt(betal = betal, Z = Z, y = y, endo = endo, X_iso = X_iso,
-                  X_niso = X_niso, W = W, Iso = Iso, nIso = nIso, cumsn = cumsn,
-                  dfiso = dfiso, dfniso = dfniso, HAC = HACn, S = S,
-                  c_gamma = cgamma, nc_gamma = ncgamma)
-    
-    #gmm with optimal W
-    gmm  <- optimize(f = fGMM, Z = Z, y = y, endo = endo, X_iso = X_iso, 
-                     X_niso = X_niso, W = W, S = S, c_gamma = cgamma, 
-                     nc_gamma = ncgamma, lower = -0.999, upper =  20)
-    
-    #get the optimal estimate of beta_l
-    betal <- gmm$minimum
-  }
-  ols     <- fest(betal = betal, Z = Z, y = y, endo = endo, X_iso = X_iso,
-                  X_niso = X_niso, W = W, Iso = Iso, nIso = nIso, 
-                  cumsn = cumsn, dfiso = dfiso, dfniso = dfniso, HAC = HACn, 
-                  c_gamma = cgamma, nc_gamma = ncgamma, S = S)
-  
-  #J stat
-  Jstat      <- ols$JStat - object$gmm$Sargan$stat
-  df         <- ols$Jdf - object$gmm$Sargan$df
-  pvalue     <- 1 - pchisq(Jstat, df)
-  out        <- c(Jstat, df, pvalue)
-  print(ols)
-  names(out) <- c("Jstat", "df", "pvalue")
-  return(out)
-}
-
 #' @importFrom stats pf
 fdiagnostic <- function(object, KPtest, nthread) {
   fixed.effects <- object$model.info$fixed.effects
@@ -299,10 +235,7 @@ fdiagnostic <- function(object, KPtest, nthread) {
     tpKP$pvalue <- pchisq(tpKP$stat, tpKP$df, lower.tail = FALSE)
   }
   
-  ## Endogeneity test
-  # tpend  <- testSargan(object = object, y = y, X_iso = X_iso, X_niso = X_niso, 
-  #                      endo = endo, Z = Z, S = S, cumsn = cumsn, lIso = lIso,
-  #                      lnIso = lnIso, weight = weight, HACn = HACn)
+
   out    <- cbind(df1        = unlist(c(rep(tpF$df1, 1 + asymmetry), tpKP$df, 
                                         object$gmm$Sargan["df"])),
                   df2        = c(rep(tpF$df2, 1 + asymmetry), rep(NA, 1 + KPtest)),
@@ -321,4 +254,73 @@ fdiagnostic <- function(object, KPtest, nthread) {
   }
   rownames(out) <- rn
   out
+}
+
+
+fCESdatainit  <- function (y, z, G, nvec, S, ldg, lIs, lnIs, drop) {
+  n           <- sum(nvec)
+  if (length(drop) == 0) {
+    drop      <- rep(0, n)
+  }
+  if (any(!(drop %in% 0:1) | !is.finite(drop))) {
+    stop("`drop` must be a binary (0/1) variable.")
+  }
+  if (length(drop) != n) {
+    stop("`drop` must be a vector of length n.")
+  }
+  ncs         <- c(0, cumsum(nvec))
+  friendindex <- lapply(1:S, function(m) {
+    lapply(1:nvec[m], function(s) {
+      which(G[[m]][s,] > 0) - 1
+    })})
+  frzeroy     <- as.integer(unlist(lapply(1:S, function(m){
+    lapply(1:nvec[m], function(s){
+      any(y[friendindex[[m]][[s]] + ncs[m] + 1] <= 0)
+    })})))
+  frzeroz     <- as.integer(unlist(lapply(1:S, function(m){
+    lapply(1:nvec[m], function(s){
+      any(z[friendindex[[m]][[s]] + ncs[m] + 1] <= 0)
+    })})))
+  lsel        <- lapply(1:S, function(m) drop[(ncs[m] + 1):ncs[m + 1]] != 1)
+  
+  # Max and Min of friend y and z
+  yFmax       <- unlist(lapply(1:S, function(m){
+    lapply(1:nvec[m], function(s){
+      ifelse(ldg[[m]][s] > 0, max(y[friendindex[[m]][[s]] + ncs[m] + 1]), NA)
+    })
+  }))
+  yFmin       <- unlist(lapply(1:S, function(m){
+    lapply(1:nvec[m], function(s){
+      ifelse(ldg[[m]][s] > 0, min(y[friendindex[[m]][[s]] + ncs[m] + 1]), NA)
+    })
+  }))
+  zFmax       <- unlist(lapply(1:S, function(m){
+    lapply(1:nvec[m], function(s){
+      ifelse(ldg[[m]][s] > 0, max(z[friendindex[[m]][[s]] + ncs[m] + 1]), NA)
+    })
+  }))
+  zFmin       <- unlist(lapply(1:S, function(m){
+    lapply(1:nvec[m], function(s){
+      ifelse(ldg[[m]][s] > 0, min(z[friendindex[[m]][[s]] + ncs[m] + 1]), NA)
+    })
+  }))
+  
+  # In selection variables
+  ldg         <- lapply(1:S, function(m) ldg[[m]][lsel[[m]]])
+  lIs         <- lapply(1:S, function(m) lIs[[m]][lsel[[m]][lIs[[m]] - ncs[m] + 1]])
+  lnIs        <- lapply(1:S, function(m) lnIs[[m]][lsel[[m]][lnIs[[m]] - ncs[m] + 1]])
+  Is          <- unlist(lIs)
+  nIs         <- unlist(lnIs)
+  
+  # In selection variables if empty groups are removed
+  keepg       <- sapply(1:S, function(m) length(ldg[[m]]) > 0)
+  ldg         <- ldg[keepg]
+  S           <- length(ldg)
+  SIs         <- sum(sapply(lIs, function(s) length(s) > 0))
+  SnIs        <- sum(sapply(lnIs, function(s) length(s) > 0))
+  
+  list(friendindex = do.call(c, friendindex), frzeroy = frzeroy, frzeroz = frzeroz, 
+       S = S, SIs = SIs, SnIs = SnIs, ldg = ldg, dg = unlist(ldg), lIs = lIs, 
+       Is = Is, lnIs = lnIs, nIs = nIs, hasIso = (length(Is) > 0), yFmax = yFmax, 
+       yFmin = yFmin, zFmax = zFmax, zFmin = zFmin)
 }

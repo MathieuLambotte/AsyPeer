@@ -94,12 +94,18 @@ Eigen::ArrayXd BR(const Eigen::ArrayXd& alpha,
         Eigen::ArrayXd Ai(uypeer.size() + 2); Ai << R_NegInf, uypeer, R_PosInf; // Ai: -inf, yi(1), ..., yi(ni), +inf
         int ell(1); // position of ai in Ai
         bool cont(true); // says if ell should be incremented
+        // if (l == 0) {
+        //   cout<<"Ai: "<<Ai.transpose()<<endl;
+        // }
         while (cont) { // continue and remaining some ai
           // compute the marginal utility at Ai(ell)
           Eigen::ArrayXd Gmhi((ym > Ai(ell)).select(Gmt.col(i), 0));
           double yhi((Gmhi*ym).sum());
           double gih(Gmhi.sum());
           double marg((alpha(l) + (delta + bl)*ybar(l) + (bh - bl)*yhi) - (1 + bl * d(l) + (bh - bl) * gih) * Ai(ell));
+          // if (l == 0) {
+          //   cout<<"ell: "<<ell<<" Ai(ell): "<< Ai(ell)<< " marg: "<<marg<<endl;
+          // }
           if (marg >= 0) {
             ++ ell;
           } else {
@@ -111,6 +117,14 @@ Eigen::ArrayXd BR(const Eigen::ArrayXd& alpha,
         double yhi((Gmhi*ym).sum());
         double gih(Gmhi.sum());
         ynew(l) = (alpha(l) + (delta + bl)*ybar(l) + (bh - bl)*yhi) / (1 + bl * d(l) + (bh - bl) * gih);
+        // if (l == 0) {
+        //   cout<<"ell: "<<ell<<endl;
+        //   cout<<"Ai(ell): "<<Ai(ell)<<endl;
+        //   cout<<"ybar(l): "<<ybar(l)<<endl;
+        //   cout<<"yhi: "<<yhi<<endl;
+        //   cout<<"gih: "<<gih<<endl;
+        //   cout<<"1 + bl * d(l) + (bh - bl) * gih: "<<1 + bl * d(l) + (bh - bl) * gih<<endl;
+        // }
       }
       ++ l;
     }

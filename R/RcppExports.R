@@ -49,12 +49,36 @@ fCESdata <- function(X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnI
     .Call(`_AsyPeer_fCESdata`, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, nvec, yFMiMa, zFMiMa, n, Kx, S, rho, FE, deriv, nthread)
 }
 
-fCESplotdata <- function(gridrho, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, idXiso, idXniso, sel, FE, maxit, eps_f, eps_g, nthread) {
-    .Call(`_AsyPeer_fCESplotdata`, gridrho, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, idXiso, idXniso, sel, FE, maxit, eps_f, eps_g, nthread)
+fCESobjrho <- function(beta, y, Gy, X, Z, nIso, W, sel, n, S) {
+    .Call(`_AsyPeer_fCESobjrho`, beta, y, Gy, X, Z, nIso, W, sel, n, S)
 }
 
-fCESMain <- function(setrho, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, idXiso, idXniso, sel, n, Kx, S, HACn, dfiso, dfniso, FE, rhomin, rhomax, maxit, eps_f, eps_g, nthread) {
-    .Call(`_AsyPeer_fCESMain`, setrho, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, idXiso, idXniso, sel, n, Kx, S, HACn, dfiso, dfniso, FE, rhomin, rhomax, maxit, eps_f, eps_g, nthread)
+fCESparmrho <- function(beta, rho, y, Gy, X, Z, nIso, W, sel, n, S) {
+    .Call(`_AsyPeer_fCESparmrho`, beta, rho, y, Gy, X, Z, nIso, W, sel, n, S)
+}
+
+fCESobj <- function(theta01, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, W, idXiso, idXniso, sel, FE, rhomin, rhomax) {
+    .Call(`_AsyPeer_fCESobj`, theta01, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, W, idXiso, idXniso, sel, FE, rhomin, rhomax)
+}
+
+fCESparm <- function(theta01, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, W, idXiso, idXniso, sel, FE) {
+    .Call(`_AsyPeer_fCESparm`, theta01, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, W, idXiso, idXniso, sel, FE)
+}
+
+fCESWeight_1ins <- function(theta, y, Gy, X, Z, Iso, nIso, lIso, lnIso, sel, n, S, Kx, Kz, HACn, dfiso, dfniso) {
+    .Call(`_AsyPeer_fCESWeight_1ins`, theta, y, Gy, X, Z, Iso, nIso, lIso, lnIso, sel, n, S, Kx, Kz, HACn, dfiso, dfniso)
+}
+
+fCESWeight_2ins <- function(theta, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, W, idXiso, idXniso, sel, FE, HACn, dfiso, dfniso, nthread) {
+    .Call(`_AsyPeer_fCESWeight_2ins`, theta, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, W, idXiso, idXniso, sel, FE, HACn, dfiso, dfniso, nthread)
+}
+
+fCESparmCovrho <- function(theta, y, Gy, X, Z, Iso, nIso, lIso, lnIso, W, sel, n, S, Kx, Kz, HACn, dfiso, dfniso) {
+    .Call(`_AsyPeer_fCESparmCovrho`, theta, y, Gy, X, Z, Iso, nIso, lIso, lnIso, W, sel, n, S, Kx, Kz, HACn, dfiso, dfniso)
+}
+
+fCESparmCov <- function(theta, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, W, idXiso, idXniso, sel, FE, HACn, dfiso, dfniso, nthread) {
+    .Call(`_AsyPeer_fCESparmCov`, theta, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, W, idXiso, idXniso, sel, FE, HACn, dfiso, dfniso, nthread)
 }
 
 fdataML <- function(y, X, group, IDi, gij, idpeer, ddni, ddncs, ncs, nthread) {

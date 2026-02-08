@@ -38,15 +38,34 @@
 #' 
 #' @param nthread Number of CPU cores (threads) used to run parts of the estimation in parallel.
 #' 
-#' @param ctl.lbfgs A list of control parameters, such as `maxit`, `eps_f`, and `eps_g`, 
-#' to be passed to `optim_lbfgs()` from the \pkg{RcppNumerical} package.
+#' @param arg.optim A list of additional arguments passed to \link[stats]{optim},
+#'   such as `method` and `control`, for models with a flexible \eqn{\rho}, or 
+#'   to \link[stats]{optimize}, such as `tol`, for models with a fixed (or grid) 
+#'   value of \eqn{\rho}. 
+#'   For models with a flexible \eqn{\rho}, the objective function is concentrated 
+#'   in a function of \eqn{\rho} and \eqn{\beta}, which is optimized using 
+#'   \link[stats]{optim}. For models with a fixed \eqn{\rho}, the objective 
+#'   function is concentrated in a function of \eqn{\beta} alone, which is 
+#'   optimized using \link[stats]{optimize}.
+#'
+#' @param n.rho0,n.beta0 Integer values indicating the number of starting points 
+#'   to test for \eqn{\rho} and \eqn{\beta}, respectively. Because the objective 
+#'   function may exhibit local optima, testing multiple starting values is useful, 
+#'   especially for \eqn{\rho}. On a reasonable parameter set, testing ten starting 
+#'   values often suffices.
 #' 
 #' @param grid.rho A finite grid of values for the CES substitution parameter \eqn{\rho} (see Details).
 #' This grid is used to plot the objective function after maximizing over the other parameters.
 #' It is helpful for determining a reasonable interval for \eqn{\rho}.
 #'
-#' @param details A Boolean indicating whether optimization details should be printed when plotting the objective function.
-#' 
+#' @param weight.rho The \eqn{\rho} value used to compute the weighting matrix for
+#'   the first GMM estimation or to plot the objective function. The weight is 
+#'   computed as proportional to \eqn{(Z'Z)^{-1}}, where \eqn{Z} is the matrix of 
+#'   instruments. If `weight.rho` is omitted, the identity matrix is used.
+#'   
+#' @param weight.optim A Boolean indicating whether the GMM with the optimal 
+#'   weighting matrix should be computed.
+#'   
 #' @param ... Further arguments passed to or from other methods.
 #' 
 #' @description
@@ -75,11 +94,13 @@
 #' @return A list containing:
 #'     \item{model.info}{A list with information about the model, including the number of subnets, the number of observations, and other key details.}
 #'     \item{gmm}{A list of GMM estimation results, including parameter estimates, the covariance matrix, and related statistics.}
+#'     \item{first.gmm}{Initial GMM estimation results using the identity matrix as the weighting matrix.}
 #' @examples 
 #' \donttest{
 #' if (requireNamespace("PartialNetwork", quietly = TRUE)) {
 #' library(PartialNetwork)
-#' ngr  <- 50  # Number of subnets
+#' set.seed(123)
+#' ngr  <- 30  # Number of subnets
 #' nvec <- rep(30, ngr)  # Size of subnets
 #' n    <- sum(nvec)
 #' 
@@ -111,25 +132,30 @@
 #' ### Estimating the asymmetric peer effects model
 #' z   <- predict(lm(y ~ X))
 #' plotcespeer(formula = y ~ X, instrument = ~ z, Glist = Gnorm, 
-#'             grid.rho = seq(-20, 20, 0.5))
-#' est <- cesconfpeer(formula = y ~ X, instrument = ~ z, Glist = Gnorm)
+#'             grid.rho = seq(-20, 20, 1))
+#' est <- cesconfpeer(formula = y ~ X, instrument = ~ z, Glist = Gnorm,
+#'                    n.rho0 = 2, n.beta0 = 1)
 #' summary(est)
 #' }
 #' }
 #' @export
-#' @importFrom stats optimise 
+#' @importFrom stats optimise optim 
 cesconfpeer <- function(formula, 
                         instrument, 
                         Glist, 
                         fixed.effects = FALSE,
-                        set.rho  = NULL, 
-                        interval = c(-100, 100), 
-                        tol = 1e-8, 
-                        drop = NULL, 
-                        HAC = "group-iid", 
-                        nthread = 1,
+                        set.rho       = NULL, 
+                        interval      = c(-100, 100), 
+                        tol           = 1e-8, 
+                        drop          = NULL, 
+                        HAC           = "group-iid", 
+                        nthread       = 1,
                         data,
-                        ctl.lbfgs = list(),
+                        n.rho0        = 10,
+                        n.beta0       = 5,
+                        weight.rho    = NULL,
+                        weight.optim  = TRUE,
+                        arg.optim     = list(),
                         ...) {
   ## Thread
   tp        <- fnthreads(nthread = nthread)
@@ -140,7 +166,9 @@ cesconfpeer <- function(formula,
   
   # set.rho
   if (!is.null(set.rho)) {
-    stopifnot(set.rho != 0)
+    if(set.rho == 0) {
+      stop("`rho` cannot be zero.")
+    }
   }
   
   ## Network
@@ -250,11 +278,16 @@ cesconfpeer <- function(formula,
   }
   
   # idXiso and idXniso
+  if (!is.null(weight.rho)) {
+    if(weight.rho == 0) {
+      stop("`rho` cannot be zero.")
+    }
+  }
   CESd     <- fCESdata(X = X, y = y, z = z, G = Glist, friendindex = frindex, 
                        cumsn = cumsn, frzeroy = frzeroy, frzeroz = frzeroz, lIso = lIs, 
                        lnIso = lnIs, nvec = nvec, yFMiMa = yFMiMa, zFMiMa = zFMiMa, 
-                       n = n, Kx = Kx, S = S, rho = 1, FE = fixed.effects, 
-                       deriv = FALSE, nthread = nthread)
+                       n = n, Kx = Kx, S = S, rho = ifnullset(weight.rho, 1), 
+                       FE = fixed.effects, deriv = FALSE, nthread = nthread)
   
   idXiso   <- fcheckrank(X = CESd[Is + 1, 1:Kx, drop = FALSE], tol = tol)
   idXniso  <- fcheckrank(X = CESd[nIs + 1, 1:Kx, drop = FALSE], tol = tol)
@@ -289,11 +322,6 @@ cesconfpeer <- function(formula,
   Kiso  <- length(idXiso)
   Kniso <- length(idXniso)
   
-  # control
-  maxit  <- ifnullset(ctl.lbfgs$maxit, 1e6)
-  eps_f  <- ifnullset(ctl.lbfgs$eps_f, 1e-9)
-  eps_g  <- ifnullset(ctl.lbfgs$eps_g, 1e-9)
-  
   # Interval for rho
   rhomin <- -100
   rhomax <- 100
@@ -313,39 +341,267 @@ cesconfpeer <- function(formula,
     rhomax <- interval[2]
   }
   
+  # Additional arguments for optim or optimize
+  optmethod  <- ifnullset(arg.optim$method, "Nelder-Mead")
+  optcontrol <- ifnullset(arg.optim$control, list(maxit = 1e3))
+  opttol     <- ifnullset(arg.optim$tol, .Machine$double.eps^0.25)
+  
   # Optimization
-  est <- suppressWarnings(
-    fCESMain(setrho = set.rho, X = X, y = y, z = z, G = Glist, 
-                  friendindex = frindex, cumsn = cumsn, frzeroy = frzeroy, 
-                  frzeroz = frzeroz, lIso = lIs, lnIso = lnIs, Iso = Is, nIso = nIs,
-                  nvec = nvec, yFMiMa = yFMiMa, zFMiMa = zFMiMa, idXiso = idXiso, 
-                  idXniso = idXniso, sel = sel, n = n, Kx = Kx, S = S, HACn = HACn, 
-                  dfiso = dfiso, dfniso = dfniso, FE = fixed.effects, rhomin = rhomin,
-                  rhomax = rhomax, maxit = maxit, eps_f = eps_f, eps_g = eps_g, 
-                  nthread = nthread)
-  )
-  
-  names(est$estimate) <- c("rho", "beta", xname)
-  colnames(est$cov)   <- rownames(est$cov) <- c("rho", "beta", xname)
-  sigma                 <- c(overall = est$serr, isolates = est$serr_iso, 
-                         nonisolates = est$serr_niso)
-  gmm        <- list(Estimate = est$estimate, 
-                     cov      = est$cov, 
-                     sigma    = sigma)
-  
+  gmm1       <- NULL
+  gmm2       <- NULL
+  k          <- NULL  # for R CMD check   
   if (is.null(set.rho)) {
-    gmm   <- c(gmm, list("testlinear" = c("stat"   = est$Testrho,
-                                         "p-value" = 1 - pchisq(est$Testrho, df = 1))))
+    
+    cl       <- NULL
+    on.exit({
+      registerDoSEQ()
+      try(stopCluster(cl), silent = TRUE)
+    }, add = TRUE)
+    
+    cl       <- makeCluster(nthread)
+    registerDoParallel(cl)
+    
+    # First estimation when W = I
+    Kz       <- Kiso + Kniso + 2
+    est1     <- NULL
+    W        <- S * diag(Kz)
+    if (!is.null(weight.rho)) {
+      Z   <- matrix(0, n, Kz)
+      Z[nIs + 1, 1] <- CESd[nIs + 1, Kx + 3]
+      Z[nIs + 1, 2] <- CESd[nIs + 1, Kx + 4]
+      if (Kiso > 0) { # if there are isolated
+        Z[Is + 1, 3:(2 + Kiso)] <- CESd[Is + 1, idXiso + 1]
+      }
+      Z[nIs + 1, (3 + Kiso):(Kz)] <- CESd[nIs + 1, idXniso + 1]
+      
+      # first Optimization
+      W     <- solve(crossprod(Z[sel + 1,]) / S) 
+    }
+    
+    if (rhomax * rhomin < 0) { # estimation for positive rho and for negative rho
+      
+      n.rho0 <- ceiling(n.rho0 / 2) * 2
+      rho0   <- c(seq(rhomin, -1e-4, length.out = n.rho0 / 2), 
+                  seq(1e-4, rhomax, length.out = n.rho0/ 2))
+      beta0  <- seq(-0.9, 0.9, length.out = n.beta0) / (1 - seq(-0.9, 0.9, length.out = n.beta0))
+      init   <- cbind(rep(rho0, each = n.beta0), rep(beta0, n.rho0))
+      
+      est1   <- foreach(k         = 1:nrow(init),
+                         .packages = "AsyPeer"
+      ) %dorng% {
+        # Optimization
+        ARG   <- list(par = init[k,], fn = fCESobj, 
+                      method = optmethod, control = optcontrol, 
+                      X = X, y = y, z = z, G = Glist, friendindex = frindex, 
+                      cumsn = cumsn, frzeroy = frzeroy, frzeroz = frzeroz, lIso = lIs, 
+                      lnIso = lnIs, Iso = Is, nIso = nIs, nvec = nvec, yFMiMa = yFMiMa, 
+                      zFMiMa = zFMiMa, W = W, idXiso = idXiso, idXniso = idXniso,
+                      sel = sel,  FE = fixed.effects, 
+                      rhomin = ifelse(init[k, 1] < 0, rhomin, 0),
+                      rhomax = ifelse(init[k, 1] < 0, 0, rhomax))
+        do.call(optim, ARG)
+      }
+      
+    } else {
+      
+      rho0   <- seq(rhomin, rhomax, length.out = n.rho0)
+      beta0  <- seq(-0.9, 0.9, length.out = n.beta0) / (1 - seq(-0.9, 0.9, length.out = n.beta0))
+      init   <- cbind(rep(rho0, each = n.beta0), rep(beta0, n.rho0))
+      
+      est1   <- foreach(k         = 1:nrow(init),
+                        .packages = "AsyPeer"
+      ) %dorng% {
+        # Optimization
+        ARG   <- list(par = init[k,], fn = fCESobj, 
+                      method = optmethod, control = optcontrol, 
+                      X = X, y = y, z = z, G = Glist, friendindex = frindex, 
+                      cumsn = cumsn, frzeroy = frzeroy, frzeroz = frzeroz, lIso = lIs, 
+                      lnIso = lnIs, Iso = Is, nIso = nIs, nvec = nvec, yFMiMa = yFMiMa, 
+                      zFMiMa = zFMiMa, W = W, idXiso = idXiso, idXniso = idXniso,
+                      sel = sel,  FE = fixed.effects, 
+                      rhomin = rhomin, rhomax = rhomax)
+        do.call(optim, ARG)
+      }
+      
+    }
+    est1       <- est1[[which.min(sapply(est1, \(k) k$value))]]
+
+    ## Full parameters
+    est1$theta <- fCESparm(theta01 = est1$par, 
+                           X = X, y = y, z = z, G = Glist, friendindex = frindex, 
+                           cumsn = cumsn, frzeroy = frzeroy, frzeroz = frzeroz, 
+                           lIso = lIs, lnIso = lnIs, Iso = Is, nIso = nIs, nvec = nvec, 
+                           yFMiMa = yFMiMa, zFMiMa = zFMiMa, W = W, idXiso = idXiso, 
+                           idXniso = idXniso, sel = sel, FE = fixed.effects)
+  
+    # Second estimation
+    est2 <- est1
+    if (weight.optim) {
+      W    <- fCESWeight_2ins(theta = est1$theta,
+                              X = X, y = y, z = z, G = Glist, friendindex = frindex,
+                              cumsn = cumsn, frzeroy = frzeroy, frzeroz = frzeroz, lIso = lIs,
+                              lnIso = lnIs, Iso = Is, nIso = nIs, nvec = nvec, yFMiMa = yFMiMa,
+                              zFMiMa = zFMiMa, W = W, idXiso = idXiso, idXniso = idXniso,
+                              sel = sel, HACn = HACn, FE = fixed.effects, dfiso = dfiso, 
+                              dfniso = dfniso, nthread = nthread)
+      
+      if (rhomax * rhomin < 0) { # estimation for positive rho and for negative rho
+        
+        rho0   <- c(est1$par[1], # former value and we add many others
+                    seq(rhomin, -1e-4, length.out = n.rho0 / 2), 
+                    seq(1e-4, rhomax, length.out = n.rho0/ 2))
+        beta0  <- est1$par[2] # only former value
+        init   <- cbind(rho0, rep(beta0, n.rho0 + 1))
+        
+        est2   <- foreach(k         = 1:nrow(init),
+                          .packages = "AsyPeer"
+        ) %dorng% {
+          # Optimization
+          ARG   <- list(par = init[k,], fn = fCESobj, 
+                        method = optmethod, control = optcontrol, 
+                        X = X, y = y, z = z, G = Glist, friendindex = frindex, 
+                        cumsn = cumsn, frzeroy = frzeroy, frzeroz = frzeroz, lIso = lIs, 
+                        lnIso = lnIs, Iso = Is, nIso = nIs, nvec = nvec, yFMiMa = yFMiMa, 
+                        zFMiMa = zFMiMa, W = W, idXiso = idXiso, idXniso = idXniso,
+                        sel = sel,  FE = fixed.effects, 
+                        rhomin = ifelse(init[k, 1] < 0, rhomin, 0),
+                        rhomax = ifelse(init[k, 1] < 0, 0, rhomax))
+          do.call(optim, ARG)
+        }
+        
+      } else {
+        
+        rho0   <- c(est1$par[1], seq(rhomin, rhomax, length.out = n.rho0))
+        beta0  <- est1$par[2]
+        init   <- cbind(rho0, rep(beta0, n.rho0 + 1))
+        
+        est2   <- foreach(k         = 1:nrow(init),
+                          .packages = "AsyPeer"
+        ) %dorng% {
+          # Optimization
+          ARG   <- list(par = init[k,], fn = fCESobj, 
+                        method = optmethod, control = optcontrol, 
+                        X = X, y = y, z = z, G = Glist, friendindex = frindex, 
+                        cumsn = cumsn, frzeroy = frzeroy, frzeroz = frzeroz, lIso = lIs, 
+                        lnIso = lnIs, Iso = Is, nIso = nIs, nvec = nvec, yFMiMa = yFMiMa, 
+                        zFMiMa = zFMiMa, W = W, idXiso = idXiso, idXniso = idXniso,
+                        sel = sel,  FE = fixed.effects, 
+                        rhomin = rhomin, rhomax = rhomax)
+          do.call(optim, ARG)
+        }
+        
+      }
+      est2       <- est2[[which.min(sapply(est2, \(k) k$value))]]
+      
+      ## Compute all parameters
+      est2$theta <- fCESparm(theta01 = est2$par, 
+                             X = X, y = y, z = z, G = Glist, friendindex = frindex, 
+                             cumsn = cumsn, frzeroy = frzeroy, frzeroz = frzeroz, 
+                             lIso = lIs, lnIso = lnIs, Iso = Is, nIso = nIs, nvec = nvec, 
+                             yFMiMa = yFMiMa, zFMiMa = zFMiMa, W = W, idXiso = idXiso, 
+                             idXniso = idXniso, sel = sel, FE = fixed.effects)
+    }
+    
+    ## Covariance matrix
+    Cov <- fCESparmCov(theta = est2$theta,
+                        X = X, y = y, z = z, G = Glist, friendindex = frindex, 
+                        cumsn = cumsn, frzeroy = frzeroy, frzeroz = frzeroz, lIso = lIs, 
+                        lnIso = lnIs, Iso = Is, nIso = nIs, nvec = nvec, yFMiMa = yFMiMa, 
+                        zFMiMa = zFMiMa, W = W, idXiso = idXiso, idXniso = idXniso,
+                        sel = sel, FE = fixed.effects, HACn = HACn, dfiso = dfiso, 
+                        dfniso = dfniso, nthread = nthread)
+  
+    gmm1 <- list(Estimate = est1$theta,
+                 optim    = c(list("objective" = est1$value),
+                              est1[c("counts", "convergence", "message")]))
+    gmm2 <- list(Estimate      = est2$theta,
+                 cov           = Cov$cov,
+                 sigma         = c(overall = Cov$serr, isolates = Cov$serr_iso, nonisolates = Cov$serr_niso),
+                 testlinear    = c("stat" = Cov$Testrho, "p-value" = 1 - pchisq(Cov$Testrho, df = 1)),
+                 unscale.resid = Cov$unscale.resid,
+                 optim         = c(list("objective" = est2$value),
+                                   est2[c("counts", "convergence", "message")]))
+  } else {
+    rho  <- set.rho
+    CESd <- fCESdata(X = X, y = y, z = z, G = Glist, friendindex = frindex, 
+                        cumsn = cumsn, frzeroy = frzeroy, frzeroz = frzeroz, lIso = lIs, 
+                        lnIso = lnIs, nvec = nvec, yFMiMa = yFMiMa, zFMiMa = zFMiMa, 
+                        n = n, Kx = Kx, S = S, rho = rho, FE = fixed.effects, 
+                        deriv = FALSE, nthread = nthread)
+    
+    # this is how data are organized in data
+    # X: 1 to Kx
+    # y: Kx + 1
+    # Gy: Kx + 2
+    # Gz: Kx + 3
+    # dGz: Kx + 4
+    
+    # Instrument
+    Kz  <- 1 + Kiso + Kniso
+    Z   <- matrix(0, n, Kz)
+    Z[nIs + 1, 1] <- CESd[nIs + 1, Kx + 3]
+    if (Kiso > 0) { # if there are isolated
+      Z[Is + 1, 2:(1 + Kiso)] <- CESd[Is + 1, idXiso + 1]
+    }
+    Z[nIs + 1, (2 + Kiso):(Kz)] <- CESd[nIs + 1, idXniso + 1]
+    
+    # first Optimization
+    W     <- solve(crossprod(Z[sel + 1,]) / S) 
+    ARG   <- list(f = fCESobjrho, interval = c(-0.5, 100), tol = opttol,
+                  y = CESd[,Kx + 1], Gy = CESd[,Kx + 2], X = CESd[,1:Kx],
+                  Z = Z, nIso = nIs, W = W, sel = sel, n = n, S = S)
+    est1  <- do.call(optimize, ARG)
+    
+    ## Full parameter
+    est1$theta <- fCESparmrho(beta = est1$minimum, rho = rho,
+                              y = CESd[,Kx + 1], Gy = CESd[,Kx + 2], X = CESd[,1:Kx],
+                              Z = Z, nIso = nIs, W = W, sel = sel, n = n, S = S)
+    
+    # Second estimation
+    est2  <- est1
+    if (weight.optim) {
+      ARG$W <- fCESWeight_1ins(theta = est1$theta, y = CESd[,Kx + 1], Gy = CESd[,Kx + 2],
+                               X = CESd[,1:Kx], Z = Z, Iso = Is, nIso = nIs, 
+                               lIso = lIs, lnIso = lnIs, sel = sel, n = n, S = S,
+                               Kx = Kx, Kz = Kz, HACn = HACn, dfiso = dfiso, 
+                               dfniso = dfniso)
+      est2  <- do.call(optimize, ARG)
+      
+      ## Full parameter
+      est2$theta <- fCESparmrho(beta = est2$minimum, rho = rho,
+                                y = CESd[,Kx + 1], Gy = CESd[,Kx + 2], X = CESd[,1:Kx],
+                                Z = Z, nIso = nIs, W = W, sel = sel, n = n, S = S)
+    }
+    
+    ## Covariance matrix
+    Cov <- fCESparmCovrho(theta = est2$theta,
+                          y = CESd[,Kx + 1], Gy = CESd[,Kx + 2], X = CESd[,1:Kx], Z = Z,
+                          Iso = Is, nIso = nIs, lIso = lIs, lnIso = lnIs, W = W, 
+                          sel = sel, n = n, S = S, Kx = Kx, Kz = Kz, HACn = HACn,
+                          dfiso = dfiso, dfniso = dfniso)
+    
+    gmm1 <- list(Estimate = est1$theta,
+                 optim    = list("objective" = est1$objective))
+    gmm2 <- list(Estimate      = est2$theta,
+                 cov           = Cov$cov,
+                 sigma         = c(overall = Cov$serr, isolates = Cov$serr_iso, nonisolates = Cov$serr_niso),
+                 unscale.resid = Cov$unscale.resid,
+                 optim         = list("objective" = est2$objective))
+  }
+
+  names(gmm1$Estimate) <- names(gmm2$Estimate) <-
+    colnames(gmm2$cov) <- rownames(gmm2$cov) <- c("rho", "beta", xname)
+  
+  if (!weight.optim) {
+    gmm1      <- NULL
   }
   
-  gmm     <- c(gmm, list(unscale.resid = est$unscale.resid,
-                         lbfgs = est[c("objective", "gradient", "status")]))
-  
-  out         <- list(model.info   = list(n = n_st, ngroup = S, nvec = nvec, formula = formula, 
+  out         <- list(model.info = list(n = n_st, ngroup = S, nvec = nvec, formula = formula, 
                                           instrument = instrument, fixed.effects = fixed.effects, 
                                           HAC = HAC, set.rho = set.rho, yname = yname, xnames = xname, 
                                           zname = zename),
-                      gmm          = gmm)
+                      gmm        = gmm2,
+                      first.gmm  = gmm1)
   class(out)  <- "cesconfpeer"
   out
 }
@@ -425,13 +681,13 @@ plotcespeer <- function(formula,
                         instrument, 
                         Glist, 
                         fixed.effects = FALSE,
-                        grid.rho = seq(-50, 50, 0.1), 
-                        tol = 1e-8, 
-                        details = TRUE,
-                        drop = NULL, 
-                        nthread = 1,
+                        grid.rho      = seq(-50, 50, 0.1), 
+                        tol           = 1e-8, 
+                        drop          = NULL,
+                        nthread       = 1,
                         data,
-                        ctl.lbfgs = list(),
+                        weight.rho    = NULL,
+                        arg.optim     = list(),
                         ...) {
   # Grid for rho
   grid.rho <- grid.rho[grid.rho != 0]
@@ -531,11 +787,16 @@ plotcespeer <- function(formula,
   }
   
   # idXiso and idXniso
+  if (!is.null(weight.rho)) {
+    if(weight.rho == 0) {
+      stop("`rho` cannot be zero.")
+    }
+  }
   CESd     <- fCESdata(X = X, y = y, z = z, G = Glist, friendindex = frindex, 
                        cumsn = cumsn, frzeroy = frzeroy, frzeroz = frzeroz, lIso = lIs, 
                        lnIso = lnIs, nvec = nvec, yFMiMa = yFMiMa, zFMiMa = zFMiMa, 
-                       n = n, Kx = Kx, S = S, rho = 1, FE = fixed.effects, 
-                       deriv = FALSE, nthread = nthread)
+                       n = n, Kx = Kx, S = S, rho = ifnullset(weight.rho, 1), 
+                       FE = fixed.effects, deriv = FALSE, nthread = nthread)
   
   idXiso   <- fcheckrank(X = CESd[Is + 1, 1:Kx, drop = FALSE], tol = tol)
   idXniso  <- fcheckrank(X = CESd[nIs + 1, 1:Kx, drop = FALSE], tol = tol)
@@ -565,38 +826,87 @@ plotcespeer <- function(formula,
   }
   Kiso  <- length(idXiso)
   Kniso <- length(idXniso)
-  
-  # control
-  maxit  <- ifnullset(ctl.lbfgs$maxit, 1e6)
-  eps_f  <- ifnullset(ctl.lbfgs$eps_f, 1e-9)
-  eps_g  <- ifnullset(ctl.lbfgs$eps_g, 1e-9)
-  
-  # plot data
-  plotdat <- suppressWarnings(
-    fCESplotdata(gridrho = grid.rho, X = X, y = y, z = z, G = Glist, 
-                          friendindex = frindex, cumsn = cumsn, frzeroy = frzeroy, 
-                          frzeroz = frzeroz, lIso = lIs, lnIso = lnIs, Iso = Is, 
-                          nIso = nIs, nvec = nvec, yFMiMa = yFMiMa, zFMiMa = zFMiMa, 
-                          idXiso = idXiso, idXniso = idXniso, sel = sel, 
-                          FE = fixed.effects, maxit = maxit, eps_f = eps_f, 
-                          eps_g = eps_g, nthread = nthread)
-  )
+  Kz    <- Kiso + Kniso + 2
+  W     <- S * diag(Kz)
+  if (!is.null(weight.rho)) {
+    Z   <- matrix(0, n, Kz)
+    Z[nIs + 1, 1] <- CESd[nIs + 1, Kx + 3]
+    Z[nIs + 1, 2] <- CESd[nIs + 1, Kx + 4]
+    if (Kiso > 0) { # if there are isolated
+      Z[Is + 1, 3:(2 + Kiso)] <- CESd[Is + 1, idXiso + 1]
+    }
+    Z[nIs + 1, (3 + Kiso):(Kz)] <- CESd[nIs + 1, idXniso + 1]
+    
+    # first Optimization
+    W     <- solve(crossprod(Z[sel + 1,]) / S) 
+  }
 
+  # Tolerence argument in optimize
+  opttol <- ifnullset(arg.optim$tol, .Machine$double.eps^0.25)
   
-  ARG <- list(x    = plotdat$estimate[,1], 
-              y    = plotdat$objective, 
+  # Estimation
+  cl     <- NULL
+  on.exit({
+    registerDoSEQ()
+    try(stopCluster(cl), silent = TRUE)
+  }, add = TRUE)
+  
+  cl     <- makeCluster(nthread)
+  registerDoParallel(cl)
+  
+  nrho   <- length(grid.rho)
+  rho    <- NULL  # for R CMD check    
+  estim  <- foreach(rho       = grid.rho,
+                     .packages = "AsyPeer",
+                     .combine  = "cbind"
+  ) %dorng% {
+    # Data
+    CESd <- fCESdata(X = X, y = y, z = z, G = Glist, friendindex = frindex,
+                     cumsn = cumsn, frzeroy = frzeroy, frzeroz = frzeroz, lIso = lIs,
+                     lnIso = lnIs, nvec = nvec, yFMiMa = yFMiMa, zFMiMa = zFMiMa,
+                     n = n, Kx = Kx, S = S, rho = rho, FE = fixed.effects,
+                     deriv = FALSE, nthread = 1)
+
+    # this is how data are organized in data
+    # X: 1 to Kx
+    # y: Kx + 1
+    # Gy: Kx + 2
+    # Gz: Kx + 3
+    # dGz: Kx + 4
+
+    # Instrument
+    Z   <- matrix(0, n, 2 + Kiso + Kniso)
+    Z[nIs + 1, 1] <- CESd[nIs + 1, Kx + 3]
+    Z[nIs + 1, 2] <- CESd[nIs + 1, Kx + 4]
+    if (Kiso > 0) { # if there are isolated
+      Z[Is + 1, 3:(2 + Kiso)] <- CESd[Is + 1, idXiso + 1]
+    }
+    Z[nIs + 1, (3 + Kiso):(2 + Kiso + Kniso)] <- CESd[nIs + 1, idXniso + 1]
+
+    # Optimization
+    ARG   <- list(f = fCESobjrho, interval = c(-0.5, 100), tol = opttol,
+                  y = CESd[,Kx + 1], Gy = CESd[,Kx + 2], X = CESd[,1:Kx],
+                  Z = Z, nIso = nIs, W = W, sel = sel, n = n, S = S)
+    opt   <- do.call(optimize, ARG)
+    
+    # Full parameter
+    theta <- fCESparmrho(beta = opt$minimum, rho = rho,
+                         y = CESd[,Kx + 1], Gy = CESd[,Kx + 2], X = CESd[,1:Kx],
+                         Z = Z, nIso = nIs, W = W, sel = sel, n = n, S = S)
+    c(opt$objective, theta)
+  }
+  
+  # Plotdata
+  plotdata  <- list(estimate = t(estim[-1,]), objective = estim[1,])
+  colnames(plotdata$estimate) <- c("rho", "beta", xname)
+  rownames(plotdata$estimate) <- names(plotdata$objective) <- NULL
+  
+  ARG <- list(x    = plotdata$estimate[,"rho"], 
+              y    = plotdata$objective, 
               xlab = "rho", ylab = "objective", type = "l",
               ...)
   do.call(plot, ARG)
   
-  if (details) {
-    cat("Summary of the gradient of rho:\n")
-    print(summary(plotdat$gradient))
-    
-    cat("\nFrequency table of the estimation status:")
-    print(table(plotdat$status))
-  }
-  
-  invisible(plotdat)
+  invisible(plotdata)
 }
 

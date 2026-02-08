@@ -20,7 +20,7 @@ n    <- sum(nvec)
 
 ### Simulating Data
 #fixed parameters values
-gamma   <- c(4, -0.5, 1, -0.2, 0.6)
+gamma   <- c(10, -0.5, 1, -0.2, 0.6)
 sigma <- 1 #variance of eps
 delta <- 0
 
@@ -77,6 +77,11 @@ est4 <- asypeer.estim(y ~ X + GX, Glist = Gnorm, fixed.effects = fixed.effects, 
                       estimator = "ols", power = power, nfold = nfold, nthread = 5,
                       weight = weight, spillover = FALSE, asymmetry = FALSE)
 
+z    <- fitted(lm(y ~ X + GX))
+est5 <- cesconfpeer(formula = y ~ X+GX, instrument = ~ z, Glist = Gnorm, HAC=HAC, 
+                    interval = c(-10, 10),fixed.effect=fixed.effects)
+
+
 coef1<-summary(est1)$coefficients[,1]
 names(coef1)<-paste0(names(coef1),"_OLS")
 coef2<-summary(est2)$coefficients[,1]
@@ -85,8 +90,6 @@ coef3<-summary(est3)$coefficients[,1]
 names(coef3)<-paste0(names(coef3),"_RF")
 coef4<-summary(est4)$coefficients[,1]
 names(coef4)<-paste0(names(coef4),"_SYM")
-
-
 coef5<-summary(est5)$coefficients[,1]
 names(coef5)<-paste0(names(coef5),"_CES")
 
@@ -162,6 +165,9 @@ est3 <- asypeer.estim(y ~ X + GX, Glist = Gnorm, fixed.effects = fixed.effects, 
 est4 <- asypeer.estim(y ~ X + GX, Glist = Gnorm, fixed.effects = fixed.effects, HAC=HAC,
                       estimator = "ols", power = power, nfold = nfold, nthread = 5,
                       weight = weight, spillover = FALSE, asymmetry = FALSE)
+z    <- fitted(lm(y ~ X + GX))
+est5 <- cesconfpeer(formula = y ~ X+GX, instrument = ~ z, Glist = Gnorm, HAC=HAC, 
+                    interval = c(-10, 10),fixed.effect=fixed.effects)
 
 coef1<-summary(est1)$coefficients[,1]
 names(coef1)<-paste0(names(coef1),"_OLS")
@@ -171,8 +177,6 @@ coef3<-summary(est3)$coefficients[,1]
 names(coef3)<-paste0(names(coef3),"_RF")
 coef4<-summary(est4)$coefficients[,1]
 names(coef4)<-paste0(names(coef4),"_SYM")
-
-
 coef5<-summary(est5)$coefficients[,1]
 names(coef5)<-paste0(names(coef5),"_CES")
 
@@ -180,13 +184,13 @@ c(coef1,coef2,coef3,coef4,coef5)
 }
 
 # Number of simulations
-nsim      <- 1e3
+nsim      <- 1e1
 RNGkind("L'Ecuyer-CMRG")
 
 cl <- makeCluster(5) # Use one less than the number of cores
 
 # Export the function to the cluster
-clusterExport(cl, varlist = c("festim","ngr","dvalues","ddvalues","nvec","n","gamma","sigma","delta"))
+clusterExport(cl, varlist = c("festim","festim_homo","ngr","dvalues","ddvalues","nvec","n","gamma","sigma","delta"))
 
 # Load necessary libraries in the cluster
 clusterEvalQ(cl, {
@@ -211,7 +215,7 @@ EstC <- parLapply(cl, 1:nsim, function(i) festim(beta=betaC))
 #DGP D
 betaD=c(2,1)
 clusterExport(cl, varlist = c("betaD"))
-EstC <- parLapply(cl, 1:nsim, function(i) festim_homo(beta=betaD))
+EstD <- parLapply(cl, 1:nsim, function(i) festim_homo(beta=betaD))
 
 save(EstA,EstB,EstC,EstD,
      file = paste0(OutResPath, "/Simulations.Rda"))
@@ -248,12 +252,14 @@ wb <- createWorkbook()
 addWorksheet(wb, "Simu results")
 
 tp <- Est
-tp[seq(1, 9, 3), 1] <- c(paste0("DGP A: $\\boldsymbol\\beta^l = (", paste0(betaA[1], collapse = ", "), ")$, ", 
+tp[seq(1, 12, 3), 1] <- c(paste0("DGP A: $\\boldsymbol\\beta^l = (", paste0(betaA[1], collapse = ", "), ")$, ", 
                                  "$\\beta^h = ", betaA[2], "$"),
                           paste0("DGP B: $\\boldsymbol\\beta^l = (", paste0(betaB[1], collapse = ", "), ")$, ", 
                                  "$\\beta^h = ", betaB[2], "$"),
                           paste0("DGP C: $\\boldsymbol\\beta^l = (", paste0(betaC[1], collapse = ", "), ")$, ", 
-                                 "$\\beta^h = ", betaC[2], "$"))
+                                 "$\\beta^h = ", betaC[2], "$"),
+                          paste0("DGP D: $\\boldsymbol\\beta^l = (", paste0(betaC[1], collapse = ", "), ")$, ", 
+                                 "$\\beta^h = ", betaD[2], "$"))
 writeData(wb, "Simu results", tp, keepNA = TRUE, na.string = "", startRow = 1, startCol = 1)
 
 # Save the workbook

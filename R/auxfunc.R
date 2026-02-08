@@ -4,7 +4,7 @@
 #' @importFrom parallel makeCluster stopCluster
 #' @importFrom doParallel registerDoParallel  
 #' @importFrom doRNG registerDoRNG "%dorng%"
-#' @importFrom foreach foreach
+#' @importFrom foreach foreach registerDoSEQ
 fdrop <- function(drop, ldg, nvec, S, y, X, Z, endo) {
   n        <- sum(nvec)
   if (any(!(drop %in% 0:1) | !is.finite(drop))) {
@@ -48,9 +48,16 @@ mpredict  <- function(ddy, ddX, id_fold, estimator, nthread, ...){
   id_list <- split(seq_along(id_fold), id_fold)
   seed    <- as.integer(runif(1, 0, 1e9))
   
+  cl      <- NULL
+  on.exit({
+    registerDoSEQ()
+    try(stopCluster(cl), silent = TRUE)
+  }, add = TRUE)
+  
   cl      <- makeCluster(nthread)
   registerDoParallel(cl)
   registerDoRNG(seed)
+  
   lrho    <- foreach(k         = id_list, 
                      .export   = "mpredict_fold", #comment out
                      .packages = c("ranger", "AsyPeer") #Remember to add "NameOfThePackage"
@@ -60,7 +67,6 @@ mpredict  <- function(ddy, ddX, id_fold, estimator, nthread, ...){
     ARG <- list(ddX = ddX, ddy = ddy, id_listk = k, estimator = estimator, ...)
     do.call(mpredict_fold, ARG) 
   }
-  stopCluster(cl)
   
   rho   <- numeric(nrow(ddX))
   for (k in 1:length(id_list)) {

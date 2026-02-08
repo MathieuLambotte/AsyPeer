@@ -17,7 +17,11 @@ cesconfpeer(
   HAC = "group-iid",
   nthread = 1,
   data,
-  ctl.lbfgs = list(),
+  n.rho0 = 10,
+  n.beta0 = 5,
+  weight.rho = NULL,
+  weight.optim = TRUE,
+  arg.optim = list(),
   ...
 )
 
@@ -28,11 +32,11 @@ plotcespeer(
   fixed.effects = FALSE,
   grid.rho = seq(-50, 50, 0.1),
   tol = 1e-08,
-  details = TRUE,
   drop = NULL,
   nthread = 1,
   data,
-  ctl.lbfgs = list(),
+  weight.rho = NULL,
+  arg.optim = list(),
   ...
 )
 }
@@ -70,21 +74,41 @@ potential within-subnetwork correlation.}
 \item{data}{An optional data frame, list, or environment (or an object that can be coerced by \link[base]{as.data.frame} to a data frame) containing the variables
 in the model. If not found in \code{data}, the variables are taken from \code{environment(formula)}, typically the environment from which \code{cesconfpeer} is called.}
 
-\item{ctl.lbfgs}{A list of control parameters, such as \code{maxit}, \code{eps_f}, and \code{eps_g},
-to be passed to \code{optim_lbfgs()} from the \pkg{RcppNumerical} package.}
+\item{n.rho0, n.beta0}{Integer values indicating the number of starting points
+to test for \eqn{\rho} and \eqn{\beta}, respectively. Because the objective
+function may exhibit local optima, testing multiple starting values is useful,
+especially for \eqn{\rho}. On a reasonable parameter set, testing ten starting
+values often suffices.}
+
+\item{weight.rho}{The \eqn{\rho} value used to compute the weighting matrix for
+the first GMM estimation or to plot the objective function. The weight is
+computed as proportional to \eqn{(Z'Z)^{-1}}, where \eqn{Z} is the matrix of
+instruments. If \code{weight.rho} is omitted, the identity matrix is used.}
+
+\item{weight.optim}{A Boolean indicating whether the GMM with the optimal
+weighting matrix should be computed.}
+
+\item{arg.optim}{A list of additional arguments passed to \link[stats]{optim},
+such as \code{method} and \code{control}, for models with a flexible \eqn{\rho}, or
+to \link[stats]{optimize}, such as \code{tol}, for models with a fixed (or grid)
+value of \eqn{\rho}.
+For models with a flexible \eqn{\rho}, the objective function is concentrated
+in a function of \eqn{\rho} and \eqn{\beta}, which is optimized using
+\link[stats]{optim}. For models with a fixed \eqn{\rho}, the objective
+function is concentrated in a function of \eqn{\beta} alone, which is
+optimized using \link[stats]{optimize}.}
 
 \item{...}{Further arguments passed to or from other methods.}
 
 \item{grid.rho}{A finite grid of values for the CES substitution parameter \eqn{\rho} (see Details).
 This grid is used to plot the objective function after maximizing over the other parameters.
 It is helpful for determining a reasonable interval for \eqn{\rho}.}
-
-\item{details}{A Boolean indicating whether optimization details should be printed when plotting the objective function.}
 }
 \value{
 A list containing:
 \item{model.info}{A list with information about the model, including the number of subnets, the number of observations, and other key details.}
 \item{gmm}{A list of GMM estimation results, including parameter estimates, the covariance matrix, and related statistics.}
+\item{first.gmm}{Initial GMM estimation results using the identity matrix as the weighting matrix.}
 }
 \description{
 \code{cesconfpeer} estimates the CES-based peer effects model introduced by Boucher et al. (2024) with conformity only. See Details.
@@ -116,7 +140,8 @@ The parameter \eqn{\rho} determines the form of the social norm:
 \donttest{
 if (requireNamespace("PartialNetwork", quietly = TRUE)) {
 library(PartialNetwork)
-ngr  <- 50  # Number of subnets
+set.seed(123)
+ngr  <- 30  # Number of subnets
 nvec <- rep(30, ngr)  # Size of subnets
 n    <- sum(nvec)
 
@@ -148,8 +173,9 @@ y <- y$y
 ### Estimating the asymmetric peer effects model
 z   <- predict(lm(y ~ X))
 plotcespeer(formula = y ~ X, instrument = ~ z, Glist = Gnorm, 
-            grid.rho = seq(-20, 20, 0.5))
-est <- cesconfpeer(formula = y ~ X, instrument = ~ z, Glist = Gnorm)
+            grid.rho = seq(-20, 20, 1))
+est <- cesconfpeer(formula = y ~ X, instrument = ~ z, Glist = Gnorm,
+                   n.rho0 = 2, n.beta0 = 1)
 summary(est)
 }
 }

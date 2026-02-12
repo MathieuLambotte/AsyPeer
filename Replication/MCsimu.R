@@ -60,6 +60,9 @@ y <- asypeer.sim(formula = ~ X + GX, Glist = Gnorm, delta=delta,beta = beta,
                  gamma = gamma, epsilon = eps, nthread = 5)
 y <- y$y
 
+avg <- peer.asyavg(formula = ~y, Glist=Gnorm)
+ybar <- avg$peer.avg
+ycheck <- avg$hpeer.avg-avg$hdegree*y
 
 est1 <- asypeer.estim(y ~ X + GX, Glist = Gnorm, fixed.effects = fixed.effects, HAC=HAC,
                      estimator = "ols", power = power, nfold = nfold, nthread = 5,
@@ -77,13 +80,13 @@ est4 <- asypeer.estim(y ~ X + GX, Glist = Gnorm, fixed.effects = fixed.effects, 
                       estimator = "ols", power = power, nfold = nfold, nthread = 5,
                       weight = weight, spillover = FALSE, asymmetry = FALSE)
 
-z    <- fitted(lm(y ~ X + GX))
-est5 <- cesconfpeer(formula = y ~ X+GX, instrument = ~ z, Glist = Gnorm, HAC=HAC, 
-                    interval = c(-10, 10),fixed.effect=fixed.effects)
-
+est5  <- asypeer.estim(y ~ X + GX, excluded.instruments = ~ ybar+ycheck,
+                      Glist = Gnorm, fixed.effects = fixed.effects, HAC=HAC,
+                      estimator = "ols", power = power, nfold = nfold, nthread = 5,
+                      weight = weight, spillover = FALSE, asymmetry = TRUE)
 
 coef1<-summary(est1)$coefficients[,1]
-names(coef1)<-paste0(names(coef1),"_OLS")
+names(coef1)<-paste0(names(coef1),"_LM")
 coef2<-summary(est2)$coefficients[,1]
 names(coef2)<-paste0(names(coef2),"_GLM")
 coef3<-summary(est3)$coefficients[,1]
@@ -91,7 +94,7 @@ names(coef3)<-paste0(names(coef3),"_RF")
 coef4<-summary(est4)$coefficients[,1]
 names(coef4)<-paste0(names(coef4),"_SYM")
 coef5<-summary(est5)$coefficients[,1]
-names(coef5)<-paste0(names(coef5),"_CES")
+names(coef5)<-paste0(names(coef5),"_OLS")
 
 c(coef1,coef2,coef3,coef4,coef5)
 }
@@ -149,6 +152,9 @@ y <- asypeer.sim(formula = ~ X + GX, Glist = Gnorm, delta=delta,beta = beta,
                  gamma = gamma, epsilon = eps, nthread = 5)
 y <- y$y
 
+avg <- peer.asyavg(formula = ~y, Glist=Gnorm)
+ybar <- avg$peer.avg
+ycheck <- avg$hpeer.avg-avg$hdegree*y
 
 est1 <- asypeer.estim(y ~ X + GX, Glist = Gnorm, fixed.effects = fixed.effects, HAC=HAC,
                      estimator = "ols", power = power, nfold = nfold, nthread = 5,
@@ -165,9 +171,11 @@ est3 <- asypeer.estim(y ~ X + GX, Glist = Gnorm, fixed.effects = fixed.effects, 
 est4 <- asypeer.estim(y ~ X + GX, Glist = Gnorm, fixed.effects = fixed.effects, HAC=HAC,
                       estimator = "ols", power = power, nfold = nfold, nthread = 5,
                       weight = weight, spillover = FALSE, asymmetry = FALSE)
-z    <- fitted(lm(y ~ X + GX))
-est5 <- cesconfpeer(formula = y ~ X+GX, instrument = ~ z, Glist = Gnorm, HAC=HAC, 
-                    interval = c(-10, 10),fixed.effect=fixed.effects)
+
+est5  <- asypeer.estim(y ~ X + GX, excluded.instruments = ~ ybar+ycheck,
+                       Glist = Gnorm, fixed.effects = fixed.effects, HAC=HAC,
+                       estimator = "ols", power = power, nfold = nfold, nthread = 5,
+                       weight = weight, spillover = FALSE, asymmetry = TRUE)
 
 coef1<-summary(est1)$coefficients[,1]
 names(coef1)<-paste0(names(coef1),"_OLS")
@@ -178,13 +186,13 @@ names(coef3)<-paste0(names(coef3),"_RF")
 coef4<-summary(est4)$coefficients[,1]
 names(coef4)<-paste0(names(coef4),"_SYM")
 coef5<-summary(est5)$coefficients[,1]
-names(coef5)<-paste0(names(coef5),"_CES")
+names(coef5)<-paste0(names(coef5),"_OLS")
 
-c(coef1,coef2,coef3,coef4,coef5)
+c(coef1, coef2, coef3, coef4, coef5)
 }
 
 # Number of simulations
-nsim      <- 1e1
+nsim      <- 1e3
 RNGkind("L'Ecuyer-CMRG")
 
 cl <- makeCluster(5) # Use one less than the number of cores
@@ -239,7 +247,8 @@ Est <- Est %>% mutate(across(everything(), ~ sprintf("%.3f", .))) %>%  # Ensures
 # Insert blank rows between DGP
 tp           <- as.data.frame(matrix(NA, nrow = 1, ncol = ncol(Est)))
 colnames(tp) <- colnames(Est)
-Est          <- Est %>% add_row(tp, .before = 7) %>%
+Est          <- Est %>% 
+  add_row(tp, .before = 7) %>%
   add_row(tp, .before = 5) %>%
   add_row(tp, .before = 3) %>%
   add_row(tp, .before = 1)

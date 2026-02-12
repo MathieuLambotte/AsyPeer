@@ -2,7 +2,7 @@
 ### ACKNOWLEDGMENT
 ### Taken from QuantilePeer and modified according to the MIT License; QuantilePeer is cited.
 ### Houndetoungan A (2025). QuantilePeer: Quantile Peer Effect Models. 
-### doi:10.32614/CRAN.package.QuantilePeer, R package version 0.0.1,
+### doi:10.32614/CRAN.package.QuantilePeer, R package version 0.0.1.
 ##################################
 
 
@@ -373,9 +373,12 @@ cesconfpeer <- function(formula,
         Z[Is + 1, 3:(2 + Kiso)] <- CESd[Is + 1, idXiso + 1]
       }
       Z[nIs + 1, (3 + Kiso):(Kz)] <- CESd[nIs + 1, idXniso + 1]
-      
+      rm(CESd)
+      invisible(gc())
       # first Optimization
       W     <- solve(crossprod(Z[sel + 1,]) / S) 
+      rm(Z)
+      invisible(gc())
     }
     
     if (rhomax * rhomin < 0) { # estimation for positive rho and for negative rho
@@ -528,7 +531,8 @@ cesconfpeer <- function(formula,
                         lnIso = lnIs, nvec = nvec, yFMiMa = yFMiMa, zFMiMa = zFMiMa, 
                         n = n, Kx = Kx, S = S, rho = rho, FE = fixed.effects, 
                         deriv = FALSE, nthread = nthread)
-    
+    remove(Glist)
+    invisible(gc())
     # this is how data are organized in data
     # X: 1 to Kx
     # y: Kx + 1

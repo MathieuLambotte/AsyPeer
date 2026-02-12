@@ -387,7 +387,7 @@ asypeer.estim <- function(formula,
   ## Test for asymmetry
   if (asymmetry) {
     gmm   <- c(gmm, list("diffbeta" = c("Estimate" = est$TestAsym[1],
-                                        "SE"       = est$TestAsym[2],
+                                        "SE"       = sqrt(est$TestAsym[2]),
                                         "p-value"  = 1 - pchisq((est$TestAsym[1]^2) / est$TestAsym[2], df = 1))))
   }
   gmm     <- c(gmm, list(unscale.resid = est$unscale.resid,

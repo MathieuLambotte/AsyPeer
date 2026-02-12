@@ -53,3 +53,7 @@ inst/doc
 
 # MAC File
 *.DS_Store
+
+# Replication folder
+Replication/*.xlsx
+Replication/*.Rda

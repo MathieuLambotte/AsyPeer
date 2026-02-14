@@ -15,12 +15,12 @@ OutDataPath <- "PATH/TO/WHERE/PREPARED/DATA/IS/SAVED/" # Where prepared data for
 OutResPath  <- "PATH/TO/WHERE/RESULTS/WILL/BE/SAVED/" # Where results should be saved
 
 OutDataPath <- "~/Dropbox/Academy/1.Papers/AsymmetricPeer/AsyPeerCode/SOULD_BE_DELETED_LATER/"
-OutResPath  <- "~/Dropbox/Academy/1.Papers/AsymmetricPeer/AsyPeerCode/Application"
+OutResPath  <- "~/Dropbox/Academy/1.Papers/AsymmetricPeer/AsyPeerCode/Application/"
   
 OutDataPath <- "D:/Home/mlambotte/Documents/Dropbox/AsymmetricPeer/AsyPeerCode/SOULD_BE_DELETED_LATER/"
 OutResPath <- "D:/Home/mlambotte/Documents/Dropbox/AsymmetricPeer/AsyPeerCode/Application/"
 # List of outcome variables
-depvar  <- c( "smoke", "drink", "risky")
+depvar  <- c( "smoke", "drink", "fight","futureperception")
 #smoke 1.92 et 2.65
 #drink 1.03 et 0.89
 #risky 0.97 1.0; 1.55
@@ -79,7 +79,7 @@ NULL
 }
 set.seed(123)
 sapply(depvar, festim) 
-OUTCOME <- c("Smoking", "Drinking", "Risky behaviors")# This function puts results together
+OUTCOME <- c("Smoking", "Drinking","Fighting","Future Perception")# This function puts results together
 
 
 # Argument k is the index of the outcome in depvar
@@ -173,8 +173,10 @@ wide_table <- data.frame(
   Smoking_Symmetric   = out$Smoking$Symmetric,
   Drinking_Asymmetric = out$Drinking$Asymmetric,
   Drinking_Symmetric  = out$Drinking$Symmetric,
-  Risky_Asymmetric    = out$Risky$Asymmetric,
-  Risky_Symmetric     = out$Risky$Symmetric,
+  Fighting_Asymmetric    = out$Fighting$Asymmetric,
+  Fighting_Symmetric     = out$Fighting$Symmetric,
+  Perception_Asymmetric    = out$`Future Perception`$Asymmetric,
+  Perception_Symmetric     = out$`Future Perception`$Symmetric,
   stringsAsFactors = FALSE
 )
 

@@ -18,7 +18,7 @@ asypeer.estim(
   tol = 1e-10,
   nthread = 1,
   drop = NULL,
-  ctl.lbfgs = list(),
+  tol.optim = .Machine$double.eps^0.25,
   ...
 )
 }
@@ -74,8 +74,10 @@ matrices of explanatory variables and instruments, ensuring a full-rank matrix (
 This can be used, for example, to remove false isolates or to estimate the model only on non-isolated agents.
 These observations cannot be directly removed from the network by the user because they may still be friends with other agents.}
 
-\item{ctl.lbfgs}{A list of control parameters, such as \code{maxit}, \code{eps_f}, and \code{eps_g},
-to be passed to \code{optim_lbfgs()} from the \pkg{RcppNumerical} package.}
+\item{tol.optim}{The tolerance value for \link[stats]{optimize}.
+The objective function is concentrated in a
+function of \eqn{\beta_l} or \eqn{\beta} alone, which is optimized
+using \link[stats]{optimize}.}
 
 \item{...}{Further arguments passed to or from other methods.}
 }

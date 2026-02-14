@@ -6,15 +6,12 @@
 //////////////////////////////////
 
 // [[Rcpp::depends(RcppEigen)]]
-// [[Rcpp::depends(RcppNumerical)]]
-#include <RcppNumerical.h>
 #include <RcppEigen.h>
 #ifdef _OPENMP 
 #include <omp.h>
 // [[Rcpp::plugins(openmp)]]
 #endif
 // #define NDEBUG
-// #include <RcppNumerical.h>
 // #include <RcppEigen.h>
 
 using namespace Rcpp;

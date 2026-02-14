@@ -460,18 +460,123 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// fAsyMain
-Rcpp::List fAsyMain(const double betal0, const Eigen::MatrixXd& Z, const Eigen::VectorXd& y, const Eigen::MatrixXd& endo, const Eigen::MatrixXd& X, Eigen::MatrixXd& W, const Eigen::ArrayXi& Iso, const Eigen::ArrayXi& nIso, const Eigen::ArrayXi& cumsn, const Eigen::ArrayXi& nc_gamma, const int& dfiso, const int& dfniso, const int& HAC, const int& weight, const int& S, const int& maxit, const double& eps_f, const double& eps_g, const bool& spillover);
-RcppExport SEXP _AsyPeer_fAsyMain(SEXP betal0SEXP, SEXP ZSEXP, SEXP ySEXP, SEXP endoSEXP, SEXP XSEXP, SEXP WSEXP, SEXP IsoSEXP, SEXP nIsoSEXP, SEXP cumsnSEXP, SEXP nc_gammaSEXP, SEXP dfisoSEXP, SEXP dfnisoSEXP, SEXP HACSEXP, SEXP weightSEXP, SEXP SSEXP, SEXP maxitSEXP, SEXP eps_fSEXP, SEXP eps_gSEXP, SEXP spilloverSEXP) {
+// fV
+Eigen::MatrixXd fV(const Eigen::MatrixXd& endo, const Eigen::MatrixXd& X, const Eigen::ArrayXi& Iso, const Eigen::ArrayXi& nIso, const Eigen::ArrayXi& nc_gamma, const bool& spillover);
+RcppExport SEXP _AsyPeer_fV(SEXP endoSEXP, SEXP XSEXP, SEXP IsoSEXP, SEXP nIsoSEXP, SEXP nc_gammaSEXP, SEXP spilloverSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const double >::type betal0(betal0SEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type endo(endoSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type Iso(IsoSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type nIso(nIsoSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type nc_gamma(nc_gammaSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type spillover(spilloverSEXP);
+    rcpp_result_gen = Rcpp::wrap(fV(endo, X, Iso, nIso, nc_gamma, spillover));
+    return rcpp_result_gen;
+END_RCPP
+}
+// fAsyobj
+double fAsyobj(const double betal, const Eigen::MatrixXd& Z, const Eigen::VectorXd& y, const Eigen::MatrixXd& V, const Eigen::MatrixXd& W, const Eigen::ArrayXi& nIso);
+RcppExport SEXP _AsyPeer_fAsyobj(SEXP betalSEXP, SEXP ZSEXP, SEXP ySEXP, SEXP VSEXP, SEXP WSEXP, SEXP nIsoSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const double >::type betal(betalSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type V(VSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type nIso(nIsoSEXP);
+    rcpp_result_gen = Rcpp::wrap(fAsyobj(betal, Z, y, V, W, nIso));
+    return rcpp_result_gen;
+END_RCPP
+}
+// fAsyobj_nospill
+double fAsyobj_nospill(const double betal, const Eigen::MatrixXd& Z, const Eigen::VectorXd& y, const Eigen::VectorXd& Gy, const Eigen::MatrixXd& V, const Eigen::MatrixXd& W, const Eigen::ArrayXi& nIso);
+RcppExport SEXP _AsyPeer_fAsyobj_nospill(SEXP betalSEXP, SEXP ZSEXP, SEXP ySEXP, SEXP GySEXP, SEXP VSEXP, SEXP WSEXP, SEXP nIsoSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const double >::type betal(betalSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type Gy(GySEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type V(VSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type nIso(nIsoSEXP);
+    rcpp_result_gen = Rcpp::wrap(fAsyobj_nospill(betal, Z, y, Gy, V, W, nIso));
+    return rcpp_result_gen;
+END_RCPP
+}
+// fGmmEstim
+Rcpp::List fGmmEstim(const double betal, const Eigen::MatrixXd& Z, const Eigen::VectorXd& y, const Eigen::MatrixXd& V, const Eigen::MatrixXd& W, const Eigen::ArrayXi& nIso);
+RcppExport SEXP _AsyPeer_fGmmEstim(SEXP betalSEXP, SEXP ZSEXP, SEXP ySEXP, SEXP VSEXP, SEXP WSEXP, SEXP nIsoSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const double >::type betal(betalSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type V(VSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type nIso(nIsoSEXP);
+    rcpp_result_gen = Rcpp::wrap(fGmmEstim(betal, Z, y, V, W, nIso));
+    return rcpp_result_gen;
+END_RCPP
+}
+// fGmmEstim_nospill
+Rcpp::List fGmmEstim_nospill(const double betal, const Eigen::MatrixXd& Z, const Eigen::VectorXd& y, const Eigen::VectorXd& Gy, const Eigen::MatrixXd& V, const Eigen::MatrixXd& W, const Eigen::ArrayXi& nIso);
+RcppExport SEXP _AsyPeer_fGmmEstim_nospill(SEXP betalSEXP, SEXP ZSEXP, SEXP ySEXP, SEXP GySEXP, SEXP VSEXP, SEXP WSEXP, SEXP nIsoSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const double >::type betal(betalSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type Gy(GySEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type V(VSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type nIso(nIsoSEXP);
+    rcpp_result_gen = Rcpp::wrap(fGmmEstim_nospill(betal, Z, y, Gy, V, W, nIso));
+    return rcpp_result_gen;
+END_RCPP
+}
+// fAsyWopt
+Eigen::MatrixXd fAsyWopt(const Eigen::VectorXd& theta, const Eigen::MatrixXd& Z, const Eigen::VectorXd& eta, const Eigen::ArrayXi& cumsn, const Eigen::ArrayXi& Iso, const Eigen::ArrayXi& nIso, const int& dfiso, const int& dfniso, const int& HAC, const int& S);
+RcppExport SEXP _AsyPeer_fAsyWopt(SEXP thetaSEXP, SEXP ZSEXP, SEXP etaSEXP, SEXP cumsnSEXP, SEXP IsoSEXP, SEXP nIsoSEXP, SEXP dfisoSEXP, SEXP dfnisoSEXP, SEXP HACSEXP, SEXP SSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type theta(thetaSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type eta(etaSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type cumsn(cumsnSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type Iso(IsoSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type nIso(nIsoSEXP);
+    Rcpp::traits::input_parameter< const int& >::type dfiso(dfisoSEXP);
+    Rcpp::traits::input_parameter< const int& >::type dfniso(dfnisoSEXP);
+    Rcpp::traits::input_parameter< const int& >::type HAC(HACSEXP);
+    Rcpp::traits::input_parameter< const int& >::type S(SSEXP);
+    rcpp_result_gen = Rcpp::wrap(fAsyWopt(theta, Z, eta, cumsn, Iso, nIso, dfiso, dfniso, HAC, S));
+    return rcpp_result_gen;
+END_RCPP
+}
+// fAsyparms
+Rcpp::List fAsyparms(const Eigen::VectorXd& theta, const Eigen::MatrixXd& V, const Eigen::VectorXd& sVphi, const Eigen::VectorXd& eta, const Eigen::MatrixXd& Z, const Eigen::VectorXd& y, const Eigen::MatrixXd& endo, const Eigen::MatrixXd& X, const Eigen::MatrixXd& W, const Eigen::ArrayXi& Iso, const Eigen::ArrayXi& nIso, const Eigen::ArrayXi& cumsn, const Eigen::ArrayXi& nc_gamma, const int& dfiso, const int& dfniso, const int& HAC, const int& S);
+RcppExport SEXP _AsyPeer_fAsyparms(SEXP thetaSEXP, SEXP VSEXP, SEXP sVphiSEXP, SEXP etaSEXP, SEXP ZSEXP, SEXP ySEXP, SEXP endoSEXP, SEXP XSEXP, SEXP WSEXP, SEXP IsoSEXP, SEXP nIsoSEXP, SEXP cumsnSEXP, SEXP nc_gammaSEXP, SEXP dfisoSEXP, SEXP dfnisoSEXP, SEXP HACSEXP, SEXP SSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type theta(thetaSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type V(VSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type sVphi(sVphiSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type eta(etaSEXP);
     Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
     Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type y(ySEXP);
     Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type endo(endoSEXP);
     Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type X(XSEXP);
-    Rcpp::traits::input_parameter< Eigen::MatrixXd& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type W(WSEXP);
     Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type Iso(IsoSEXP);
     Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type nIso(nIsoSEXP);
     Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type cumsn(cumsnSEXP);
@@ -479,13 +584,35 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const int& >::type dfiso(dfisoSEXP);
     Rcpp::traits::input_parameter< const int& >::type dfniso(dfnisoSEXP);
     Rcpp::traits::input_parameter< const int& >::type HAC(HACSEXP);
-    Rcpp::traits::input_parameter< const int& >::type weight(weightSEXP);
     Rcpp::traits::input_parameter< const int& >::type S(SSEXP);
-    Rcpp::traits::input_parameter< const int& >::type maxit(maxitSEXP);
-    Rcpp::traits::input_parameter< const double& >::type eps_f(eps_fSEXP);
-    Rcpp::traits::input_parameter< const double& >::type eps_g(eps_gSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type spillover(spilloverSEXP);
-    rcpp_result_gen = Rcpp::wrap(fAsyMain(betal0, Z, y, endo, X, W, Iso, nIso, cumsn, nc_gamma, dfiso, dfniso, HAC, weight, S, maxit, eps_f, eps_g, spillover));
+    rcpp_result_gen = Rcpp::wrap(fAsyparms(theta, V, sVphi, eta, Z, y, endo, X, W, Iso, nIso, cumsn, nc_gamma, dfiso, dfniso, HAC, S));
+    return rcpp_result_gen;
+END_RCPP
+}
+// fAsyparms_nospill
+Rcpp::List fAsyparms_nospill(const Eigen::VectorXd& theta, const Eigen::MatrixXd& V, const Eigen::VectorXd& sVphi, const Eigen::VectorXd& eta, const Eigen::MatrixXd& Z, const Eigen::VectorXd& y, const Eigen::MatrixXd& endo, const Eigen::MatrixXd& X, const Eigen::MatrixXd& W, const Eigen::ArrayXi& Iso, const Eigen::ArrayXi& nIso, const Eigen::ArrayXi& cumsn, const Eigen::ArrayXi& nc_gamma, const int& dfiso, const int& dfniso, const int& HAC, const int& S);
+RcppExport SEXP _AsyPeer_fAsyparms_nospill(SEXP thetaSEXP, SEXP VSEXP, SEXP sVphiSEXP, SEXP etaSEXP, SEXP ZSEXP, SEXP ySEXP, SEXP endoSEXP, SEXP XSEXP, SEXP WSEXP, SEXP IsoSEXP, SEXP nIsoSEXP, SEXP cumsnSEXP, SEXP nc_gammaSEXP, SEXP dfisoSEXP, SEXP dfnisoSEXP, SEXP HACSEXP, SEXP SSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type theta(thetaSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type V(VSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type sVphi(sVphiSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type eta(etaSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type endo(endoSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type Iso(IsoSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type nIso(nIsoSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type cumsn(cumsnSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type nc_gamma(nc_gammaSEXP);
+    Rcpp::traits::input_parameter< const int& >::type dfiso(dfisoSEXP);
+    Rcpp::traits::input_parameter< const int& >::type dfniso(dfnisoSEXP);
+    Rcpp::traits::input_parameter< const int& >::type HAC(HACSEXP);
+    Rcpp::traits::input_parameter< const int& >::type S(SSEXP);
+    rcpp_result_gen = Rcpp::wrap(fAsyparms_nospill(theta, V, sVphi, eta, Z, y, endo, X, W, Iso, nIso, cumsn, nc_gamma, dfiso, dfniso, HAC, S));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -536,7 +663,14 @@ static const R_CallMethodDef CallEntries[] = {
     {"_AsyPeer_fCESparmCov", (DL_FUNC) &_AsyPeer_fCESparmCov, 25},
     {"_AsyPeer_fdataML", (DL_FUNC) &_AsyPeer_fdataML, 10},
     {"_AsyPeer_fInstChecky", (DL_FUNC) &_AsyPeer_fInstChecky, 3},
-    {"_AsyPeer_fAsyMain", (DL_FUNC) &_AsyPeer_fAsyMain, 19},
+    {"_AsyPeer_fV", (DL_FUNC) &_AsyPeer_fV, 6},
+    {"_AsyPeer_fAsyobj", (DL_FUNC) &_AsyPeer_fAsyobj, 6},
+    {"_AsyPeer_fAsyobj_nospill", (DL_FUNC) &_AsyPeer_fAsyobj_nospill, 7},
+    {"_AsyPeer_fGmmEstim", (DL_FUNC) &_AsyPeer_fGmmEstim, 6},
+    {"_AsyPeer_fGmmEstim_nospill", (DL_FUNC) &_AsyPeer_fGmmEstim_nospill, 7},
+    {"_AsyPeer_fAsyWopt", (DL_FUNC) &_AsyPeer_fAsyWopt, 10},
+    {"_AsyPeer_fAsyparms", (DL_FUNC) &_AsyPeer_fAsyparms, 17},
+    {"_AsyPeer_fAsyparms_nospill", (DL_FUNC) &_AsyPeer_fAsyparms_nospill, 17},
     {"_AsyPeer_fNashE", (DL_FUNC) &_AsyPeer_fNashE, 13},
     {NULL, NULL, 0}
 };

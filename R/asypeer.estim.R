@@ -51,8 +51,10 @@
 #'    
 #' @param asymmetry A logical value indicating if the preference for conformity is asymmetric or not.
 #' 
-#' @param ctl.lbfgs A list of control parameters, such as `maxit`, `eps_f`, and `eps_g`, 
-#' to be passed to `optim_lbfgs()` from the \pkg{RcppNumerical} package.
+#' @param tol.optim The tolerance value for \link[stats]{optimize}. 
+#'   The objective function is concentrated in a 
+#'   function of \eqn{\beta_l} or \eqn{\beta} alone, which is optimized 
+#'   using \link[stats]{optimize}.
 #' 
 #' @param ... Further arguments passed to or from other methods.   
 #'
@@ -109,15 +111,15 @@ asypeer.estim <- function(formula,
                           Glist,
                           data,
                           common.gamma,
-                          spillover = FALSE,
-                          asymmetry = TRUE,
-                          weight = "IV",
-                          HAC = "group-iid",
+                          spillover     = FALSE,
+                          asymmetry     = TRUE,
+                          weight        = "IV",
+                          HAC           = "group-iid",
                           fixed.effects = FALSE,
-                          tol = 1e-10,
-                          nthread = 1,
-                          drop = NULL,
-                          ctl.lbfgs = list(),
+                          tol           = 1e-10,
+                          nthread       = 1,
+                          drop          = NULL,
+                          tol.optim     = .Machine$double.eps^0.25,
                           ...){
   ## Thread
   tp        <- fnthreads(nthread = nthread)
@@ -187,16 +189,12 @@ asypeer.estim <- function(formula,
   }
   
   ## Weight
-  weightn    <- NULL
   if (tolower(weight) %in% c("i","identity")) {
     weight   <- "I"
-    weightn  <- 0
   } else if (tolower(weight) %in% c("iv")) {
     weight   <- "IV"
-    weightn  <- 1
   } else if (tolower(weight) %in% c("opti", "optimal","optim")) {
     weight   <- "optimal"
-    weightn  <- ifelse(HACn == 0, 1, 2)
   } else {
     stop("This weighting option is not available.")
   }
@@ -364,34 +362,70 @@ asypeer.estim <- function(formula,
     W    <- solve(crossprod(Z) / n)
   }
   
-  # control
-  maxit  <- ifnullset(ctl.lbfgs$maxit, 1e6)
-  eps_f  <- ifnullset(ctl.lbfgs$eps_f, 1e-9)
-  eps_g  <- ifnullset(ctl.lbfgs$eps_g, 1e-9)
-  
   ## Estimation
-  est     <- suppressWarnings(
-    fAsyMain(betal0 = 1, Z = Z, y = y, endo = endo, X = X, W = W, Iso = Iso, 
-                     nIso = nIso, cumsn = cumsn, nc_gamma = ncgamma, dfiso = dfiso,
-                     dfniso = dfniso, HAC = HACn, weight = weightn, S = S, maxit = maxit,
-                     eps_f = eps_f, eps_g = eps_g, spillover = spillover)
-  )
+  ### Matrix V
+  V      <- fV(endo = endo, X = X, Iso = Iso, nIso = nIso, nc_gamma = ncgamma, 
+               spillover = spillover)
+  
+  ### First step GMM
+  opt    <- NULL
+  if (spillover) {
+    opt  <- optimize(f = fAsyobj, lower = -0.5, upper = 100, tol = tol.optim,
+              Z = Z, y = y, V = V, W = W, nIso = nIso)
+    opt  <- c(opt, fGmmEstim(betal = opt$minimum, Z = Z, y = y, V = V, W = W, 
+                             nIso = nIso))
+  } else {
+    opt  <- optimize(f = fAsyobj_nospill, lower = -0.5, upper = 100, tol = tol.optim,
+                     Z = Z, y = y, Gy = endo[,1], V = V, W = W, nIso = nIso)
+    opt  <- c(opt, fGmmEstim_nospill(betal = opt$minimum, Z = Z, y = y, Gy = endo[,1], 
+                                     V = V, W = W, nIso = nIso))
+  }
+  
+  ### Optimal weighting matrix if necessary
+  if ((HACn != 0) & (weight == "optimal")) {
+    W <- fAsyWopt(theta = opt$theta, Z = Z, eta = opt$eta, cumsn = cumsn, 
+                  Iso = Iso, nIso = nIso, dfiso = dfiso, dfniso = dfniso, 
+                  HAC = HACn, S = S)
+    if (spillover) {
+      opt  <- optimize(f = fAsyobj, lower = -0.5, upper = 100, tol = tol.optim,
+                       Z = Z, y = y, V = V, W = W, nIso = nIso)
+      opt  <- c(opt, fGmmEstim(betal = opt$minimum, Z = Z, y = y, V = V, W = W, 
+                               nIso = nIso))
+    } else {
+      opt  <- optimize(f = fAsyobj_nospill, lower = -0.5, upper = 100, tol = tol.optim,
+                       Z = Z, y = y, Gy = endo[,1], V = V, W = W, nIso = nIso)
+      opt  <- c(opt, fGmmEstim_nospill(betal = opt$minimum, Z = Z, y = y, Gy = endo[,1], 
+                                       V = V, W = W, nIso = nIso))
+    }
+  }
 
+  ### Covariance
+  fAsyC   <- fAsyparms_nospill
+  if (spillover) {
+    fAsyC <- fAsyparms
+  }
+  Cov     <- fAsyC(theta = opt$theta, V = V, sVphi = opt$sVphi, eta = opt$eta, 
+                   Z = Z, y = y, endo = endo, X = X, W = W, Iso = Iso, 
+                   nIso = nIso, cumsn = cumsn, nc_gamma = ncgamma, dfiso = dfiso,
+                   dfniso = dfniso, HAC = HACn, S = S)
+  
+  ### unscale residuals
+  opt$eta[nIso + 1] = opt$eta[nIso + 1] * (1 + opt$theta[1])
+  
   ## Shape the output
-  gmm     <- list(Estimate = est$estimate,
-                  cov      = est$cov,
-                  sigma    = c(overall = est$serr, isolates = est$serr_iso, nonisolates = est$serr_niso),
-                  Sargan   = list(stat   = ifelse(est$Jdf > 0, est$Jstat, NA),
-                                  df     = est$Jdf,
-                                  pvalue = ifelse(est$Jdf > 0, 1 - pchisq(est$Jstat, est$Jdf), NA)))
+  gmm     <- list(Estimate = Cov$estimate,
+                  cov      = Cov$cov,
+                  sigma    = c(overall = Cov$serr, isolates = Cov$serr_iso, nonisolates = Cov$serr_niso),
+                  Sargan   = list(stat   = ifelse(Cov$Jdf > 0, Cov$Jstat, NA),
+                                  df     = Cov$Jdf,
+                                  pvalue = ifelse(Cov$Jdf > 0, 1 - pchisq(Cov$Jstat, Cov$Jdf), NA)))
   ## Test for asymmetry
   if (asymmetry) {
-    gmm   <- c(gmm, list("diffbeta" = c("Estimate" = est$TestAsym[1],
-                                        "SE"       = sqrt(est$TestAsym[2]),
-                                        "p-value"  = 1 - pchisq((est$TestAsym[1]^2) / est$TestAsym[2], df = 1))))
+    gmm   <- c(gmm, list("diffbeta" = c("Estimate" = Cov$TestAsym[1],
+                                        "SE"       = sqrt(Cov$TestAsym[2]),
+                                        "p-value"  = 1 - pchisq((Cov$TestAsym[1]^2) / Cov$TestAsym[2], df = 1))))
   }
-  gmm     <- c(gmm, list(unscale.resid = est$unscale.resid,
-                         lbfgs = est[c("objective", "gradient", "status")]))
+  gmm     <- c(gmm, list(unscale.resid = opt$eta, objective = opt$objective / S^2))
   
   gname   <- paste0("gamma:", xname)
   if (length(ncgamma) > 0) {

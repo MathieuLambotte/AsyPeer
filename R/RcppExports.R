@@ -89,8 +89,36 @@ fInstChecky <- function(rhoddX, ddni, nthread) {
     .Call(`_AsyPeer_fInstChecky`, rhoddX, ddni, nthread)
 }
 
-fAsyMain <- function(betal0, Z, y, endo, X, W, Iso, nIso, cumsn, nc_gamma, dfiso, dfniso, HAC, weight, S, maxit, eps_f, eps_g, spillover) {
-    .Call(`_AsyPeer_fAsyMain`, betal0, Z, y, endo, X, W, Iso, nIso, cumsn, nc_gamma, dfiso, dfniso, HAC, weight, S, maxit, eps_f, eps_g, spillover)
+fV <- function(endo, X, Iso, nIso, nc_gamma, spillover) {
+    .Call(`_AsyPeer_fV`, endo, X, Iso, nIso, nc_gamma, spillover)
+}
+
+fAsyobj <- function(betal, Z, y, V, W, nIso) {
+    .Call(`_AsyPeer_fAsyobj`, betal, Z, y, V, W, nIso)
+}
+
+fAsyobj_nospill <- function(betal, Z, y, Gy, V, W, nIso) {
+    .Call(`_AsyPeer_fAsyobj_nospill`, betal, Z, y, Gy, V, W, nIso)
+}
+
+fGmmEstim <- function(betal, Z, y, V, W, nIso) {
+    .Call(`_AsyPeer_fGmmEstim`, betal, Z, y, V, W, nIso)
+}
+
+fGmmEstim_nospill <- function(betal, Z, y, Gy, V, W, nIso) {
+    .Call(`_AsyPeer_fGmmEstim_nospill`, betal, Z, y, Gy, V, W, nIso)
+}
+
+fAsyWopt <- function(theta, Z, eta, cumsn, Iso, nIso, dfiso, dfniso, HAC, S) {
+    .Call(`_AsyPeer_fAsyWopt`, theta, Z, eta, cumsn, Iso, nIso, dfiso, dfniso, HAC, S)
+}
+
+fAsyparms <- function(theta, V, sVphi, eta, Z, y, endo, X, W, Iso, nIso, cumsn, nc_gamma, dfiso, dfniso, HAC, S) {
+    .Call(`_AsyPeer_fAsyparms`, theta, V, sVphi, eta, Z, y, endo, X, W, Iso, nIso, cumsn, nc_gamma, dfiso, dfniso, HAC, S)
+}
+
+fAsyparms_nospill <- function(theta, V, sVphi, eta, Z, y, endo, X, W, Iso, nIso, cumsn, nc_gamma, dfiso, dfniso, HAC, S) {
+    .Call(`_AsyPeer_fAsyparms_nospill`, theta, V, sVphi, eta, Z, y, endo, X, W, Iso, nIso, cumsn, nc_gamma, dfiso, dfniso, HAC, S)
 }
 
 fNashE <- function(y, alpha, G, peffects, cumsn, nvec, idpeer, d, ngroup, tol, maxit, nthread, print) {

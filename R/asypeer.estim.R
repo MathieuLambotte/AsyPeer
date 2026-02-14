@@ -138,7 +138,8 @@ asypeer.estim <- function(formula,
     }
     excluded.instruments <- NULL
     ARG    <-  list(formula = formula, Glist = Glist, data = data, 
-                    nthread = nthread, drop = drop, tol = tol, ...) ## Remember to add ... when the function is completed
+                    asymmetry = asymmetry, nthread = nthread, drop = drop, 
+                    tol = tol, ...) ## Remember to add ... 
     Z      <- do.call(gen.inst, ARG)
     detInst$estimator <- Z$model.info$estimator
     detInst$power     <- Z$model.info$power

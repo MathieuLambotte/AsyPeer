@@ -416,7 +416,7 @@ asypeer.estim <- function(formula,
   ## Shape the output
   gmm     <- list(Estimate = Cov$estimate,
                   cov      = Cov$cov,
-                  sigma    = c(overall = Cov$serr, isolates = Cov$serr_iso, nonisolates = Cov$serr_niso),
+                  sigma    = c(overall = Cov$serr, isolates = Cov$serriso, nonisolates = Cov$serrniso),
                   Sargan   = list(stat   = ifelse(Cov$Jdf > 0, Cov$Jstat, NA),
                                   df     = Cov$Jdf,
                                   pvalue = ifelse(Cov$Jdf > 0, 1 - pchisq(Cov$Jstat, Cov$Jdf), NA)))

@@ -92,13 +92,13 @@ Eigen::ArrayXXd fInstChecky(const Eigen::ArrayXXd& rhoddX,
 #pragma omp parallel for schedule(static)
   for (int i = 0; i < n; ++i) {
     if (ddni(i) > 0) {
-      out.row(i) = rhoddX.block(ddncs(i), 0, ddni(i), K - 1).colwise().sum();
+      out.row(i) = rhoddX.block(ddncs(i), 0, ddni(i), K).colwise().sum();
     }
   }
 #else
   for (int i = 0; i < n; ++i) {
     if (ddni(i) > 0) {
-      out.row(i) = rhoddX.block(ddncs(i), 0, ddni(i), K - 1).colwise().sum();
+      out.row(i) = rhoddX.block(ddncs(i), 0, ddni(i), K).colwise().sum();
     }
   }
 #endif

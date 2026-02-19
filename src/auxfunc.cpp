@@ -180,12 +180,13 @@ Eigen::MatrixXd peeravgpower(const std::vector<Eigen::MatrixXd>& G,
 //[[Rcpp::export]]
 Eigen::Array<bool, Eigen::Dynamic, 1> fcheckrankEigen(const Eigen::MatrixXd& X, const double& tol = 1e-10) {
   int n(X.rows());
-  Eigen::RowVectorXd m(X.colwise().mean());
-  Eigen::RowVectorXd s(((X.rowwise() - m).array().square().colwise().sum() / n).sqrt());
-  m = (s.array() < tol).select(0, m);
-  s = (s.array() < tol).select(1, s);
-  Eigen::MatrixXd U((X.rowwise() - m).array().rowwise() / s.array());
-  U = U.transpose()*U/n;
+  // Eigen::RowVectorXd m(X.colwise().mean());
+  // Eigen::RowVectorXd s(((X.rowwise() - m).array().square().colwise().sum() / n).sqrt());
+  // m = (s.array() < tol).select(0, m);
+  // s = (s.array() < tol).select(1, s);
+  // Eigen::MatrixXd U((X.rowwise() - m).array().rowwise() / s.array());
+  Eigen::MatrixXd U = X.transpose()*X/n;
+  // std::cout<<U<<std::endl;
   Eigen::HouseholderQR<Eigen::MatrixXd> qr(U);
   Eigen::MatrixXd R(qr.matrixQR().topRows(U.cols()));
   // std::cout<<R.diagonal().transpose()<<std::endl;

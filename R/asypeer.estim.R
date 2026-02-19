@@ -127,7 +127,7 @@ asypeer.estim <- function(formula,
     warning("OpenMP is not available. Sequential processing is used.")
     nthread <- tp
   }
-  
+
   ## Instrument
   Z        <- NULL
   detInst  <- list()
@@ -156,7 +156,7 @@ asypeer.estim <- function(formula,
     Z           <- f.t.data$X
     zname       <- f.t.data$xname
   } 
-  
+
   ## Network
   if (!is.list(Glist)) {
     if (is.matrix(Glist)) {
@@ -300,6 +300,7 @@ asypeer.estim <- function(formula,
   if(!all(common.gamma %in% xname)){
     stop("At least one variable name in `common.gamma` is not written correctly.")
   }
+
   xnameiso  <- xname[fcheckrank(X = X_iso[Iso + 1,], tol = tol) + 1]
   xnameniso <- xname[fcheckrank(X = X_niso[nIso + 1,], tol = tol) + 1]
   cgamma    <- xnameiso[(xnameiso %in% common.gamma) & (xnameiso %in% xnameniso)]
@@ -334,7 +335,7 @@ asypeer.estim <- function(formula,
   }
   
   ## [endo, X_iso, X_niso] should be full rank
-  if (length(fcheckrank(X = cbind(endo, X_iso, X_niso), tol = tol)) < (Kx + 1L + asymmetry + spillover)) {
+  if (length(fcheckrank(X = cbind(endo, X_iso, X_niso), tol = tol)) < (Kx + length(ncgamma) + 1L + asymmetry + spillover)) {
     stop("The design matrix is not full rank.")
   }
   

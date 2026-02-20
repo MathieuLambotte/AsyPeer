@@ -301,22 +301,20 @@ asypeer.estim <- function(formula,
     stop("At least one variable name in `common.gamma` is not written correctly.")
   }
 
-  xnameiso  <- xname[fcheckrank(X = X_iso[Iso + 1,], tol = tol) + 1]
-  xnameniso <- xname[fcheckrank(X = X_niso[nIso + 1,], tol = tol) + 1]
-  cgamma    <- xnameiso[(xnameiso %in% common.gamma) & (xnameiso %in% xnameniso)]
-  ncgamma   <- setdiff(xnameiso, cgamma)
+  cgamma    <- common.gamma
+  ncgamma   <- setdiff(xname, cgamma)
   cgamma    <- which(xname %in% cgamma) - 1
   ncgamma   <- which(xname %in% ncgamma) - 1
-  
+
   ## degree of freedom
   dfiso    <- NULL
   dfniso   <- NULL
   if (fixed.effects) {
-    Kxiso  <- length(xnameiso)
+    Kxiso  <- length(ncgamma)
     dfiso  <- n_iso - SIso - Kxiso
     dfniso <- n_niso - SnIso - asymmetry -1  - spillover - Kx + Kxiso
   } else {
-    Kxiso  <- length(xnameiso)
+    Kxiso  <- length(ncgamma)
     dfiso  <- n_iso - Kxiso
     dfniso <- n_niso - 1 - asymmetry - spillover - Kx + Kxiso
   }

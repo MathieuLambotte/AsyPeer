@@ -155,7 +155,7 @@ Eigen::MatrixXd peeravgpower(const std::vector<Eigen::MatrixXd>& G,
                              const int& power,
                              const int& nthread) {
   int kV(V.cols()), n(nvec.sum()), ngroup(nvec.size());
-  Eigen::MatrixXd out(n, (kV + 1) * power);
+  Eigen::MatrixXd out(n, kV * (power + 1));
   out.block(0, 0, n, kV) = V;
 #ifdef _OPENMP
   omp_set_num_threads(nthread);
@@ -174,7 +174,7 @@ Eigen::MatrixXd peeravgpower(const std::vector<Eigen::MatrixXd>& G,
     }
   }
 #endif
-  return out.rightCols(kV * power);
+  return out;//.rightCols(kV * power);
 }
 
 // This function removes columns to obtain full rank matrices

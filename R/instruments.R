@@ -247,15 +247,15 @@ gen.instrument <- function(formula,
     insChey  <- fInstChecky(rhoddX = as.matrix(do.call(mpredict, ARG)), ddni = ddni, 
                             nthread = nthread)
     
-    GinsChey <- peeravgpower(G = Glist, V = insChey, cumsn = cumsn, nvec = nvec, 
+    insChey  <- peeravgpower(G = Glist, V = insChey, cumsn = cumsn, nvec = nvec, 
                              power = power[1], nthread = nthread)
     
-    out      <- cbind(insBary, insChey, GinsChey)
-    colnames(out) <- c(sapply(paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_"), \(x) paste0(x, xname)),
+    out      <- cbind(insBary, insChey)
+    colnames(out) <- c(sapply(c("", paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_")), \(x) paste0(x, xname)),
                        "y_check_hat", sapply(paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_"), \(x) paste0(x, "y_check_hat")))
   } else {
     out      <- insBary
-    colnames(out) <- c(sapply(paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_"), \(x) paste0(x, xname)))
+    colnames(out) <- c(sapply(c("", paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_")), \(x) paste0(x, xname)))
     
   }
   if (checkrank) {

@@ -5,6 +5,8 @@
 #' @importFrom doParallel registerDoParallel  
 #' @importFrom doRNG registerDoRNG "%dorng%"
 #' @importFrom foreach foreach registerDoSEQ
+#' @importFrom xgboost xgboost
+#' @importFrom glmnet cv.glmnet
 fdrop <- function(drop, ldg, nvec, S, y, X, Z, endo) {
   n        <- sum(nvec)
   if (any(!(drop %in% 0:1) | !is.finite(drop))) {
@@ -42,12 +44,18 @@ fcheckrank <- function(X, tol = 1e-10) {
   which(fcheckrankEigen(X, tol)) - 1
 }
 
-mpredict  <- function(ddy, ddX, id_fold, estimator, nthread, ...){
+mpredict  <- function(ddyext, ddyint, ddX, id_fold, 
+                      estimatorext, estimatorint, nthread, ...){
   #Given a vector of fold id, create a list of the corresponding row of each ddyad
   # belonging in each fold
   id_list <- split(seq_along(id_fold), id_fold)
   seed    <- as.integer(runif(1, 0, 1e9))
   
+  # Arguments
+  ARG    <- list(ddX = ddX, ddyext = ddyext, ddyint = ddyint, 
+                 estimatorext = estimatorext, estimatorint = estimatorint, ...)
+  
+  # Prediction
   cl      <- NULL
   on.exit({
     registerDoSEQ()
@@ -58,50 +66,126 @@ mpredict  <- function(ddy, ddX, id_fold, estimator, nthread, ...){
   registerDoParallel(cl)
   registerDoRNG(seed)
   
-  lrho    <- foreach(k         = id_list, 
-                     .export   = "mpredict_fold", #comment out
-                     .packages = c("ranger", "AsyPeer") #Remember to add "NameOfThePackage"
+  lycheckh <- foreach(k         = id_list, 
+                      .export   = "mpredict_fold", #comment out
+                      .packages = c("ranger", "xgboost", "glmnet", "AsyPeer") 
   ) %dorng% {
     #each observation in fold k is predicted using a model trained
-    #on the observations of the other folds
-    ARG <- list(ddX = ddX, ddy = ddy, id_listk = k, estimator = estimator, ...)
-    do.call(mpredict_fold, ARG) 
+    do.call(mpredict_fold, c(ARG, list(id_listk = k)))
   }
   
-  rho   <- numeric(nrow(ddX))
+  ycheckh  <- numeric(length(ddyext))
   for (k in 1:length(id_list)) {
-    rho[id_list[[k]]] <- lrho[[k]]
+    ycheckh[id_list[[k]]] <- lycheckh[[k]]
   }
-  
-  return(rho)
+  return(ycheckh)
 }
 
 
-mpredict_fold <-function(ddX, ddy, id_listk, estimator, ...){
-  #gather the observations from the other folds, expect id_listk
-  ddX_train <- data.frame(ddX[-id_listk, ,drop = FALSE])
-  ddy_train <- ddy[-id_listk]
+mpredict_fold <-function(ddX, ddyext, ddyint, id_listk, 
+                         estimatorext, estimatorint, ...){
+  exthat <- NULL
+  inthat <- NULL
+  dots   <- list(...)
   
-  #gather the observations from the fold k
-  ddX_k <- data.frame(ddX[id_listk, , drop = FALSE])
-  if (estimator == "ols") {
-    ARG         <- list(formula = ddy_train ~ ., data = ddX_train, ...)
-    model_train <- do.call(lm, ARG) 
-    rho_k       <- predict(model_train, newdata = ddX_k)
-  } else if (estimator == "glm") {
-    ARG           <- list(formula = ddy_train ~ ., data = ddX_train, ...)
-    if (is.null(ARG$family)) { # If the user does not set link, use logit
-      ARG$family  <- binomial(link = "logit")
-    }
-    model_train <- do.call(glm, ARG)  
-    rho_k       <- predict(model_train, newdata = ddX_k, type = "response")
-  } else if (estimator == "RF") {
-    ddy_train   <- as.factor(ddy_train)
-    ARG         <- list(formula = ddy_train ~ ., data = ddX_train, ...)
-    model_train <- do.call(ranger, ARG)  
-    rho_k       <- predict(model_train, data=ddX_k)$predictions
+  # gather the observations from the fold k
+  ddX_k  <- ddX[id_listk, , drop = FALSE]
+  
+  ### Extensive margin
+  # gather the observations from the other folds, expect id_listk
+  ddX_train <- ddX[-id_listk, ,drop = FALSE]
+  ddy_train <- ddyext[-id_listk]
+  if (!all(c(0, 1) %in% ddy_train)) {
+    stop("The response variable for the instrument construction must contain both y_j > y_i and y_j <= y_i in all folds.")
   }
-  return(rho_k)
+  
+  if (estimatorext == "OLS") {
+    
+    dotname     <- setdiff(names(formals(lm)), c("formula", "data", "..."))
+    ARG         <- c(list(formula = ddy_train ~ ., data = ddX_train),
+                     dots[names(dots) %in% dotname])
+    model_train <- do.call(lm, ARG)  
+    exthat      <- predict(model_train, newdata = ddX_k)
+    
+  } else if (estimatorext == "Logit") {
+    
+    dotname     <- setdiff(names(formals(glm)), 
+                           c("formula", "data", "family", "..."))
+    ARG         <- c(list(formula = ddy_train ~ ., data = ddX_train, 
+                          family = binomial(link = "logit")),
+                     dots[names(dots) %in% dotname])
+    model_train <- do.call(glm, ARG)  
+    exthat      <- predict(model_train, newdata = ddX_k, type = "response")
+    
+  } else if (estimatorext == "Random Forest") {
+    
+    ddy_train   <- factor(ddy_train, levels = c(0, 1))
+    dotname     <- setdiff(names(formals(ranger)), 
+                           c("formula", "data", "probability", "..."))
+    ARG         <- c(list(formula = ddy_train ~ ., data = ddX_train, 
+                          probability = TRUE), dots[names(dots) %in% dotname])
+    model_train <- do.call(ranger, ARG)  
+    exthat      <- predict(model_train, data = ddX_k)$predictions[,"1"]
+    
+  } else if (estimatorext == "XGBoost") {
+    
+    ddy_train   <- factor(ddy_train, levels = c(0, 1))
+    ARG         <- c(list(y = ddy_train, x = ddX_train, objective = "binary:logistic"),
+                     dots)
+    model_train <- do.call(xgboost, ARG)  
+    exthat      <- predict(model_train, newdata = ddX_k)
+    
+  } else if (estimatorext == "LASSO") {
+    
+    dotname     <- setdiff(names(formals(cv.glmnet)), 
+                           c("y", "x", "family", "alpha", "..."))
+    ARG         <- c(list(y = ddy_train, x = as.matrix(ddX_train), 
+                          family = "binomial", alpha = 1),
+                     dots[names(dots) %in% dotname])
+    fitlasso    <- do.call(cv.glmnet, ARG) 
+    exthat      <- as.numeric(predict(fitlasso, newx = as.matrix(ddX_k), s = "lambda.min", 
+                                      type = "response"))
+  }
+  
+  ### Intensive margin
+  idx_pos   <- (ddyext[-id_listk] == 1)
+  ddX_train <- ddX[-id_listk, , drop = FALSE][idx_pos, , drop = FALSE]
+  ddy_train <- ddyint[-id_listk][idx_pos]
+  
+  if (estimatorint == "OLS") {
+    
+    dotname     <- setdiff(names(formals(lm)), c("formula", "data", "..."))
+    ARG         <- c(list(formula = ddy_train ~ ., data = ddX_train),
+                     dots[names(dots) %in% dotname])
+    model_train <- do.call(lm, ARG) 
+    inthat      <- predict(model_train, newdata = ddX_k)
+    
+  } else if (estimatorint == "Random Forest") {
+    
+    dotname     <- setdiff(names(formals(ranger)), c("formula", "data", "..."))
+    ARG         <- c(list(formula = ddy_train ~ ., data = ddX_train),
+                     dots[names(dots) %in% dotname])
+    model_train <- do.call(ranger, ARG)  
+    inthat      <- predict(model_train, data = ddX_k)$predictions
+    
+  } else if (estimatorint == "XGBoost") {
+    
+    ARG         <- c(list(y = ddy_train, x = ddX_train, objective = "reg:squarederror"),
+                     dots)
+    model_train <- do.call(xgboost, ARG)  
+    inthat      <- predict(model_train, newdata = ddX_k)
+    
+  } else if (estimatorint == "LASSO") {
+    
+    dotname     <- setdiff(names(formals(cv.glmnet)), c("y", "x", "alpha", "..."))
+    ARG         <- c(list(y = ddy_train, x = as.matrix(ddX_train), alpha = 1),
+                     dots[names(dots) %in% dotname])
+    fitlasso    <- do.call(cv.glmnet, ARG) 
+    inthat      <- as.numeric(predict(fitlasso, newx = as.matrix(ddX_k), 
+                                      s = "lambda.min"))
+  }
+  
+  return(exthat * inthat)
 }
 
 formula2data <- function(formula,
@@ -235,13 +319,12 @@ fdiagnostic <- function(object, KPtest, nthread) {
   if (KPtest) {
     xname <- object$model.info$xname
     zname <- object$model.info$zname
-    X     <- cbind(X_iso, X_niso)[, c(paste0("iso_", xname), paste0("niso_", xname)) %in% zname, drop = FALSE]
-    tpKP  <- fKPstat(endo_ = endo, X = X, Z_ = Z, index = index, cumsn = cumsn, 
+    tpKP  <- fKPstat(endo = endo, Z = Z, index = index, cumsn = cumsn, 
                      HAC = HACn)
     tpKP$pvalue <- pchisq(tpKP$stat, tpKP$df, lower.tail = FALSE)
   }
   
-
+  
   out    <- cbind(df1        = unlist(c(rep(tpF$df1, 1 + asymmetry), tpKP$df, 
                                         object$gmm$Sargan["df"])),
                   df2        = c(rep(tpF$df2, 1 + asymmetry), rep(NA, 1 + KPtest)),

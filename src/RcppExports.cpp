@@ -56,13 +56,13 @@ BEGIN_RCPP
 END_RCPP
 }
 // peeravgpower
-Eigen::MatrixXd peeravgpower(const std::vector<Eigen::MatrixXd>& G, const Eigen::ArrayXXd& V, const Eigen::ArrayXi& cumsn, const Eigen::ArrayXi& nvec, const int& power, const int& nthread);
+Eigen::MatrixXd peeravgpower(const std::vector<Eigen::MatrixXd>& G, const Eigen::MatrixXd& V, const Eigen::ArrayXi& cumsn, const Eigen::ArrayXi& nvec, const int& power, const int& nthread);
 RcppExport SEXP _AsyPeer_peeravgpower(SEXP GSEXP, SEXP VSEXP, SEXP cumsnSEXP, SEXP nvecSEXP, SEXP powerSEXP, SEXP nthreadSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const std::vector<Eigen::MatrixXd>& >::type G(GSEXP);
-    Rcpp::traits::input_parameter< const Eigen::ArrayXXd& >::type V(VSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type V(VSEXP);
     Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type cumsn(cumsnSEXP);
     Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type nvec(nvecSEXP);
     Rcpp::traits::input_parameter< const int& >::type power(powerSEXP);
@@ -152,18 +152,17 @@ BEGIN_RCPP
 END_RCPP
 }
 // fKPstat
-Rcpp::List fKPstat(const Eigen::MatrixXd& endo_, const Eigen::MatrixXd& X, const Eigen::MatrixXd& Z_, const Eigen::VectorXi& index, const Eigen::ArrayXd& cumsn, const int& HAC);
-RcppExport SEXP _AsyPeer_fKPstat(SEXP endo_SEXP, SEXP XSEXP, SEXP Z_SEXP, SEXP indexSEXP, SEXP cumsnSEXP, SEXP HACSEXP) {
+Rcpp::List fKPstat(const Eigen::MatrixXd& endo, const Eigen::MatrixXd& Z, const Eigen::ArrayXi& index, const Eigen::ArrayXi& cumsn, const int& HAC);
+RcppExport SEXP _AsyPeer_fKPstat(SEXP endoSEXP, SEXP ZSEXP, SEXP indexSEXP, SEXP cumsnSEXP, SEXP HACSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type endo_(endo_SEXP);
-    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type X(XSEXP);
-    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z_(Z_SEXP);
-    Rcpp::traits::input_parameter< const Eigen::VectorXi& >::type index(indexSEXP);
-    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type cumsn(cumsnSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type endo(endoSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type index(indexSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type cumsn(cumsnSEXP);
     Rcpp::traits::input_parameter< const int& >::type HAC(HACSEXP);
-    rcpp_result_gen = Rcpp::wrap(fKPstat(endo_, X, Z_, index, cumsn, HAC));
+    rcpp_result_gen = Rcpp::wrap(fKPstat(endo, Z, index, cumsn, HAC));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -651,7 +650,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_AsyPeer_Demean_common", (DL_FUNC) &_AsyPeer_Demean_common, 3},
     {"_AsyPeer_fGnormalise", (DL_FUNC) &_AsyPeer_fGnormalise, 2},
     {"_AsyPeer_fFstat", (DL_FUNC) &_AsyPeer_fFstat, 6},
-    {"_AsyPeer_fKPstat", (DL_FUNC) &_AsyPeer_fKPstat, 6},
+    {"_AsyPeer_fKPstat", (DL_FUNC) &_AsyPeer_fKPstat, 5},
     {"_AsyPeer_fCESdata", (DL_FUNC) &_AsyPeer_fCESdata, 20},
     {"_AsyPeer_fCESobjrho", (DL_FUNC) &_AsyPeer_fCESobjrho, 10},
     {"_AsyPeer_fCESparmrho", (DL_FUNC) &_AsyPeer_fCESparmrho, 11},

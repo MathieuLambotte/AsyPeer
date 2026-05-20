@@ -15,20 +15,21 @@
 #'   is not found in \code{data}, it is searched for in \code{environment(formula)}, typically the 
 #'   environment from which \code{gen.instrument} is called.
 #'
-#' @param estimator A character string indicating the estimator used to approximate 
-#' the probability that a friend has a higher outcome than the agent. Valid options are `"ols"` 
-#' for a linear probability model, `"glm"` for a generalized linear model (e.g., logit, probit, 
-#' or other binary-response links), and `"rf"` for a classification random forest.
+
+#' @param estimator A vector of two character strings specifying the estimators 
+#' used for the extensive margin \eqn{P(y_j > y_i)} and the intensive margin 
+#' \eqn{E(y_j - y_i \mid y_j - y_i > 0)}.
+#'
+#' Supported parametric options include `"ols"` and `"lasso"` for linear models, 
+#' and `"glm"` for generalized linear models (only for the extensive margin). 
+#' Nonparametric options include `"rf"` (random forest) and `"xgboost"` 
+#' (gradient boosting).
+#'
+#' For example, `estimator = c("glm", "xgboost")` uses a generalized linear model 
+#' for the extensive margin and gradient boosting for the intensive margin.
 #'
 #' @param power A numeric vector of length 2 indicating the maximum walk lengths to be used (typically k in \eqn{G^kX}). 
 #' The two entries allow specifying a different value of k for each endogenous variable.
-#'
-#' @param sepiso A logical value indicating whether the explanatory variables used to predict the instruments 
-#' are differentiated among isolated and non-isolated agents.
-#' 
-#' @param diffX A logical value indicating whether the probability that a friend has a higher outcome than the agent be
-#'  modeled using the *differences* in their characteristics, rather than including both sets of 
-#'   characteristics separately.
 #'
 #' @param nfold A strictly positive integer specifying the number of folds used when estimating the probability model via cross-fitting.
 #' @param drop A dummy vector of the same length as the sample, indicating whether an observation should be dropped.
@@ -80,17 +81,16 @@
 #' y <- y$y
 #' 
 #' ### Generating instruments
-#' ins <- gen.instrument(formula = y ~ X, Glist = Gnorm, estimator = "ols")}
+#' ins <- gen.instrument(formula = y ~ X, Glist = Gnorm, 
+#'                       estimator = c("logit", "ols"))}
 #'  
 #' @export
 gen.instrument <- function(formula,
                            Glist, 
                            data,
                            asymmetry = TRUE,
-                           estimator = "ols",
+                           estimator = c("logit", "ols"),
                            power     = c(1, 1),
-                           sepiso    = TRUE,
-                           diffX     = TRUE,
                            nfold     = 2,
                            checkrank = TRUE,
                            tol       = 1e-10,
@@ -109,12 +109,33 @@ gen.instrument <- function(formula,
   }
   
   ## estimator
-  if (tolower(estimator) %in% c("lin", "linear", "ols", "lm")) {
-    estimator   <- "ols"
-  } else if (tolower(estimator) %in% c("logit", "logistic", "glm")) {
-    estimator   <- "glm"
-  } else if (tolower(estimator) %in% c("rf", "r-f", "random forest", "random-forest", "randomforest")) {
-    estimator   <- "RF"
+  if (length(estimator) == 1) {
+    estimator    <- rep(estimator, 2)
+  }
+  
+  if (tolower(estimator[1]) %in% c("lin", "linear", "ols", "lm")) {
+    estimator[1] <- "OLS"
+  } else if (tolower(estimator[1]) %in% c("logit", "logistic")) {
+    estimator[1] <- "Logit"
+  } else if (tolower(estimator[1]) %in% c("rf", "r-f", "random forest", "random-forest", "randomforest")) {
+    estimator[1] <- "Random Forest"
+  } else if (tolower(estimator[1]) %in% c("xgboost")) {
+    estimator[1] <- "XGBoost"
+  } else if (tolower(estimator[1]) %in% c("lasso")) {
+    estimator[1] <- "LASSO"
+  } else {
+    stop("This estimator is not available.")
+  }
+  
+  
+  if (tolower(estimator[2]) %in% c("lin", "linear", "ols", "lm")) {
+    estimator[2] <- "OLS"
+  }  else if (tolower(estimator[2]) %in% c("rf", "r-f", "random forest", "random-forest", "randomforest")) {
+    estimator[2] <- "Random Forest"
+  } else if (tolower(estimator[2]) %in% c("xgboost")) {
+    estimator[2] <- "XGBoost"
+  } else if (tolower(estimator[2]) %in% c("lasso")) {
+    estimator[2] <- "LASSO"
   } else {
     stop("This estimator is not available.")
   }
@@ -125,7 +146,7 @@ gen.instrument <- function(formula,
     warning("OpenMP is not available. Sequential processing is used.")
     nthread <- tp
   }
-
+  
   ## Network
   if (!is.list(Glist)) {
     if (is.matrix(Glist)) {
@@ -135,6 +156,7 @@ gen.instrument <- function(formula,
     }
   }
   Glist    <- fGnormalise(Glist, nthread)
+  
   ## sizes
   dg       <- fnetwork(Glist = Glist)
   S        <- dg$S
@@ -158,17 +180,12 @@ gen.instrument <- function(formula,
   f.t.data <- formula2data(formula = formula, data = data, fixed.effects = TRUE,
                            simulations = FALSE)
   y        <- f.t.data$y
-  X        <- f.t.data$X
-  Kx       <- ncol(X)
-  xname    <- f.t.data$xname
   yname    <- f.t.data$yname
-  if (sepiso) {
-    X          <- cbind(1 - dg, X * (1 - dg), dg, X * dg)
-    xname <- c("iso", paste0("iso_", xname), "niso", paste0("niso_", xname))
-  } else {
-    X          <- cbind(1, X)
-    xname <- c("(Intercept)", xname)
-  }
+  
+  X        <- f.t.data$X
+  xname    <- f.t.data$xname
+  X        <- cbind(1 - dg, X * (1 - dg), dg, X * dg)
+  xname    <- c("iso", paste0("iso_", xname), "niso", paste0("niso_", xname))
   
   ### Drop
   if (is.null(drop)){
@@ -184,7 +201,7 @@ gen.instrument <- function(formula,
   
   ### Instrument for ybar
   insBary <- peeravgpower(G = Glist, V = X, cumsn = cumsn, nvec = nvec, 
-                           power = power[1], nthread = nthread)
+                          power = power[1], nthread = nthread)
   
   ### Instrument for ycheck
   out     <- NULL
@@ -203,17 +220,13 @@ gen.instrument <- function(formula,
                         idpeer = idpeer, ddni = ddni, ddncs = ddncs, ncs = cumsn,
                         nthread = nthread)
     
-    ddy      <- tp$ddy[ddkeep, 7]
-    ddX      <- NULL
-    if (diffX) {
-      ddX    <- tp$ddXj - tp$ddXi
-    } else {
-      ddX    <- cbind(tp$ddXi, tp$ddXj)
-    }
+    ddyext   <- as.integer(tp$ddy[ddkeep, 7]) # extensive margin
+    ddyint   <- tp$ddy[ddkeep, 6] - tp$ddy[ddkeep, 5] #intensive margin
+    ddX      <- tp$ddXj - tp$ddXi
     ddX      <- ddX[ddkeep, ,drop = FALSE]
     
     ## Check rank of ddX
-    ddX      <- ddX[, fcheckrank(X = ddX, tol = tol) + 1, drop = FALSE]
+    ddX      <- as.data.frame(ddX[, fcheckrank(X = ddX, tol = tol) + 1, drop = FALSE])
     
     ## Fold construction
     nfold    <- as.integer(nfold)
@@ -227,14 +240,19 @@ gen.instrument <- function(formula,
     id_fold  <- fassignfold(tp$ddy[ddkeep, 1], nfold = nfold)
     
     ## Prediction
-    ARG      <- list(ddy = ddy, ddX = ddX, id_fold = id_fold, estimator = estimator, nthread = nthread, ...)
-    rhoddX          <- matrix(0, nrow = nrow(tp$ddy), ncol = ncol(tp$ddXi))
-    rhoddX[ddkeep,] <- tp$ddy[ddkeep, 4] * do.call(mpredict, ARG) * (tp$ddXj[ddkeep, , drop = FALSE] - 
-                                                                                      tp$ddXi[ddkeep, , drop = FALSE])
-    insChey  <- fInstChecky(rhoddX = rhoddX, ddni = ddni, nthread = nthread)
-    out      <- cbind(insBary, insChey)
-    colnames(out) <- c(c(sapply(paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_"), \(x) paste0(x, xname))),
-                       c(sapply(paste0("rhoG", ifelse(1:power[2] == 1, "", 1:power[2]), "_"), \(x) paste0(x, xname))))
+    ARG      <- list(ddyext = ddyext, ddyint = ddyint, ddX = ddX, id_fold = id_fold, 
+                     estimatorext = estimator[1], estimatorint = estimator[2], 
+                     nthread = nthread, ...)
+    
+    insChey  <- fInstChecky(rhoddX = as.matrix(do.call(mpredict, ARG)), ddni = ddni, 
+                            nthread = nthread)
+    
+    GinsChey <- peeravgpower(G = Glist, V = insChey, cumsn = cumsn, nvec = nvec, 
+                             power = power[1], nthread = nthread)
+    
+    out      <- cbind(insBary, insChey, GinsChey)
+    colnames(out) <- c(sapply(paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_"), \(x) paste0(x, xname)),
+                       "y_check_hat", sapply(paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_"), \(x) paste0(x, "y_check_hat")))
   } else {
     out      <- insBary
     colnames(out) <- c(sapply(paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_"), \(x) paste0(x, xname)))
@@ -246,10 +264,9 @@ gen.instrument <- function(formula,
   }
   out[!keep, ] <- NA
   list(model.info  = list(power = power, estimator = estimator,
-                          sepiso = sepiso, diffX = diffX,
                           nfold = nfold, tol = tol),
        instruments = out)
-  }
+}
 
 #' @rdname gen.instrument
 #' @export
@@ -257,10 +274,8 @@ gen.instruments <- function(formula,
                             Glist, 
                             data,
                             asymmetry = TRUE,
-                            estimator = "ols",
+                            estimator = c("logit", "ols"),
                             power     = c(1, 1),
-                            sepiso    = TRUE,
-                            diffX     = TRUE,
                             nfold     = 2,
                             checkrank = TRUE,
                             tol       = 1e-10,
@@ -271,8 +286,8 @@ gen.instruments <- function(formula,
     data  <- env(formula)
   }
   ARG <- list(formula = formula, Glist = Glist, data = data, asymmetry = asymmetry, 
-              estimator = estimator, power = power, sepiso = sepiso, diffX = diffX, 
-              nfold = nfold, checkrank = checkrank, tol = tol, nthread = nthread,
+              estimator = estimator, power = power, nfold = nfold, 
+              checkrank = checkrank, tol = tol, nthread = nthread,
               drop = drop, ...)
   do.call(gen.instrument, ARG)
 }
@@ -283,10 +298,8 @@ gen.insts <- function(formula,
                       Glist, 
                       data,
                       asymmetry = TRUE,
-                      estimator = "ols",
+                      estimator = c("logit", "ols"),
                       power     = c(1, 1),
-                      sepiso    = TRUE,
-                      diffX     = TRUE,
                       nfold     = 2,
                       checkrank = TRUE,
                       tol       = 1e-10,
@@ -297,8 +310,8 @@ gen.insts <- function(formula,
     data  <- env(formula)
   }
   ARG <- list(formula = formula, Glist = Glist, data = data, asymmetry = asymmetry, 
-              estimator = estimator, power = power, sepiso = sepiso, diffX = diffX, 
-              nfold = nfold, checkrank = checkrank, tol = tol, nthread = nthread,
+              estimator = estimator, power = power, nfold = nfold, 
+              checkrank = checkrank, tol = tol, nthread = nthread,
               drop = drop, ...)
   do.call(gen.instrument, ARG)
 }
@@ -309,10 +322,8 @@ gen.inst <- function(formula,
                      Glist, 
                      data,
                      asymmetry = TRUE,
-                     estimator = "ols",
+                     estimator = c("logit", "ols"),
                      power     = c(1, 1),
-                     sepiso    = TRUE,
-                     diffX     = TRUE,
                      nfold     = 2,
                      checkrank = TRUE,
                      tol       = 1e-10,
@@ -323,8 +334,8 @@ gen.inst <- function(formula,
     data  <- env(formula)
   }
   ARG <- list(formula = formula, Glist = Glist, data = data, asymmetry = asymmetry, 
-              estimator = estimator, power = power, sepiso = sepiso, diffX = diffX, 
-              nfold = nfold, checkrank = checkrank, tol = tol, nthread = nthread,
+              estimator = estimator, power = power, nfold = nfold, 
+              checkrank = checkrank, tol = tol, nthread = nthread,
               drop = drop, ...)
   do.call(gen.instrument, ARG)
 }

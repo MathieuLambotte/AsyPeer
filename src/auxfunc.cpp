@@ -149,30 +149,32 @@ List highlowstat2(const Eigen::VectorXd& y,
 // This computes peer averages, with power
 //[[Rcpp::export]]
 Eigen::MatrixXd peeravgpower(const std::vector<Eigen::MatrixXd>& G,
-                             const Eigen::ArrayXXd& V,
+                             const Eigen::MatrixXd& V,
                              const Eigen::ArrayXi& cumsn,
                              const Eigen::ArrayXi& nvec,
                              const int& power,
                              const int& nthread) {
   int kV(V.cols()), n(nvec.sum()), ngroup(nvec.size());
-  Eigen::MatrixXd out(n, kV * power);
+  Eigen::MatrixXd out(n, (kV + 1) * power);
   out.block(0, 0, n, kV) = V;
 #ifdef _OPENMP
   omp_set_num_threads(nthread);
 #pragma omp parallel for schedule(static)
   for (int m = 0; m < ngroup; ++m) {
-    for (int k = 1; k < power; ++k) {
-      out.block(cumsn(m), kV * k, nvec(m), kV) = G[m] * out.block(cumsn(m), kV * (k - 1), nvec(m), kV);
+    for (int k = 1; k <= power; ++k) {
+      out.block(cumsn(m), kV * k, nvec(m), kV).noalias() = 
+        G[m] * out.block(cumsn(m), kV * (k - 1), nvec(m), kV);
     }
   }
 #else
   for (int m = 0; m < ngroup; ++m) {
-    for (int k = 1; k < power; ++k) {
-      out.block(cumsn(m), kV * k, nvec(m), kV) = G[m] * out.block(cumsn(m), kV * (k - 1), nvec(m), kV);
+    for (int k = 1; k <= power; ++k) {
+      out.block(cumsn(m), kV * k, nvec(m), kV).noalias() = 
+        G[m] * out.block(cumsn(m), kV * (k - 1), nvec(m), kV);
     }
   }
 #endif
-  return out;
+  return out.rightCols(kV * power);
 }
 
 // This function removes columns to obtain full rank matrices
@@ -368,25 +370,30 @@ Eigen::MatrixXd matrixSqrt(const Eigen::MatrixXd& A) {
 
 // This function computes KP stat
 //[[Rcpp::export]]
-Rcpp::List fKPstat(const Eigen::MatrixXd& endo_,
-                   const Eigen::MatrixXd& X,
-                   const Eigen::MatrixXd& Z_,
-                   const Eigen::VectorXi& index,
-                   const Eigen::ArrayXd& cumsn,
+Rcpp::List fKPstat(const Eigen::MatrixXd& endo,
+                   const Eigen::MatrixXd& Z,
+                   const Eigen::ArrayXi& index,
+                   const Eigen::ArrayXi& cumsn,
                    const int& HAC = 0) {
-  Eigen::MatrixXd iXX((X.transpose() * X).inverse());
-  Eigen::MatrixXd endo(endo_ - X * iXX * X.transpose() * endo_);
-  Eigen::MatrixXd Z(Z_(Eigen::all, index) - X * iXX * X.transpose() * Z_(Eigen::all, index));
-  // Eigen::MatrixXd endo(endo_);
-  // Eigen::MatrixXd Z(Z_);
-  int n(endo.rows()), nendo(endo.cols()), l(Z.cols()), ngroup(cumsn.size() - 1);
-  Eigen::MatrixXd ZZ(Z.transpose() * Z);
-  Eigen::MatrixXd iZZ(ZZ.inverse());
-  Eigen::MatrixXd Zendo(Z.transpose() * endo);
+  int n(endo.rows()), nendo(endo.cols()), l(index.size()), Kins(Z.cols()), 
+  Kx(Kins - l), ngroup(cumsn.size() - 1);
   
-  // estimator
-  Eigen::MatrixXd Pi(Zendo.transpose() * iZZ);
-  Eigen::VectorXd pi(Pi.reshaped(l * nendo, 1)); // Eigen::kroneckerProduct(Eigen::MatrixXd::Identity(l, l), Zendo.transpose()) * ZZ.inverse().reshaped(l*l, 1)
+  // Partialling out X
+  Eigen::ColPivHouseholderQR <Eigen::MatrixXd> qrX(Z.leftCols(Kx).transpose() * Z.leftCols(Kx));
+  
+  Eigen::MatrixXd betayy = qrX.solve(Z.leftCols(Kx).transpose() * endo);
+  Eigen::MatrixXd betaZ  = qrX.solve(Z.leftCols(Kx).transpose() * Z.rightCols(l));
+  
+  Eigen::MatrixXd ryy = endo - Z.leftCols(Kx) * betayy;
+  Eigen::MatrixXd rZ  = Z.rightCols(l) - Z.leftCols(Kx) * betaZ;
+  
+  Eigen::MatrixXd ZZ(rZ.transpose() * rZ);
+  Eigen::MatrixXd iZZ(ZZ.ldlt().solve(Eigen::MatrixXd::Identity(l, l)));
+  Eigen::MatrixXd Zyy(rZ.transpose() * ryy);
+  
+  // estimator and residuals
+  Eigen::MatrixXd Pi(Zyy.transpose() * iZZ);
+  Eigen::MatrixXd eps(ryy - rZ * Pi.transpose());
   
   // vec(Ze)
   Eigen::MatrixXd R(Eigen::MatrixXd::Zero(l * nendo, l * nendo));
@@ -396,48 +403,48 @@ Rcpp::List fKPstat(const Eigen::MatrixXd& endo_,
     }
   }
   
-  Eigen::MatrixXd eps(endo - Z * Pi.transpose());
   Eigen::MatrixXd vecZe(n, l*nendo);
   for (int s(0); s < nendo; ++ s) {
-    vecZe.block(0, s*l, n, l) = (Z.array().colwise()*eps.col(s).array()).matrix();
+    vecZe.block(0, s*l, n, l) = rZ.array().colwise()*eps.col(s).array();
   }
   
-  // Variance of vec(Ze), covendo and covz
-  Eigen::MatrixXd VvecZe(Eigen::MatrixXd::Zero(l*nendo, l*nendo)),
-  Eee(Eigen::MatrixXd::Zero(nendo, nendo)),
-  Ezz(Eigen::MatrixXd::Zero(l, l));
-  if (HAC <= 2) {
+  // Variance of vec(Ze), covyy and covz
+  Eigen::MatrixXd VvecZe(Eigen::MatrixXd::Zero(l*nendo, l*nendo));
+  if (HAC <= 1) {
     VvecZe = vecZe.transpose() * vecZe;
-    Eee    = eps.transpose() * eps;
-    Ezz    = Z.transpose() * Z;
-  } else {
+  } else if (HAC == 2) {
     for (int r(0); r < ngroup; ++ r) {
       int n1(cumsn(r)), n2(cumsn(r + 1) - 1);
       Eigen::VectorXd tp(vecZe(Eigen::seq(n1, n2), Eigen::all).array().colwise().sum().matrix());
       VvecZe += tp * tp.transpose();
-      tp      = eps(Eigen::seq(n1, n2), Eigen::all).array().colwise().sum().matrix();
-      Eee    += tp * tp.transpose();
-      tp      = Z(Eigen::seq(n1, n2), Eigen::all).array().colwise().sum().matrix();
-      Ezz    += tp * tp.transpose();
     }
   }
   
   // Variance of pi
   Eigen::MatrixXd H(R * Eigen::kroneckerProduct(Eigen::MatrixXd::Identity(nendo, nendo), iZZ));
-  Eigen::MatrixXd varpi(H * VvecZe * H.transpose()); // O(1/n)
+  Eigen::MatrixXd varpi(H * VvecZe * H.transpose()); 
+  
+  // covz and cove
+  Eigen::MatrixXd dZ    = rZ.array().rowwise() - rZ.array().colwise().mean();
+  Eigen::MatrixXd dyy   = ryy.array().rowwise() - ryy.array().colwise().mean();
+  Eigen::MatrixXd covz  = dZ.transpose() * dZ / ngroup;
+  Eigen::MatrixXd covyy = dyy.transpose() * dyy / ngroup;
   
   // normalisation
-  Eigen::LLT<Eigen::MatrixXd> tpF(ZZ * Ezz.colPivHouseholderQr().solve(ZZ)), tpG(Eee.inverse());
+  Eigen::LLT<Eigen::MatrixXd> tpF(ZZ * covz.colPivHouseholderQr().solve(ZZ.transpose())), tpG(covyy.inverse());
   Eigen::MatrixXd F(tpF.matrixL()); // O(sqrt(n))
   Eigen::MatrixXd G(tpG.matrixL().transpose()); // O(1/sqrt(n))
-  F *= sqrt(ngroup); // O(n)
   
   // Theta and its variance
   Eigen::MatrixXd Theta(G * Pi * F.transpose());
   Eigen::VectorXd theta(Theta.reshaped(l*nendo, 1));
   Eigen::MatrixXd FG(Eigen::kroneckerProduct(F, G));
   Eigen::MatrixXd vartheta(FG * varpi * FG.transpose());
+  // cout << F << endl;
+  // cout << G << endl;
+  // cout << Pi << endl;
   // cout << vartheta << endl;
+  // Until this, replicate using bootstrap
   
   // SDV decomposition of Theta
   Eigen::JacobiSVD<Eigen::MatrixXd> svd(Theta, Eigen::ComputeFullU | Eigen::ComputeFullV);
@@ -467,8 +474,10 @@ Rcpp::List fKPstat(const Eigen::MatrixXd& endo_,
   Eigen::MatrixXd BAper(Eigen::kroneckerProduct(Bper, Aper.transpose()));
   Eigen::VectorXd lambda (BAper * theta);
   Eigen::MatrixXd varlambda (BAper * vartheta * BAper.transpose());
-  
+  // cout << theta << endl;
+  // cout << varlambda << endl;
   // statistic
-  double stat((lambda.transpose() * varlambda.colPivHouseholderQr().solve(lambda))(0, 0));
+  double stat = lambda.dot(varlambda.colPivHouseholderQr().solve(lambda));
+  
   return Rcpp::List::create(_["stat"] = stat, _["df"] = (nendo - q)*(l - q));
 }

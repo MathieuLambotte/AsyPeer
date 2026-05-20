@@ -12,10 +12,8 @@ gen.instrument(
   Glist,
   data,
   asymmetry = TRUE,
-  estimator = "ols",
+  estimator = c("logit", "ols"),
   power = c(1, 1),
-  sepiso = TRUE,
-  diffX = TRUE,
   nfold = 2,
   checkrank = TRUE,
   tol = 1e-10,
@@ -29,10 +27,8 @@ gen.instruments(
   Glist,
   data,
   asymmetry = TRUE,
-  estimator = "ols",
+  estimator = c("logit", "ols"),
   power = c(1, 1),
-  sepiso = TRUE,
-  diffX = TRUE,
   nfold = 2,
   checkrank = TRUE,
   tol = 1e-10,
@@ -46,10 +42,8 @@ gen.insts(
   Glist,
   data,
   asymmetry = TRUE,
-  estimator = "ols",
+  estimator = c("logit", "ols"),
   power = c(1, 1),
-  sepiso = TRUE,
-  diffX = TRUE,
   nfold = 2,
   checkrank = TRUE,
   tol = 1e-10,
@@ -63,10 +57,8 @@ gen.inst(
   Glist,
   data,
   asymmetry = TRUE,
-  estimator = "ols",
+  estimator = c("logit", "ols"),
   power = c(1, 1),
-  sepiso = TRUE,
-  diffX = TRUE,
   nfold = 2,
   checkrank = TRUE,
   tol = 1e-10,
@@ -93,20 +85,20 @@ environment from which \code{gen.instrument} is called.}
 
 \item{asymmetry}{A logical value indicating if the preference for conformity is asymmetric or not.}
 
-\item{estimator}{A character string indicating the estimator used to approximate
-the probability that a friend has a higher outcome than the agent. Valid options are \code{"ols"}
-for a linear probability model, \code{"glm"} for a generalized linear model (e.g., logit, probit,
-or other binary-response links), and \code{"rf"} for a classification random forest.}
+\item{estimator}{A vector of two character strings specifying the estimators
+used for the extensive margin \eqn{P(y_j > y_i)} and the intensive margin
+\eqn{E(y_j - y_i \mid y_j - y_i > 0)}.
+
+Supported parametric options include \code{"ols"} and \code{"lasso"} for linear models,
+and \code{"glm"} for generalized linear models (only for the extensive margin).
+Nonparametric options include \code{"rf"} (random forest) and \code{"xgboost"}
+(gradient boosting).
+
+For example, \code{estimator = c("glm", "xgboost")} uses a generalized linear model
+for the extensive margin and gradient boosting for the intensive margin.}
 
 \item{power}{A numeric vector of length 2 indicating the maximum walk lengths to be used (typically k in \eqn{G^kX}).
 The two entries allow specifying a different value of k for each endogenous variable.}
-
-\item{sepiso}{A logical value indicating whether the explanatory variables used to predict the instruments
-are differentiated among isolated and non-isolated agents.}
-
-\item{diffX}{A logical value indicating whether the probability that a friend has a higher outcome than the agent be
-modeled using the \emph{differences} in their characteristics, rather than including both sets of
-characteristics separately.}
 
 \item{nfold}{A strictly positive integer specifying the number of folds used when estimating the probability model via cross-fitting.}
 
@@ -165,6 +157,7 @@ y <- asypeer.sim(formula = ~ X + GX, Glist = Gnorm, delta = delta,
 y <- y$y
 
 ### Generating instruments
-ins <- gen.instrument(formula = y ~ X, Glist = Gnorm, estimator = "ols")}
+ins <- gen.instrument(formula = y ~ X, Glist = Gnorm, 
+                      estimator = c("logit", "ols"))}
  
 }

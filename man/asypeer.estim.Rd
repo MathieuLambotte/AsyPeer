@@ -125,7 +125,7 @@ y <- asypeer.sim(formula = ~ X + GX, Glist = Gnorm, delta = delta, beta = beta,
 y <- y$y
 
 ### Estimating the asymmetric peer effects model
-est <- asypeer.estim(formula=y ~ X + GX, Glist = Gnorm)
+est <- asypeer.estim(formula=y ~ X + GX, Glist = Gnorm, spillover = TRUE)
 summary(est, diagnostic = TRUE)
 }                  
 }

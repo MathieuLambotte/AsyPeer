@@ -2,7 +2,7 @@
 ##############################################################################################################
 #################### Asymmetric Peer Effect Models by A. Houndetoungan and M. Lambotte #######################
 ##############################################################################################################
-# This script replicates out empirical study using Add Health data
+# This script replicates our empirical study using Add Health data
 # Please, prior use the script AddHealth.data.R to prepare the data set for
 # each outcome in am expect form for this scrip.
 # This scripts assumes that the prepared data are saved in the folder with path `OutDataPath`

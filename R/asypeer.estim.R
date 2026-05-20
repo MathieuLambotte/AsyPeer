@@ -100,7 +100,7 @@
 #' y <- y$y
 #' 
 #' ### Estimating the asymmetric peer effects model
-#' est <- asypeer.estim(formula=y ~ X + GX, Glist = Gnorm)
+#' est <- asypeer.estim(formula=y ~ X + GX, Glist = Gnorm, spillover = TRUE)
 #' summary(est, diagnostic = TRUE)
 #' }                  
 #' @export
@@ -239,8 +239,8 @@ asypeer.estim <- function(formula,
   endo   <- highlowstat1(X = as.matrix(y), G = Glist, cumsn = cumsn, nvec = nvec, 
                          ngroup = S, nthread = nthread)
   if(asymmetry){
-    endo   <- cbind(yb = endo$Xbar, ydot = endo$Xbh - endo$gh * y)
-    colnames(endo) <- paste0(yname, c("_bar", "_dot"))
+    endo   <- cbind(yb = endo$Xbar, ycheck = endo$Xbh - endo$gh * y)
+    colnames(endo) <- paste0(yname, c("_bar", "_check"))
   } else {
     endo   <- endo$Xbar
     colnames(endo) <- paste0(yname, "_bar")
@@ -536,11 +536,13 @@ print.summary.asypeer.estim <- function(x, ...) {
   sig_niso     <- x$gmm$sigma["nonisolates"]
   FE           <- x$model.info$fixed.effects
   
-  inst   <- paste("(G^p)X with max(p) =", max(x$model.info$power))
+  inst   <- ""
+  if (is.null(x$model.info$excluded.instruments)) {
+    inst <- paste("(G^p)X with max(p) =", max(x$model.info$power))
+  }
+  
   if (x$model.info$asymmetry) {
-    inst <- paste(inst, "and", 
-                  ifelse(x$model.info$estimator == "rf", "Random Forest", 
-                         toupper(x$model.info$estimator)), "predictions")
+    inst <- paste(inst, "and y_check predictions")
   } 
   cat("Formula: ", deparse(x$model.info$formula),
       "\nExcluded instruments: ", ifelse(!is.null(x$model.info$excluded.instruments), 

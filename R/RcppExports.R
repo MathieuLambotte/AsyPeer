@@ -41,8 +41,8 @@ fFstat <- function(y, X, index, cumsn, HAC, nthread) {
     .Call(`_AsyPeer_fFstat`, y, X, index, cumsn, HAC, nthread)
 }
 
-fKPstat <- function(endo_, X, Z_, index, cumsn, HAC = 0L) {
-    .Call(`_AsyPeer_fKPstat`, endo_, X, Z_, index, cumsn, HAC)
+fKPstat <- function(endo, Z, index, cumsn, HAC = 0L) {
+    .Call(`_AsyPeer_fKPstat`, endo, Z, index, cumsn, HAC)
 }
 
 fCESdata <- function(X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, nvec, yFMiMa, zFMiMa, n, Kx, S, rho, FE, deriv, nthread) {

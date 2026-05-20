@@ -20,7 +20,7 @@ n    <- sum(nvec)
 
 ### Simulating Data
 #fixed parameters values
-gamma   <- c(10, -0.5, 1, -0.2, 0.6)
+gamma   <- c(2, -0.5, 1, -0.2, 0.6)
 sigma <- 1 #variance of eps
 delta <- 0
 
@@ -225,13 +225,9 @@ betaD=c(1,-0.4)
 clusterExport(cl, varlist = c("betaD"))
 EstD <- parLapply(cl, 1:nsim, function(i) festim(beta=betaD))
 
-#DGP E
-betaE=c(2,1)
-clusterExport(cl, varlist = c("betaE"))
-EstE <- parLapply(cl, 1:nsim, function(i) festim_homo(beta=betaE))
 
 
-save(EstA,EstB,EstC,EstD,EstE,
+save(EstA,EstB,EstC,EstD,
      file = paste0(OutResPath, "/Simulations.Rda"))
 
 
@@ -244,24 +240,37 @@ Sumfunc    <- function(x) {
 Est  <- as.data.frame(rbind(apply(do.call(rbind, EstA), 2, Sumfunc),
                                   apply(do.call(rbind, EstB), 2, Sumfunc),
                                   apply(do.call(rbind, EstC), 2, Sumfunc),
-                                  apply(do.call(rbind, EstD), 2, Sumfunc),
-                                  apply(do.call(rbind, EstE), 2, Sumfunc)))
+                                  apply(do.call(rbind, EstD), 2, Sumfunc)))
 
 rownames(Est)<-c("mean_DGPA","sd_DGPA","mean_DGPB","sd_DGPB","mean_DGPC","sd_DGPC",
-                 "mean_DGPD","sd_DGPD","mean_DGPE","sd_DGPE")
+                 "mean_DGPD","sd_DGPD")
 Est <- Est %>% mutate(across(everything(), ~ sprintf("%.3f", .))) %>%  # Ensures exactly 3 decimals
   mutate(across(everything(), ~ ifelse(row_number() %% 2 == 0, paste0("(", trimws(.), ")"), .)))  # Parentheses without spaces 
 
-# Insert blank rows between DGP
-tp           <- as.data.frame(matrix(NA, nrow = 1, ncol = ncol(Est)))
-colnames(tp) <- colnames(Est)
-Est          <- Est %>% 
-  add_row(tp, .before = 9) %>%
-  add_row(tp, .before = 7) %>%
-  add_row(tp, .before = 5) %>%
-  add_row(tp, .before = 3) %>%
-  add_row(tp, .before = 1)
+Est <- Est %>%
+  tibble::rownames_to_column("row") %>%
+  mutate(
+    stat = ifelse(str_detect(row, "mean"), "mean", "sd"),
+    DGP  = case_when(
+      str_detect(row, "DGPA") ~ "DGP A",
+      str_detect(row, "DGPB") ~ "DGP B",
+      str_detect(row, "DGPC") ~ "DGP C",
+      str_detect(row, "DGPD") ~ "DGP D"
+    )
+  ) %>%
+  select(-row) %>%
+  pivot_longer(-c(stat, DGP), names_to = "param", values_to = "value") %>%
+  arrange(param, stat) %>%
+  pivot_wider(names_from = DGP, values_from = value)
 
+colnames(Est)<-c("stat","param",paste0("DGP A: $\\boldsymbol\\beta^l = (", paste0(betaA[1], collapse = ", "), ")$, ", 
+         "$\\beta^h = ", betaA[2], "$"),
+  paste0("DGP B: $\\boldsymbol\\beta^l = (", paste0(betaB[1], collapse = ", "), ")$, ", 
+         "$\\beta^h = ", betaB[2], "$"),
+  paste0("DGP C: $\\boldsymbol\\beta^l = (", paste0(betaC[1], collapse = ", "), ")$, ", 
+         "$\\beta^h = ", betaC[2], "$"),
+  paste0("DGP D: $\\boldsymbol\\beta^l = (", paste0(betaD[1], collapse = ", "), ")$, ", 
+         "$\\beta^h = ", betaD[2], "$"))
 # Export to Excel
 # Create the workbook
 wb <- createWorkbook()
@@ -269,18 +278,7 @@ wb <- createWorkbook()
 # Add a worksheet
 addWorksheet(wb, "Simu results")
 
-tp <- Est
-tp[seq(1, 15, 3), 1] <- c(paste0("DGP A: $\\boldsymbol\\beta^l = (", paste0(betaA[1], collapse = ", "), ")$, ", 
-                                 "$\\beta^h = ", betaA[2], "$"),
-                          paste0("DGP B: $\\boldsymbol\\beta^l = (", paste0(betaB[1], collapse = ", "), ")$, ", 
-                                 "$\\beta^h = ", betaB[2], "$"),
-                          paste0("DGP C: $\\boldsymbol\\beta^l = (", paste0(betaC[1], collapse = ", "), ")$, ", 
-                                 "$\\beta^h = ", betaC[2], "$"),
-                          paste0("DGP D: $\\boldsymbol\\beta^l = (", paste0(betaD[1], collapse = ", "), ")$, ", 
-                                 "$\\beta^h = ", betaD[2], "$"),
-                          paste0("DGP E: $\\boldsymbol\\beta^l = (", paste0(betaE[1], collapse = ", "), ")$, ", 
-                                 "$\\beta^h = ", betaE[2], "$"))
-writeData(wb, "Simu results", tp, keepNA = TRUE, na.string = "", startRow = 1, startCol = 1)
+writeData(wb, "Simu results", Est, keepNA = TRUE, na.string = "", startRow = 1, startCol = 1)
 
 # Save the workbook
 saveWorkbook(wb, paste0(OutResPath, "/simulations.xlsx"), overwrite = TRUE)

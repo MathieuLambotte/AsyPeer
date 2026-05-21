@@ -410,12 +410,12 @@ Rcpp::List fKPstat(const Eigen::MatrixXd& endo,
   
   // Variance of vec(Ze), covyy and covz
   Eigen::MatrixXd VvecZe(Eigen::MatrixXd::Zero(l*nendo, l*nendo));
-  if (HAC <= 1) {
+  if (HAC <= 2) {
     VvecZe = vecZe.transpose() * vecZe;
-  } else if (HAC == 2) {
+  } else if (HAC == 3) {
     for (int r(0); r < ngroup; ++ r) {
       int n1(cumsn(r)), n2(cumsn(r + 1) - 1);
-      Eigen::VectorXd tp(vecZe(Eigen::seq(n1, n2), Eigen::all).array().colwise().sum().matrix());
+      Eigen::VectorXd tp(vecZe(Eigen::seq(n1, n2), Eigen::all).array().colwise().sum().matrix().transpose());
       VvecZe += tp * tp.transpose();
     }
   }

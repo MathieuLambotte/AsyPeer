@@ -57,4 +57,3 @@ inst/doc
 # Replication folder
 Replication/*.xlsx
 Replication/*.Rda
-*.tmp

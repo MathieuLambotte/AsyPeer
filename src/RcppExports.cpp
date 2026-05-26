@@ -11,6 +11,19 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// fsw_cpp
+Eigen::ArrayXXd fsw_cpp(const Eigen::MatrixXd& y, const Eigen::MatrixXd& Z, const int& Kexo);
+RcppExport SEXP _AsyPeer_fsw_cpp(SEXP ySEXP, SEXP ZSEXP, SEXP KexoSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const int& >::type Kexo(KexoSEXP);
+    rcpp_result_gen = Rcpp::wrap(fsw_cpp(y, Z, Kexo));
+    return rcpp_result_gen;
+END_RCPP
+}
 // fnthreads
 int fnthreads(const int& nthread);
 RcppExport SEXP _AsyPeer_fnthreads(SEXP nthreadSEXP) {
@@ -152,17 +165,17 @@ BEGIN_RCPP
 END_RCPP
 }
 // fKPstat
-Rcpp::List fKPstat(const Eigen::MatrixXd& endo, const Eigen::MatrixXd& Z, const Eigen::ArrayXi& index, const Eigen::ArrayXi& cumsn, const int& HAC);
-RcppExport SEXP _AsyPeer_fKPstat(SEXP endoSEXP, SEXP ZSEXP, SEXP indexSEXP, SEXP cumsnSEXP, SEXP HACSEXP) {
+Rcpp::List fKPstat(const Eigen::MatrixXd& endo, const Eigen::MatrixXd& Z, const int& K, const Eigen::ArrayXi& cumsn, const bool& cluster);
+RcppExport SEXP _AsyPeer_fKPstat(SEXP endoSEXP, SEXP ZSEXP, SEXP KSEXP, SEXP cumsnSEXP, SEXP clusterSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type endo(endoSEXP);
     Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
-    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type index(indexSEXP);
+    Rcpp::traits::input_parameter< const int& >::type K(KSEXP);
     Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type cumsn(cumsnSEXP);
-    Rcpp::traits::input_parameter< const int& >::type HAC(HACSEXP);
-    rcpp_result_gen = Rcpp::wrap(fKPstat(endo, Z, index, cumsn, HAC));
+    Rcpp::traits::input_parameter< const bool& >::type cluster(clusterSEXP);
+    rcpp_result_gen = Rcpp::wrap(fKPstat(endo, Z, K, cumsn, cluster));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -615,6 +628,126 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// fbt
+Rcpp::List fbt(const Eigen::VectorXd& Zeta0, const Eigen::MatrixXd& Z, const Eigen::VectorXd& y, const Eigen::MatrixXd& V, const std::vector<Eigen::ArrayXi>& lIso, const std::vector<Eigen::ArrayXi>& lnIso, const bool& spillover, const unsigned long long& seed);
+RcppExport SEXP _AsyPeer_fbt(SEXP Zeta0SEXP, SEXP ZSEXP, SEXP ySEXP, SEXP VSEXP, SEXP lIsoSEXP, SEXP lnIsoSEXP, SEXP spilloverSEXP, SEXP seedSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type Zeta0(Zeta0SEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type V(VSEXP);
+    Rcpp::traits::input_parameter< const std::vector<Eigen::ArrayXi>& >::type lIso(lIsoSEXP);
+    Rcpp::traits::input_parameter< const std::vector<Eigen::ArrayXi>& >::type lnIso(lnIsoSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type spillover(spilloverSEXP);
+    Rcpp::traits::input_parameter< const unsigned long long& >::type seed(seedSEXP);
+    rcpp_result_gen = Rcpp::wrap(fbt(Zeta0, Z, y, V, lIso, lnIso, spillover, seed));
+    return rcpp_result_gen;
+END_RCPP
+}
+// f_nospillbt
+Rcpp::List f_nospillbt(const Eigen::VectorXd& Zeta0, const Eigen::MatrixXd& Z, const Eigen::VectorXd& y, const Eigen::VectorXd& Gy, const Eigen::MatrixXd& V, const std::vector<Eigen::ArrayXi>& lIso, const std::vector<Eigen::ArrayXi>& lnIso, const bool& spillover, const unsigned long long& seed);
+RcppExport SEXP _AsyPeer_f_nospillbt(SEXP Zeta0SEXP, SEXP ZSEXP, SEXP ySEXP, SEXP GySEXP, SEXP VSEXP, SEXP lIsoSEXP, SEXP lnIsoSEXP, SEXP spilloverSEXP, SEXP seedSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type Zeta0(Zeta0SEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type Gy(GySEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type V(VSEXP);
+    Rcpp::traits::input_parameter< const std::vector<Eigen::ArrayXi>& >::type lIso(lIsoSEXP);
+    Rcpp::traits::input_parameter< const std::vector<Eigen::ArrayXi>& >::type lnIso(lnIsoSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type spillover(spilloverSEXP);
+    Rcpp::traits::input_parameter< const unsigned long long& >::type seed(seedSEXP);
+    rcpp_result_gen = Rcpp::wrap(f_nospillbt(Zeta0, Z, y, Gy, V, lIso, lnIso, spillover, seed));
+    return rcpp_result_gen;
+END_RCPP
+}
+// fAsyobjbt
+double fAsyobjbt(const double betal, const Eigen::MatrixXd& Z, const Eigen::VectorXd& Zty, const Eigen::MatrixXd& V, const Eigen::MatrixXd& W, const int& n_nIso);
+RcppExport SEXP _AsyPeer_fAsyobjbt(SEXP betalSEXP, SEXP ZSEXP, SEXP ZtySEXP, SEXP VSEXP, SEXP WSEXP, SEXP n_nIsoSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const double >::type betal(betalSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type Zty(ZtySEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type V(VSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const int& >::type n_nIso(n_nIsoSEXP);
+    rcpp_result_gen = Rcpp::wrap(fAsyobjbt(betal, Z, Zty, V, W, n_nIso));
+    return rcpp_result_gen;
+END_RCPP
+}
+// fAsyobj_nospillbt
+double fAsyobj_nospillbt(const double betal, const Eigen::MatrixXd& Z, const Eigen::VectorXd& Zty, const Eigen::VectorXd& ZtGy, const Eigen::MatrixXd& V, const Eigen::MatrixXd& W, const int& n_nIso);
+RcppExport SEXP _AsyPeer_fAsyobj_nospillbt(SEXP betalSEXP, SEXP ZSEXP, SEXP ZtySEXP, SEXP ZtGySEXP, SEXP VSEXP, SEXP WSEXP, SEXP n_nIsoSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const double >::type betal(betalSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type Zty(ZtySEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type ZtGy(ZtGySEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type V(VSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const int& >::type n_nIso(n_nIsoSEXP);
+    rcpp_result_gen = Rcpp::wrap(fAsyobj_nospillbt(betal, Z, Zty, ZtGy, V, W, n_nIso));
+    return rcpp_result_gen;
+END_RCPP
+}
+// fAsyparmsbt
+Rcpp::List fAsyparmsbt(const double betal, const Eigen::MatrixXd& Z, const Eigen::VectorXd& Zty, const Eigen::MatrixXd& V, const Eigen::MatrixXd& W, const int& n_nIso, const bool& asymmetry);
+RcppExport SEXP _AsyPeer_fAsyparmsbt(SEXP betalSEXP, SEXP ZSEXP, SEXP ZtySEXP, SEXP VSEXP, SEXP WSEXP, SEXP n_nIsoSEXP, SEXP asymmetrySEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const double >::type betal(betalSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type Zty(ZtySEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type V(VSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const int& >::type n_nIso(n_nIsoSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type asymmetry(asymmetrySEXP);
+    rcpp_result_gen = Rcpp::wrap(fAsyparmsbt(betal, Z, Zty, V, W, n_nIso, asymmetry));
+    return rcpp_result_gen;
+END_RCPP
+}
+// fAsyparms_nospillbt
+Rcpp::List fAsyparms_nospillbt(const double betal, const Eigen::MatrixXd& Z, const Eigen::VectorXd& Zty, const Eigen::VectorXd& ZtGy, const Eigen::MatrixXd& V, const Eigen::MatrixXd& W, const int& n_nIso, const bool& asymmetry);
+RcppExport SEXP _AsyPeer_fAsyparms_nospillbt(SEXP betalSEXP, SEXP ZSEXP, SEXP ZtySEXP, SEXP ZtGySEXP, SEXP VSEXP, SEXP WSEXP, SEXP n_nIsoSEXP, SEXP asymmetrySEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const double >::type betal(betalSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type Zty(ZtySEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type ZtGy(ZtGySEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type V(VSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const int& >::type n_nIso(n_nIsoSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type asymmetry(asymmetrySEXP);
+    rcpp_result_gen = Rcpp::wrap(fAsyparms_nospillbt(betal, Z, Zty, ZtGy, V, W, n_nIso, asymmetry));
+    return rcpp_result_gen;
+END_RCPP
+}
+// fAsyparmsVar_bt
+Rcpp::List fAsyparmsVar_bt(const std::vector<std::vector<Eigen::VectorXd>>& outbt, const Eigen::VectorXd& theta0, const Eigen::VectorXd& Zeta0, const bool& asymmetry, const bool& spillover);
+RcppExport SEXP _AsyPeer_fAsyparmsVar_bt(SEXP outbtSEXP, SEXP theta0SEXP, SEXP Zeta0SEXP, SEXP asymmetrySEXP, SEXP spilloverSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const std::vector<std::vector<Eigen::VectorXd>>& >::type outbt(outbtSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type theta0(theta0SEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type Zeta0(Zeta0SEXP);
+    Rcpp::traits::input_parameter< const bool& >::type asymmetry(asymmetrySEXP);
+    Rcpp::traits::input_parameter< const bool& >::type spillover(spilloverSEXP);
+    rcpp_result_gen = Rcpp::wrap(fAsyparmsVar_bt(outbt, theta0, Zeta0, asymmetry, spillover));
+    return rcpp_result_gen;
+END_RCPP
+}
 // fNashE
 int fNashE(Eigen::Map<Eigen::VectorXd> y, const Eigen::ArrayXd& alpha, const std::vector<Eigen::MatrixXd>& G, const Eigen::ArrayXd& peffects, const Eigen::ArrayXi& cumsn, const Eigen::ArrayXi& nvec, const std::vector<Eigen::ArrayXi>& idpeer, const Eigen::ArrayXi& d, const int& ngroup, const double& tol, const int& maxit, const unsigned int& nthread, const bool& print);
 RcppExport SEXP _AsyPeer_fNashE(SEXP ySEXP, SEXP alphaSEXP, SEXP GSEXP, SEXP peffectsSEXP, SEXP cumsnSEXP, SEXP nvecSEXP, SEXP idpeerSEXP, SEXP dSEXP, SEXP ngroupSEXP, SEXP tolSEXP, SEXP maxitSEXP, SEXP nthreadSEXP, SEXP printSEXP) {
@@ -640,6 +773,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_AsyPeer_fsw_cpp", (DL_FUNC) &_AsyPeer_fsw_cpp, 3},
     {"_AsyPeer_fnthreads", (DL_FUNC) &_AsyPeer_fnthreads, 1},
     {"_AsyPeer_highlowstat1", (DL_FUNC) &_AsyPeer_highlowstat1, 6},
     {"_AsyPeer_highlowstat2", (DL_FUNC) &_AsyPeer_highlowstat2, 7},
@@ -670,6 +804,13 @@ static const R_CallMethodDef CallEntries[] = {
     {"_AsyPeer_fAsyWopt", (DL_FUNC) &_AsyPeer_fAsyWopt, 10},
     {"_AsyPeer_fAsyparms", (DL_FUNC) &_AsyPeer_fAsyparms, 17},
     {"_AsyPeer_fAsyparms_nospill", (DL_FUNC) &_AsyPeer_fAsyparms_nospill, 17},
+    {"_AsyPeer_fbt", (DL_FUNC) &_AsyPeer_fbt, 8},
+    {"_AsyPeer_f_nospillbt", (DL_FUNC) &_AsyPeer_f_nospillbt, 9},
+    {"_AsyPeer_fAsyobjbt", (DL_FUNC) &_AsyPeer_fAsyobjbt, 6},
+    {"_AsyPeer_fAsyobj_nospillbt", (DL_FUNC) &_AsyPeer_fAsyobj_nospillbt, 7},
+    {"_AsyPeer_fAsyparmsbt", (DL_FUNC) &_AsyPeer_fAsyparmsbt, 7},
+    {"_AsyPeer_fAsyparms_nospillbt", (DL_FUNC) &_AsyPeer_fAsyparms_nospillbt, 8},
+    {"_AsyPeer_fAsyparmsVar_bt", (DL_FUNC) &_AsyPeer_fAsyparmsVar_bt, 5},
     {"_AsyPeer_fNashE", (DL_FUNC) &_AsyPeer_fNashE, 13},
     {NULL, NULL, 0}
 };

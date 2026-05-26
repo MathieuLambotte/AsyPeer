@@ -372,72 +372,74 @@ Eigen::MatrixXd matrixSqrt(const Eigen::MatrixXd& A) {
 //[[Rcpp::export]]
 Rcpp::List fKPstat(const Eigen::MatrixXd& endo,
                    const Eigen::MatrixXd& Z,
-                   const Eigen::ArrayXi& index,
+                   const int& K, 
                    const Eigen::ArrayXi& cumsn,
-                   const int& HAC = 0) {
-  int n(endo.rows()), nendo(endo.cols()), l(index.size()), Kins(Z.cols()), 
-  Kx(Kins - l), ngroup(cumsn.size() - 1);
+                   const bool& cluster) {
+  int n      = endo.rows();
+  int nendo  = endo.cols();
+  int L      = Z.cols() - K;
+  int ngroup = cumsn.size() - 1;
   
   // Partialling out X
-  Eigen::ColPivHouseholderQR <Eigen::MatrixXd> qrX(Z.leftCols(Kx).transpose() * Z.leftCols(Kx));
-  
-  Eigen::MatrixXd betayy = qrX.solve(Z.leftCols(Kx).transpose() * endo);
-  Eigen::MatrixXd betaZ  = qrX.solve(Z.leftCols(Kx).transpose() * Z.rightCols(l));
-  
-  Eigen::MatrixXd ryy = endo - Z.leftCols(Kx) * betayy;
-  Eigen::MatrixXd rZ  = Z.rightCols(l) - Z.leftCols(Kx) * betaZ;
+  Eigen::MatrixXd ry, rZ;
+  {
+    Eigen::MatrixXd X(Z.leftCols(K));
+    Eigen::ColPivHouseholderQR <Eigen::MatrixXd> qr(X);
+    ry = endo - X * qr.solve(endo);
+    rZ = Z.rightCols(L) - X * qr.solve(Z.rightCols(L));
+  }
   
   Eigen::MatrixXd ZZ(rZ.transpose() * rZ);
-  Eigen::MatrixXd iZZ(ZZ.ldlt().solve(Eigen::MatrixXd::Identity(l, l)));
-  Eigen::MatrixXd Zyy(rZ.transpose() * ryy);
+  Eigen::MatrixXd iZZ((rZ.transpose() * rZ).ldlt().solve(Eigen::MatrixXd::Identity(L, L)));
+  Eigen::MatrixXd Zy(rZ.transpose() * ry);
   
   // estimator and residuals
-  Eigen::MatrixXd Pi(Zyy.transpose() * iZZ);
-  Eigen::MatrixXd eps(ryy - rZ * Pi.transpose());
+  Eigen::MatrixXd Pi(Zy.transpose() * iZZ);
+  Eigen::MatrixXd eps(ry - rZ * Pi.transpose());
   
   // vec(Ze)
-  Eigen::MatrixXd R(Eigen::MatrixXd::Zero(l * nendo, l * nendo));
-  for (int s1(0); s1 < l; ++ s1) {
+  Eigen::MatrixXd R(Eigen::MatrixXd::Zero(L * nendo, L * nendo));
+  for (int s1(0); s1 < L; ++ s1) {
     for (int s2(0); s2 < nendo; ++ s2) {
-      R(s1 * nendo + s2, s2 * l + s1) = 1;
+      R(s1 * nendo + s2, s2 * L + s1) = 1;
     }
   }
   
-  Eigen::MatrixXd vecZe(n, l*nendo);
+  Eigen::MatrixXd vecZe(n, L*nendo);
   for (int s(0); s < nendo; ++ s) {
-    vecZe.block(0, s*l, n, l) = rZ.array().colwise()*eps.col(s).array();
+    vecZe.block(0, s*L, n, L) = rZ.array().colwise()*eps.col(s).array();
   }
   
   // Variance of vec(Ze), covyy and covz
-  Eigen::MatrixXd VvecZe(Eigen::MatrixXd::Zero(l*nendo, l*nendo));
-  if (HAC <= 2) {
-    VvecZe = vecZe.transpose() * vecZe;
-  } else if (HAC == 3) {
+  Eigen::MatrixXd VvecZe(Eigen::MatrixXd::Zero(L*nendo, L*nendo));
+  if (cluster) {
     for (int r(0); r < ngroup; ++ r) {
       int n1(cumsn(r)), n2(cumsn(r + 1) - 1);
       Eigen::VectorXd tp(vecZe(Eigen::seq(n1, n2), Eigen::all).array().colwise().sum().matrix().transpose());
       VvecZe += tp * tp.transpose();
     }
-  }
+  } else {
+    VvecZe = vecZe.transpose() * vecZe;
+  } 
+  VvecZe /= n;
   
   // Variance of pi
   Eigen::MatrixXd H(R * Eigen::kroneckerProduct(Eigen::MatrixXd::Identity(nendo, nendo), iZZ));
-  Eigen::MatrixXd varpi(H * VvecZe * H.transpose()); 
-  
-  // covz and cove
-  Eigen::MatrixXd dZ    = rZ.array().rowwise() - rZ.array().colwise().mean();
-  Eigen::MatrixXd dyy   = ryy.array().rowwise() - ryy.array().colwise().mean();
-  Eigen::MatrixXd covz  = dZ.transpose() * dZ / ngroup;
-  Eigen::MatrixXd covyy = dyy.transpose() * dyy / ngroup;
+  Eigen::MatrixXd varpi(n * H * VvecZe * H.transpose()); 
   
   // normalisation
-  Eigen::LLT<Eigen::MatrixXd> tpF(ZZ * covz.colPivHouseholderQr().solve(ZZ.transpose())), tpG(covyy.inverse());
-  Eigen::MatrixXd F(tpF.matrixL()); // O(sqrt(n))
-  Eigen::MatrixXd G(tpG.matrixL().transpose()); // O(1/sqrt(n))
+  Eigen::MatrixXd covy = eps.transpose() * eps / n;
+  Eigen::LLT<Eigen::MatrixXd> tpF(ZZ / n);// tpG(covy);
+  // Eigen::MatrixXd G(tpG1.matrixL().inverse()); 
+  Eigen::MatrixXd F(tpF.matrixL());
+  Eigen::LLT<Eigen::MatrixXd> tpG1(covy);
+  Eigen::MatrixXd tpG2 = tpG1.matrixL();
+  Eigen::MatrixXd G = tpG2.triangularView<Eigen::Lower>()
+                          .solve(Eigen::MatrixXd::Identity(nendo, nendo));
   
   // Theta and its variance
   Eigen::MatrixXd Theta(G * Pi * F.transpose());
-  Eigen::VectorXd theta(Theta.reshaped(l*nendo, 1));
+  Eigen::VectorXd theta(Theta.reshaped(L*nendo, 1));
   Eigen::MatrixXd FG(Eigen::kroneckerProduct(F, G));
   Eigen::MatrixXd vartheta(FG * varpi * FG.transpose());
   // cout << F << endl;
@@ -451,19 +453,19 @@ Rcpp::List fKPstat(const Eigen::MatrixXd& endo,
   Eigen::MatrixXd U = svd.matrixU(); //nendo * nendo
   Eigen::VectorXd d = svd.singularValues();
   Eigen::MatrixXd ddiag = d.asDiagonal();
-  Eigen::MatrixXd D(nendo, l);
-  D << ddiag, Eigen::MatrixXd::Zero(nendo, l - nendo); //l*nendo
+  Eigen::MatrixXd D(nendo, L);
+  D << ddiag, Eigen::MatrixXd::Zero(nendo, L - nendo); //L*nendo
   Eigen::MatrixXd V = svd.matrixV(); //nendo * nendo
   
   //U12, U22, V12, V22
   int q(nendo - 1);
   Eigen::MatrixXd U12(U.block(0, q, q, nendo - q));
   Eigen::MatrixXd U22(U.block(q, q, nendo - q, nendo - q));
-  Eigen::MatrixXd V12(V.block(0, q, q, l - q));
-  Eigen::MatrixXd V22(V.block(q, q, l - q, l - q));
+  Eigen::MatrixXd V12(V.block(0, q, q, L - q));
+  Eigen::MatrixXd V22(V.block(q, q, L - q, L - q));
   
   // Aqper and Bqper
-  Eigen::MatrixXd U12U22(nendo, nendo - q), V12V22(l, l - q);
+  Eigen::MatrixXd U12U22(nendo, nendo - q), V12V22(L, L - q);
   U12U22 << U12, U22;
   V12V22 << V12, V22;
   
@@ -474,10 +476,18 @@ Rcpp::List fKPstat(const Eigen::MatrixXd& endo,
   Eigen::MatrixXd BAper(Eigen::kroneckerProduct(Bper, Aper.transpose()));
   Eigen::VectorXd lambda (BAper * theta);
   Eigen::MatrixXd varlambda (BAper * vartheta * BAper.transpose());
-  // cout << theta << endl;
-  // cout << varlambda << endl;
+  
   // statistic
   double stat = lambda.dot(varlambda.colPivHouseholderQr().solve(lambda));
   
-  return Rcpp::List::create(_["stat"] = stat, _["df"] = (nendo - q)*(l - q));
+  // Degree of freedom
+  int df = (nendo - q)*(L - q);
+  
+  // pvalue
+  double prob = R::pchisq(stat, df, 0, 0);
+  
+  // output
+  return Rcpp::List::create(Rcpp::_["df"]     = df,
+                            Rcpp::_["stat"]   = stat,
+                            Rcpp::_["pvalue"] = prob);
 }

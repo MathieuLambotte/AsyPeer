@@ -28,16 +28,19 @@
 #'   Available options are: `"identity"` for GMM with the identity matrix as the weighting matrix; 
 #'   `"IV"` for the standard instrumental-variable GMM estimator; and `"optimal"` for GMM with the 
 #'   optimal weighting matrix.
+#'   
+#' @param nboot The number of bootstrap simulations when `HAC = "cluster"`.
 #'
 #' @param tol A tolerance value used in the QR factorization to detect collinear columns in the 
 #'   matrices of explanatory variables and instruments, ensuring a full-rank matrix (see 
 #'   \link[base]{qr}).
 #'
-#' @param HAC A character string specifying the correlation structure of the idiosyncratic errors 
-#'   for covariance computation. Options are `"iid"` for independent errors; `"group iid"` for 
-#'   independence within the groups of isolated and non-isolated players; `"hetero"` for 
-#'   heteroskedastic but non-autocorrelated errors; and `"cluster"` for heteroskedastic errors with 
-#'   potential within-subnetwork correlation.
+#' @param HAC A character string specifying the correlation structure of the idiosyncratic errors
+#'   used for covariance estimation. Options are `"iid"` for independent errors; `"group iid"` for
+#'   independence within the groups of isolated and non-isolated players; `"hetero"` for
+#'   heteroskedastic but non-autocorrelated errors; `"cluster"` for heteroskedastic errors with
+#'   potential within-subnetwork correlation; and `"cboot"` for the pair-bootstrap version of
+#'   `"cluster"`.
 #'
 #' @param fixed.effects A logical value indicating whether the model includes subnetwork fixed effects.
 #'
@@ -115,6 +118,7 @@ asypeer.estim <- function(formula,
                           asymmetry     = TRUE,
                           weight        = "IV",
                           HAC           = "group-iid",
+                          nboot         = 500,
                           fixed.effects = FALSE,
                           tol           = 1e-10,
                           nthread       = 1,
@@ -168,6 +172,7 @@ asypeer.estim <- function(formula,
   Glist      <- fGnormalise(Glist, nthread)
 
   ## HAC
+  boot    <- FALSE
   HACn    <- NULL
   if (tolower(HAC) %in% c("iid","i.i.d")) {
     HAC   <- "iid"
@@ -181,6 +186,10 @@ asypeer.estim <- function(formula,
   } else if (tolower(HAC) %in% c("cluster", "clustered","clus")) {
     HAC   <- "cluster"
     HACn  <- 3
+  } else if (tolower(HAC) %in% c("cboot", "boot","bootstrap")) {
+    HAC   <- "cluster (bootstrap)"
+    HACn  <- 3
+    boot  <- TRUE
   } else {
     stop("This HAC option is not available.")
   }
@@ -238,12 +247,13 @@ asypeer.estim <- function(formula,
   # endogenous variables
   endo   <- highlowstat1(X = as.matrix(y), G = Glist, cumsn = cumsn, nvec = nvec, 
                          ngroup = S, nthread = nthread)
+  enname <- NULL
   if(asymmetry){
     endo   <- cbind(yb = endo$Xbar, ycheck = endo$Xbh - endo$gh * y)
-    colnames(endo) <- paste0(yname, c("_bar", "_check"))
+    enname <- paste0(yname, c("_bar", "_check"))
   } else {
     endo   <- endo$Xbar
-    colnames(endo) <- paste0(yname, "_bar")
+    enname <- paste0(yname, "_bar")
   }
   
   #drop
@@ -287,6 +297,9 @@ asypeer.estim <- function(formula,
     Z      <- Demean_separate(X = Z, cumsn = cumsn, lIso = lIso, lnIso = lnIso, 
                               nthread = nthread)
   }
+  
+  # Name endo
+  colnames(endo) <- enname
   
   # X variables 
   colnames(X) <- xname
@@ -351,7 +364,7 @@ asypeer.estim <- function(formula,
   if (Kz < (Kx + 1L + asymmetry + spillover)) {
     stop("Insufficient number of instruments: the model is not identified.")
   }
-  if ((HAC == "cluster") & (Kz >= S)) {
+  if ((HACn == 3) & (Kz >= S)) {
     stop("Errors cannot be clustered because the number of instruments is larger than the number of subnets.")
   }
   
@@ -398,16 +411,85 @@ asypeer.estim <- function(formula,
                                        V = V, W = W, nIso = nIso))
     }
   }
-
+  
   ### Covariance
-  fAsyC   <- fAsyparms_nospill
-  if (spillover) {
-    fAsyC <- fAsyparms
+  Cov        <- NULL
+  seed       <- as.integer(runif(1, 0, 1e9))
+  if (boot) {
+    outbt    <- NULL
+    if (spillover) {
+      cl     <- NULL
+      on.exit({
+        registerDoSEQ()
+        try(stopCluster(cl), silent = TRUE)
+      }, add = TRUE)
+      
+      cl     <- makeCluster(nthread)
+      registerDoParallel(cl)
+      registerDoRNG(seed)
+      
+      outbt  <- foreach(k         = 1:nboot, 
+                        .export   = c("fbt", "fAsyobjbt", "fAsyparmsbt"), #comment out
+                        .packages = c("AsyPeer") 
+      ) %dorng% {
+        sdk  <- as.integer(runif(1, 0, 1e9))
+        ## Bootstrap sample
+        bt   <- fbt(Zeta0 = opt$moment, Z = Z, y = y, V = V, lIso = lIso,
+                    lnIso = lnIso, spillover = spillover, seed = sdk)
+        ## Optimization
+        opts <- optimize(f = fAsyobjbt, lower = -0.5, upper = 100, tol = tol.optim,
+                         Z = bt$Z, Zty = bt$Zty, V = bt$V, W = W, n_nIso = bt$n_nIso)
+        ## Parameters and moment
+        fAsyparmsbt(betal = opts$minimum, Z = bt$Z, Zty = bt$Zty, V = bt$V, 
+                    W = W, n_nIso = bt$n_nIso, asymmetry)
+      }
+    } else {
+      cl     <- NULL
+      on.exit({
+        registerDoSEQ()
+        try(stopCluster(cl), silent = TRUE)
+      }, add = TRUE)
+      
+      cl     <- makeCluster(nthread)
+      registerDoParallel(cl)
+      registerDoRNG(seed)
+      
+      outbt  <- foreach(k         = 1:nboot, 
+                        .export   = c("fbt", "fAsyobjbt", "fAsyparmsbt"), #comment out
+                        .packages = c("AsyPeer") 
+      ) %dorng% {
+        sdk  <- as.integer(runif(1, 0, 1e9))
+        ## Bootstrap sample
+        bt   <- f_nospillbt(Zeta0 = opt$moment, Z = Z, y = y, 
+                            Gy = endo[,paste0(yname, "_bar")], V = V, lIso = lIso, 
+                            lnIso = lnIso, spillover = spillover, seed = sdk)
+        ## Optimization
+        opts <- optimize(f = fAsyobj_nospillbt, lower = -0.5, upper = 100, tol = tol.optim,
+                         Z = bt$Z, Zty = bt$Zty, ZtGy = bt$ZtGy, V = bt$V, W = W, 
+                         n_nIso = bt$n_nIso)
+        ## Parameters and moment
+        fAsyparms_nospillbt(betal = opts$minimum, Z = bt$Z, Zty = bt$Zty,
+                            ZtGy = bt$ZtGy, V = bt$V, W = W, n_nIso = bt$n_nIso, 
+                            asymmetry = asymmetry)
+      }
+    }
+    
+    Cov     <- fAsyparmsVar_bt(outbt = outbt, theta0 = opt$theta, Zeta0 = opt$moment,
+                 asymmetry = asymmetry, spillover = spillover)
+    
+  } else {
+    
+    fAsyC   <- fAsyparms_nospill
+    if (spillover) {
+      fAsyC <- fAsyparms
+    }
+    Cov     <- fAsyC(theta = opt$theta, V = V, sVphi = opt$sVphi, eta = opt$eta, 
+                     Z = Z, y = y, endo = endo, X = X, W = W, Iso = Iso, 
+                     nIso = nIso, cumsn = cumsn, nc_gamma = ncgamma, dfiso = dfiso,
+                     dfniso = dfniso, HAC = HACn, S = S)
+    
   }
-  Cov     <- fAsyC(theta = opt$theta, V = V, sVphi = opt$sVphi, eta = opt$eta, 
-                   Z = Z, y = y, endo = endo, X = X, W = W, Iso = Iso, 
-                   nIso = nIso, cumsn = cumsn, nc_gamma = ncgamma, dfiso = dfiso,
-                   dfniso = dfniso, HAC = HACn, S = S)
+  
   
   ### unscale residuals
   opt$eta[nIso + 1] = opt$eta[nIso + 1] * (1 + opt$theta[1])
@@ -422,8 +504,8 @@ asypeer.estim <- function(formula,
   ## Test for asymmetry
   if (asymmetry) {
     gmm   <- c(gmm, list("diffbeta" = c("Estimate" = Cov$TestAsym[1],
-                                        "SE"       = sqrt(Cov$TestAsym[2]),
-                                        "p-value"  = 1 - pchisq((Cov$TestAsym[1]^2) / Cov$TestAsym[2], df = 1))))
+                                        "SE"       = Cov$TestAsym[2],
+                                        "p-value"  = Cov$TestAsym[3])))
   }
   gmm     <- c(gmm, list(unscale.resid = opt$eta, objective = opt$objective / S^2))
   
@@ -530,7 +612,8 @@ print.summary.asypeer.estim <- function(x, ...) {
                         ifelse(x$model.info$weight == "IV", "GMM (Weight: IV)" )))
   hete <- x$model.info$HAC
   hete <- ifelse(hete %in% c("iid", "group-iid"), hete,
-                 ifelse(hete == "hetero", "Individual", "Cluster"))
+                 ifelse(hete == "hetero", "Individual", 
+                        ifelse(hete == "cluster", "Cluster", "Cluster (Bootstrap)")))
   sig_overall  <- x$gmm$sigma["overall"]
   sig_iso      <- x$gmm$sigma["isolates"]
   sig_niso     <- x$gmm$sigma["nonisolates"]

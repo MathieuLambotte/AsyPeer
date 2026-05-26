@@ -285,7 +285,7 @@ fdiagnostic <- function(object, KPtest, nthread) {
   lIso      <- lapply(object$data$isolates, \(x) x - 1)
   lnIso     <- lapply(object$data$non.isolates, \(x) x - 1)
   HAC       <- object$model.info$HAC
-  HACn      <- (0:3)[HAC == c("iid","group-iid", "hetero", "cluster")]
+  HACn      <- c(0:3, 3)[HAC == c("iid","group-iid", "hetero", "cluster", "cluster (bootstrap)")]
   cumsn     <- c(0, cumsum(nvec))
   y         <- as.matrix(object$data$dependent)
   endo      <- object$data$endogenous.variables
@@ -312,6 +312,9 @@ fdiagnostic <- function(object, KPtest, nthread) {
                       c(paste0("iso_", object$model.info$xname), 
                         paste0("niso_", object$model.info$xname)))) - 1
   
+  # Number of included instruments
+  Kinc   <- ncol(Z) - length(index)
+  
   ## Weak instrument test
   tpF    <- fFstat(y = endo, X = Z, index = index, cumsn = cumsn, HAC = HACn, 
                    nthread = nthread)
@@ -319,9 +322,8 @@ fdiagnostic <- function(object, KPtest, nthread) {
   if (KPtest) {
     xname <- object$model.info$xname
     zname <- object$model.info$zname
-    tpKP  <- fKPstat(endo = endo, Z = Z, index = index, cumsn = cumsn, 
-                     HAC = HACn)
-    tpKP$pvalue <- pchisq(tpKP$stat, tpKP$df, lower.tail = FALSE)
+    tpKP  <- fKPstat(endo = endo, Z = Z, K = Kinc, cumsn = cumsn, 
+                     cluster = (HACn == 3))
   }
   
   

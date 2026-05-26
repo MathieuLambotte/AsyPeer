@@ -14,6 +14,7 @@ asypeer.estim(
   asymmetry = TRUE,
   weight = "IV",
   HAC = "group-iid",
+  nboot = 500,
   fixed.effects = FALSE,
   tol = 1e-10,
   nthread = 1,
@@ -57,10 +58,13 @@ Available options are: \code{"identity"} for GMM with the identity matrix as the
 optimal weighting matrix.}
 
 \item{HAC}{A character string specifying the correlation structure of the idiosyncratic errors
-for covariance computation. Options are \code{"iid"} for independent errors; \code{"group iid"} for
+used for covariance estimation. Options are \code{"iid"} for independent errors; \code{"group iid"} for
 independence within the groups of isolated and non-isolated players; \code{"hetero"} for
-heteroskedastic but non-autocorrelated errors; and \code{"cluster"} for heteroskedastic errors with
-potential within-subnetwork correlation.}
+heteroskedastic but non-autocorrelated errors; \code{"cluster"} for heteroskedastic errors with
+potential within-subnetwork correlation; and \code{"cboot"} for the pair-bootstrap version of
+\code{"cluster"}.}
+
+\item{nboot}{The number of bootstrap simulations when \code{HAC = "cluster"}.}
 
 \item{fixed.effects}{A logical value indicating whether the model includes subnetwork fixed effects.}
 

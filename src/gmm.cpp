@@ -1,5 +1,7 @@
 // [[Rcpp::depends(RcppEigen)]]
 #include <RcppEigen.h>
+#include <random>
+
 #ifdef _OPENMP 
 #include <omp.h>
 // [[Rcpp::plugins(openmp)]]
@@ -24,7 +26,7 @@ Eigen::MatrixXd fV(const Eigen::MatrixXd& endo,      // Endogenous variables
   
   int n(X.rows()), Kx(X.cols()), Kendo(endo.cols()), Knc(nc_gamma.size()), 
   Ktheta(spillover + Kendo + Kx + Knc);
-
+  
   Eigen::MatrixXd V = Eigen::MatrixXd::Zero(n, Ktheta - 1);
   if (spillover){
     V(Eigen::all, Eigen::seqN(0, Kendo + Kx)) << endo, X;
@@ -54,7 +56,7 @@ double fAsyobj(const double betal,             // starting value for betal
                const Eigen::MatrixXd& V,       // Model's variables
                const Eigen::MatrixXd& W,       // weighting matrix
                const Eigen::ArrayXi& nIso){     // Indices for nonisolated           // Number of parameters
-      
+  
   // 1. Scale V for non-isolated
   Eigen::MatrixXd sV = V;
   sV(nIso, Eigen::all) /= (1 + betal);
@@ -67,11 +69,8 @@ double fAsyobj(const double betal,             // starting value for betal
   Eigen::VectorXd b(sVtZW * Zty); // ksV x 1: sV'Z W Z'y
   Eigen::VectorXd phi(Adec.solve(b));
   
-  // 3. residual (but scaled for nonisolated)
-  Eigen::VectorXd eta   = y - sV * phi;
-  
-  // 4. Objective function
-  Eigen::VectorXd mom(Z.transpose() * eta);
+  // 3. Objective function
+  Eigen::VectorXd mom(Zty - ZtsV * phi);
   Eigen::VectorXd Wmom = W * mom;
   
   return mom.dot(Wmom);
@@ -103,11 +102,8 @@ double fAsyobj_nospill(const double betal,             // starting value for bet
   Eigen::VectorXd b(sVtZW * Ztu); // ksV x 1: sV'Z W Z'u
   Eigen::VectorXd phi(Adec.solve(b));
   
-  // 3. residual (but scaled for nonisolated)
-  Eigen::VectorXd eta = u - sV * phi;
-  
-  // 4. Objective function
-  Eigen::VectorXd mom(Z.transpose() * eta);
+  // 3. Objective function
+  Eigen::VectorXd mom(Ztu - ZtsV * phi);
   Eigen::VectorXd Wmom = W * mom;
   
   return mom.dot(Wmom);
@@ -120,11 +116,11 @@ double fAsyobj_nospill(const double betal,             // starting value for bet
 /////////////////////////////////////////////////////////////////////////
 // [[Rcpp::export]]
 Rcpp::List fGmmEstim(const double betal,             // starting value for betal
-                         const Eigen::MatrixXd& Z,       // instrument matrix
-                         const Eigen::VectorXd& y,       // dependent variable
-                         const Eigen::MatrixXd& V,       // Model's variables
-                         const Eigen::MatrixXd& W,       // weighting matrix
-                         const Eigen::ArrayXi& nIso){     // Indices for nonisolated 
+                     const Eigen::MatrixXd& Z,       // instrument matrix
+                     const Eigen::VectorXd& y,       // dependent variable
+                     const Eigen::MatrixXd& V,       // Model's variables
+                     const Eigen::MatrixXd& W,       // weighting matrix
+                     const Eigen::ArrayXi& nIso){     // Indices for nonisolated 
   int Ktheta(V.cols() + 1);
   
   // 1. Scale V for non-isolated
@@ -147,9 +143,13 @@ Rcpp::List fGmmEstim(const double betal,             // starting value for betal
   Eigen::VectorXd theta(Ktheta);
   theta << betal, phi;  
   
-  return Rcpp::List::create(Rcpp::_["theta"] = theta,
-                            Rcpp::_["sVphi"] = sVphi,
-                            Rcpp::_["eta"]   = eta);
+  // 5. moment
+  Eigen::VectorXd mom(Zty - ZtsV * phi);
+  
+  return Rcpp::List::create(Rcpp::_["theta"]  = theta,
+                            Rcpp::_["sVphi"]  = sVphi,
+                            Rcpp::_["eta"]    = eta,
+                            Rcpp::_["moment"] = mom);
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -188,12 +188,16 @@ Rcpp::List fGmmEstim_nospill(const double betal,             // starting value f
   Eigen::VectorXd theta(Ktheta);
   theta << betal, phi;
   
+  // 5. moment
+  Eigen::VectorXd mom(Ztu - ZtsV * phi);
+  
   return Rcpp::List::create(Rcpp::_["theta"] = theta,
-                            Rcpp::_["sVphi"] = sVphi,
-                            Rcpp::_["eta"]   = eta);
+                            Rcpp::_["sVphi"]  = sVphi,
+                            Rcpp::_["eta"]    = eta,
+                            Rcpp::_["moment"] = mom);
 }
 
-  
+
 
 ////////////////////////////////////////////////////////////////////////
 /////////////////// Computes the optimal GMM weight ////////////////////
@@ -276,9 +280,8 @@ Rcpp::List fAsyparms(const Eigen::VectorXd& theta,     // reduced-form parameter
                      const int& HAC,                   // HAC type
                      const int& S) {                   // Number of subnets
   
-  int Kx(X.cols()), Kendo(endo.cols()), Knc(nc_gamma.size()),
-  Ktheta(1 + Kendo + Kx + Knc), Kz(Z.cols());
-
+  int Kendo(endo.cols()), Ktheta(theta.size()), Kz(Z.cols());
+  
   // 0. sV and unscaled residuals
   Eigen::MatrixXd sV = V;
   Eigen::VectorXd uneta(eta);
@@ -353,7 +356,15 @@ Rcpp::List fAsyparms(const Eigen::VectorXd& theta,     // reduced-form parameter
     D(2,0) = -1.0;
     D(2,1) = 1.0;
     D(2,2) = 0;
-  } 
+  } else {
+    // beta = theta(0)
+    // theta(1) = delta + betal, so delta = theta(1) - theta(0)
+    
+    // dbeta / dtheta(0) = 1, dbeta / dtheta(1) = 0
+    // ddelta / dtheta(0) = -1, ddelta / dtheta(1) = 1
+    
+    D(1,0) = -1.0;
+  }
   
   Eigen::MatrixXd Vstr(D * Vred * D.transpose());  
   
@@ -364,11 +375,15 @@ Rcpp::List fAsyparms(const Eigen::VectorXd& theta,     // reduced-form parameter
   Eigen::VectorXd Ze(Z.transpose() * eta.matrix());
   double stat(Ze.dot(Vm.colPivHouseholderQr().solve(Ze)) / S); // because Vm is the variance of Vm * S^0.5
   double df(Kz - Ktheta);
+  double prob(1 - R::pchisq(stat, df, 1, 0));
+  
   // 6 test for asymmetry
-  Eigen::ArrayXd TestAsym(2);
+  Eigen::ArrayXd TestAsym(3);
   if (Kendo == 2) {
     TestAsym(0) = thetastr(1) - thetastr(0); // betah - betal
     TestAsym(1) = Vstr(0, 0) + Vstr(1, 1) - 2 * Vstr(0, 1);
+    TestAsym(2) = 1 - R::pchisq(TestAsym(0) * TestAsym(0) / TestAsym(1), 1, 1, 0);
+    TestAsym(1) = sqrt(TestAsym(1));
   } 
   
   // 7. Output. 
@@ -379,6 +394,7 @@ Rcpp::List fAsyparms(const Eigen::VectorXd& theta,     // reduced-form parameter
                             Rcpp::_["serrniso"] = serrniso,
                             Rcpp::_["Jstat"]    = stat,
                             Rcpp::_["Jdf"]      = df,
+                            Rcpp::_["Jprob"]    = prob,
                             Rcpp::_["TestAsym"] = TestAsym);
 }
 
@@ -487,12 +503,15 @@ Rcpp::List fAsyparms_nospill(const Eigen::VectorXd& theta,     // reduced-form p
   Eigen::VectorXd Ze(Z.transpose() * eta.matrix());
   double stat(Ze.dot(Vm.colPivHouseholderQr().solve(Ze)) / S); // because Vm is the variance of Vm * S^0.5
   double df(Kz - Ktheta);
+  double prob(1 - R::pchisq(stat, df, 1, 0));
   
   // 6. test for asymmetry
-  Eigen::ArrayXd TestAsym(2);
+  Eigen::ArrayXd TestAsym(3);
   if (Kendo == 2) {
     TestAsym(0) = thetastr(1) - thetastr(0); // betah - betal
     TestAsym(1) = Vstr(0, 0) + Vstr(1, 1) - 2 * Vstr(0, 1);
+    TestAsym(2) = 1 - R::pchisq(TestAsym(0) * TestAsym(0) / TestAsym(1), 1, 1, 0);
+    TestAsym(1) = sqrt(TestAsym(1));
   } 
   
   // 7. Output. 
@@ -503,9 +522,444 @@ Rcpp::List fAsyparms_nospill(const Eigen::VectorXd& theta,     // reduced-form p
                             Rcpp::_["serrniso"] = serrniso,
                             Rcpp::_["Jstat"]    = stat,
                             Rcpp::_["Jdf"]      = df,
+                            Rcpp::_["Jprob"]    = prob,
                             Rcpp::_["TestAsym"] = TestAsym);
 }
 
+///////////////////////////////////////////////////////////////////////
+////////////////////////////// Bootstrap //////////////////////////////
+///////////////////////////////////////////////////////////////////////
+// This function returns y, V, and Z for each bootstrap
+// [[Rcpp::export]]
+Rcpp::List fbt(const Eigen::VectorXd& Zeta0,   // Zeta of the original sample
+               const Eigen::MatrixXd& Z,       // instrument matrix
+               const Eigen::VectorXd& y,       // dependent variable
+               const Eigen::MatrixXd& V,       // Model's variables
+               const std::vector<Eigen::ArrayXi>& lIso,  // List of indices for isolated
+               const std::vector<Eigen::ArrayXi>& lnIso, // List of indices for nonisolated
+               const bool& spillover,
+               const unsigned long long& seed) {
+  int Kz = Z.cols();
+  int Kv = V.cols();
+  int ngroup = lnIso.size();
+  
+  // Resample groups
+  std::mt19937 rng(seed); 
+  std::uniform_int_distribution<int> unidist(0, ngroup - 1);
+  
+  std::vector<Eigen::ArrayXi> lIso_boot(ngroup);  
+  std::vector<Eigen::ArrayXi> lnIso_boot(ngroup);
+  int m(0); 
+  Eigen::ArrayXi n_iso_bt(ngroup);
+  Eigen::ArrayXi n_niso_bt(ngroup);
+  
+  for (int s = 0; s < ngroup; ++ s) {
+    m             =  unidist(rng);
+    
+    lIso_boot[s]  = lIso[m];
+    lnIso_boot[s] = lnIso[m];
+    
+    n_iso_bt(s)   = lIso_boot[s].size();
+    n_niso_bt(s)  = lnIso_boot[s].size();
+  }
+  
+  // Construct Iso_boot and nIso_boot
+  int N_iso_bt  = n_iso_bt.sum();
+  int N_niso_bt = n_niso_bt.sum();
+  int N         = N_iso_bt + N_niso_bt;
+  Eigen::ArrayXi Iso_bt(N_iso_bt);
+  Eigen::ArrayXi nIso_bt(N_niso_bt);
+  int tp1(0), tp2(0);
+  
+  if (N_niso_bt == 0) {
+    Rcpp::stop("Only isolated nodes sampled.");
+  }
+  if (spillover && (N_iso_bt == 0)) {
+    Rcpp::stop("No isolated nodes sampled.");
+  }
+  
+  for (int s = 0; s < ngroup; ++ s) {
+    if (n_iso_bt(s) > 0) {
+      Iso_bt.segment(tp1, n_iso_bt(s))   = lIso_boot[s]; 
+      tp1 += n_iso_bt(s);
+    }
+    
+    if (n_niso_bt(s) > 0) {
+      nIso_bt.segment(tp2, n_niso_bt(s)) = lnIso_boot[s]; 
+      tp2 += n_niso_bt(s);
+    }
+  }
+  
+  // y, Z, V
+  Eigen::MatrixXd Z_bt(N, Kz);
+  Eigen::VectorXd y_bt(N);
+  Eigen::MatrixXd V_bt(N, Kv);
+  
+  if (N_iso_bt == 0) {
+    Z_bt = Z(nIso_bt, Eigen::all);
+    y_bt = y(nIso_bt);
+    V_bt = V(nIso_bt, Eigen::all);
+  } else {
+    Z_bt << Z(nIso_bt, Eigen::all), Z(Iso_bt, Eigen::all);
+    y_bt << y(nIso_bt), y(Iso_bt);
+    V_bt << V(nIso_bt, Eigen::all), V(Iso_bt, Eigen::all);
+  }
+  
+  Eigen::VectorXd Zy_bt = Z_bt.transpose() * y_bt - Zeta0;
+  
+  return Rcpp::List::create(Rcpp::_["Zty"]    = Zy_bt,
+                            Rcpp::_["Z"]      = Z_bt,
+                            Rcpp::_["V"]      = V_bt,
+                            Rcpp::_["n_nIso"] = N_niso_bt);
+}
+
+
+// This function returns y, V, and Z for each bootstrap
+// Case for non spillover
+// [[Rcpp::export]]
+Rcpp::List f_nospillbt(const Eigen::VectorXd& Zeta0,   // Zeta of the original sample
+                       const Eigen::MatrixXd& Z,       // instrument matrix
+                       const Eigen::VectorXd& y,       // dependent variable
+                       const Eigen::VectorXd& Gy,      // Average peer friend
+                       const Eigen::MatrixXd& V,       // Model's variables
+                       const std::vector<Eigen::ArrayXi>& lIso,  // List of indices for isolated
+                       const std::vector<Eigen::ArrayXi>& lnIso, // List of indices for nonisolated
+                       const bool& spillover,
+                       const unsigned long long& seed) {
+  int Kz = Z.cols();
+  int Kv = V.cols();
+  int ngroup = lnIso.size();
+  
+  // Resample groups
+  std::mt19937 rng(seed); 
+  std::uniform_int_distribution<int> unidist(0, ngroup - 1);
+  
+  std::vector<Eigen::ArrayXi> lIso_boot(ngroup);  
+  std::vector<Eigen::ArrayXi> lnIso_boot(ngroup);
+  int m(0); 
+  Eigen::ArrayXi n_iso_bt(ngroup);
+  Eigen::ArrayXi n_niso_bt(ngroup);
+  
+  for (int s = 0; s < ngroup; ++ s) {
+    m             =  unidist(rng);
+    
+    lIso_boot[s]  = lIso[m];
+    lnIso_boot[s] = lnIso[m];
+    
+    n_iso_bt(s)   = lIso_boot[s].size();
+    n_niso_bt(s)  = lnIso_boot[s].size();
+  }
+  
+  // Construct Iso_boot and nIso_boot
+  int N_iso_bt  = n_iso_bt.sum();
+  int N_niso_bt = n_niso_bt.sum();
+  int N         = N_iso_bt + N_niso_bt;
+  Eigen::ArrayXi Iso_bt(N_iso_bt);
+  Eigen::ArrayXi nIso_bt(N_niso_bt);
+  int tp1(0), tp2(0);
+  
+  if (N_niso_bt == 0) {
+    Rcpp::stop("Only isolated nodes sampled.");
+  }
+  if (spillover && (N_iso_bt == 0)) {
+    Rcpp::stop("No isolated nodes sampled.");
+  }
+  
+  for (int s = 0; s < ngroup; ++ s) {
+    if (n_iso_bt(s) > 0) {
+      Iso_bt.segment(tp1, n_iso_bt(s))   = lIso_boot[s]; 
+      tp1 += n_iso_bt(s);
+    }
+    
+    if (n_niso_bt(s) > 0) {
+      nIso_bt.segment(tp2, n_niso_bt(s)) = lnIso_boot[s]; 
+      tp2 += n_niso_bt(s);
+    }
+  }
+  
+  // y, Z, V
+  Eigen::MatrixXd Z_bt(N, Kz);
+  Eigen::VectorXd y_bt(N);
+  Eigen::VectorXd Gy_bt(N);
+  Eigen::MatrixXd V_bt(N, Kv);
+  
+  if (N_iso_bt == 0) {
+    Z_bt  = Z(nIso_bt, Eigen::all);
+    y_bt  = y(nIso_bt);
+    Gy_bt = Gy(nIso_bt);
+    V_bt  = V(nIso_bt, Eigen::all);
+  } else {
+    Z_bt  << Z(nIso_bt, Eigen::all), Z(Iso_bt, Eigen::all);
+    y_bt  << y(nIso_bt), y(Iso_bt);
+    Gy_bt << Gy(nIso_bt), Gy(Iso_bt);
+    V_bt  << V(nIso_bt, Eigen::all), V(Iso_bt, Eigen::all);
+  }
+  
+  Eigen::VectorXd Zy_bt  = Z_bt.transpose() * y_bt - Zeta0;
+  Eigen::VectorXd ZGy_bt = Z_bt.transpose() * Gy_bt;
+  
+  return Rcpp::List::create(Rcpp::_["Zty"]    = Zy_bt,
+                            Rcpp::_["ZtGy"]   = ZGy_bt,
+                            Rcpp::_["Z"]      = Z_bt,
+                            Rcpp::_["V"]      = V_bt,
+                            Rcpp::_["n_nIso"] = N_niso_bt);
+}
+
+////////////////////////////////////////////////////////////////////////
+////////////////// returns the value of the objective //////////////////
+//////////////////// function of beta or betal for /////////////////////
+//////////////////////// a model with spillover //////////////////////// 
+////////////////////////// Bootstrap version ///////////////////////////
+////////////////////////////////////////////////////////////////////////
+// [[Rcpp::export]]
+double fAsyobjbt(const double betal,             // starting value for betal
+                 const Eigen::MatrixXd& Z,       // instrument matrix
+                 const Eigen::VectorXd& Zty,     // Z.transpose() * y
+                 const Eigen::MatrixXd& V,       // Model's variables
+                 const Eigen::MatrixXd& W,       // weighting matrix
+                 const int& n_nIso) {            // Number of non isolated         
+  
+  // 1. Scale V for non-isolated
+  Eigen::MatrixXd sV  = V;
+  sV.topRows(n_nIso) /= (1 + betal);
+  
+  // 2. Closed-form GMM parameters:
+  Eigen::MatrixXd ZtsV(Z.transpose() * sV); // kz x ksV: Z'sV
+  Eigen::MatrixXd sVtZW(ZtsV.transpose() * W);   //  ksV x kz: sV'Z W
+  Eigen::ColPivHouseholderQR<Eigen::MatrixXd> Adec(sVtZW * ZtsV); // cholesky decomposition for A = sV'Z W Z' sV
+  Eigen::VectorXd b(sVtZW * Zty); // ksV x 1: sV'Z W Z'y
+  Eigen::VectorXd phi(Adec.solve(b));
+  
+  // 3. Objective function
+  Eigen::VectorXd mom(Zty - ZtsV * phi);
+  Eigen::VectorXd Wmom = W * mom;
+  
+  return mom.dot(Wmom);
+}
+
+////////////////////////////////////////////////////////////////////////
+////////////////// returns the value of the objective //////////////////
+//////////////////// function of beta or betal for /////////////////////
+//////////////////////// a model with spillover //////////////////////// 
+////////////////////////// Bootstrap version ///////////////////////////
+////////////////////////////////////////////////////////////////////////
+// [[Rcpp::export]]
+double fAsyobj_nospillbt(const double betal,             // starting value for betal
+                         const Eigen::MatrixXd& Z,       // instrument matrix
+                         const Eigen::VectorXd& Zty,     // Z.transpose() * y
+                         const Eigen::VectorXd& ZtGy,    // Z.transpose() * Gy
+                         const Eigen::MatrixXd& V,       // Model's variables
+                         const Eigen::MatrixXd& W,       // weighting matrix
+                         const int& n_nIso) {            // Number of non isolated
+  // 1. Scale V for non-isolated
+  Eigen::MatrixXd sV  = V;
+  sV.topRows(n_nIso) /= (1 + betal);
+  
+  // 2. Closed-form GMM parameters:
+  Eigen::MatrixXd ZtsV(Z.transpose() * sV); // kz x ksV: Z'sV
+  Eigen::VectorXd Ztu(Zty - (betal / (1.0 + betal)) * ZtGy);  // kz x 1: Z'u
+  Eigen::MatrixXd sVtZW(ZtsV.transpose() * W);   //  ksV x kz: sV'Z W
+  Eigen::ColPivHouseholderQR<Eigen::MatrixXd> Adec(sVtZW * ZtsV); // cholesky decomposition for A = sV'Z W Z' sV
+  Eigen::VectorXd b(sVtZW * Ztu); // ksV x 1: sV'Z W Z'u
+  Eigen::VectorXd phi(Adec.solve(b));
+  
+  // 3. Objective function
+  Eigen::VectorXd mom(Ztu - ZtsV * phi);
+  Eigen::VectorXd Wmom = W * mom;
+  
+  return mom.dot(Wmom);
+}
+
+
+////////////////////////////////////////////////////////////////////////
+//////////////// Computes the structural parameters ////////////////////
+////////////////////// And Bootstrapped moments ////////////////////////
+////////////////////////// Bootstrap version ///////////////////////////
+////////////////////////////////////////////////////////////////////////
+// [[Rcpp::export]]
+Rcpp::List fAsyparmsbt(const double betal,             // starting value for betal
+                         const Eigen::MatrixXd& Z,       // instrument matrix
+                         const Eigen::VectorXd& Zty,     // Z.transpose() * y
+                         const Eigen::MatrixXd& V,       // Model's variables
+                         const Eigen::MatrixXd& W,       // weighting matrix
+                         const int& n_nIso,              // Number of non isolated
+                         const bool& asymmetry) {        // Asymmetry flag
+  int Kv(V.cols());
+  
+  // 1. Scale V for non-isolated
+  Eigen::MatrixXd sV  = V;
+  sV.topRows(n_nIso) /= (1 + betal);
+  
+  // 2. Closed-form GMM parameters:
+  Eigen::MatrixXd ZtsV(Z.transpose() * sV); // kz x ksV: Z'sV
+  Eigen::MatrixXd sVtZW(ZtsV.transpose() * W);   //  ksV x kz: sV'Z W
+  Eigen::ColPivHouseholderQR<Eigen::MatrixXd> Adec(sVtZW * ZtsV); // cholesky decomposition for A = sV'Z W Z' sV
+  Eigen::VectorXd b(sVtZW * Zty); // ksV x 1: sV'Z W Z'y
+  Eigen::VectorXd phi(Adec.solve(b));
+  
+  // 3. moment 
+  Eigen::VectorXd mom(Zty - ZtsV * phi);
+  
+  // 4. Structural parameters
+  Eigen::VectorXd thetastr(Kv + 1);
+  if (asymmetry) {
+    // phi = betal + delta, betah - betal, gamma
+    // so delta = phi(0) - betal
+    // so betah = phi(1) + betal
+    thetastr << betal, phi(1) + betal, phi(0) - betal, phi.tail(Kv - 2);
+  } else {
+    // phi = beta + delta, gamma
+    // so delta = phi(0) - betal
+    thetastr << betal, phi(0) - betal, phi.tail(Kv - 1);
+  }
+  
+  // 4. Output. 
+  return Rcpp::List::create(Rcpp::_["estimate"] = thetastr,
+                            Rcpp::_["moment"]   = mom);
+}
+
+
+////////////////////////////////////////////////////////////////////////
+//////////////// Computes the structural parameters ////////////////////
+////////////////////// And Bootstrapped moments ////////////////////////
+///////////////// for the model without spillover //////////////////////
+////////////////////////// Bootstrap version ///////////////////////////
+////////////////////////////////////////////////////////////////////////
+// [[Rcpp::export]]
+Rcpp::List fAsyparms_nospillbt(const double betal,             // starting value for betal
+                                 const Eigen::MatrixXd& Z,       // instrument matrix
+                                 const Eigen::VectorXd& Zty,     // Z.transpose() * y
+                                 const Eigen::VectorXd& ZtGy,    // Z.transpose() * Gy
+                                 const Eigen::MatrixXd& V,       // Model's variables
+                                 const Eigen::MatrixXd& W,       // weighting matrix
+                                 const int& n_nIso,              // Number of non isolated
+                                 const bool& asymmetry) {        // Asymmetry flag
+  int Kv(V.cols());
+  
+  // 1. Scale V for non-isolated
+  Eigen::MatrixXd sV  = V;
+  sV.topRows(n_nIso) /= (1 + betal);
+  
+  // 2. Closed-form GMM parameters:
+  Eigen::MatrixXd ZtsV(Z.transpose() * sV); // kz x ksV: Z'sV
+  Eigen::VectorXd Ztu(Zty - (betal / (1.0 + betal)) * ZtGy);  // kz x 1: Z'u
+  Eigen::MatrixXd sVtZW(ZtsV.transpose() * W);   //  ksV x kz: sV'Z W
+  Eigen::ColPivHouseholderQR<Eigen::MatrixXd> Adec(sVtZW * ZtsV); // cholesky decomposition for A = sV'Z W Z' sV
+  Eigen::VectorXd b(sVtZW * Ztu); // ksV x 1: sV'Z W Z'u
+  Eigen::VectorXd phi(Adec.solve(b));
+  
+  // 3. moment 
+  Eigen::VectorXd mom(Ztu - ZtsV * phi);
+  
+  // 4. Structural parameters
+  Eigen::VectorXd thetastr(Kv + 1);
+  if (asymmetry) {
+    // phi = betah - betal, gamma
+    // so betah = phi(0) + betal
+    thetastr << betal, phi(0) + betal, phi.tail(Kv - 1);
+  } else {
+    // phi = gamma
+    thetastr << betal, phi;
+  }
+  
+  // 4. Output. 
+  return Rcpp::List::create(Rcpp::_["estimate"] = thetastr,
+                            Rcpp::_["moment"]   = mom);
+}
+
+////////////////////////////////////////////////////////////////////////
+//////////////// Computes the structural parameters ////////////////////
+/////////////////////// and Asymmetric Variance ////////////////////////
+/////////////////////////// Bootstrap Version //////////////////////////
+////////////////////////////////////////////////////////////////////////
+// [[Rcpp::export]]
+Rcpp::List fAsyparmsVar_bt(const std::vector<std::vector<Eigen::VectorXd>>& outbt,
+                        const Eigen::VectorXd& theta0,
+                        const Eigen::VectorXd& Zeta0,
+                        const bool& asymmetry,
+                        const bool& spillover) {
+  int nboot  = outbt.size();
+  int Ktheta = theta0.size();
+  int Kz     = outbt[0][1].size();
+  
+  // 1. Structural theta for the original sample
+  Eigen::VectorXd thetastr0(Ktheta);
+  if (spillover) {
+    if (asymmetry) {
+      // theta(0) = betal
+      // theta(1) = betal + delta, so delta = theta(1) - theta(0)
+      // theta(2) = betah - betal, so betah = theta(2) + theta(0)
+      thetastr0 << theta0(0), theta0(2) + theta0(0), theta0(1) - theta0(0), theta0.tail(Ktheta - 3);
+    } else {
+      // theta(0) = beta
+      // theta(1) = beta + delta, so delta = theta(1) - theta(0)
+      thetastr0 << theta0(0), theta0(1) - theta0(0), theta0.tail(Ktheta - 2);
+    }
+  } else {
+    if (asymmetry) {
+      // theta(0) = betal
+      // theta(1) = betah - betal, so betah = theta(1) + theta(0)
+      thetastr0 << theta0(0), theta0(1) + theta0(0), theta0.tail(Ktheta - 2);
+    } else {
+      // theta(0) = beta
+      thetastr0 = theta0;
+    }
+  }
+
+  // 2. Bootstrap theta and moments
+  Eigen::MatrixXd theta_bt(Ktheta, nboot);
+  Eigen::MatrixXd mom_bt(Kz, nboot);
+  for (int k = 0; k < nboot; ++ k) {
+    theta_bt.col(k) = outbt[k][0];
+    mom_bt.col(k)   = outbt[k][1];
+  }
+  
+  // 3 Covariance for thetastr
+  Eigen::MatrixXd Vstr;
+  {
+    Eigen::ArrayXd theta_bar = theta_bt.array().rowwise().mean();
+    Vstr = theta_bt.array().colwise() - theta_bar;
+    Vstr = Vstr * Vstr.transpose() / (nboot - 1);
+  }
+  
+  // 4. J stat
+  Eigen::MatrixXd Omega_bt;
+  {
+    // Eigen::ArrayXd mom_bar = mom_bt.array().rowwise().mean();
+    // Omega_bt = mom_bt.array().colwise() - mom_bar;
+    Omega_bt = mom_bt * mom_bt.transpose() / (nboot - 1);
+  }
+  
+  double stat = Zeta0.dot(Omega_bt.colPivHouseholderQr().solve(Zeta0));
+  
+  // 5. Bootstrap J
+  Eigen::ArrayXd stat_bt(nboot);
+  for (int k = 0; k < nboot; ++ k) {
+    stat_bt(k) = mom_bt.col(k).dot(Omega_bt.colPivHouseholderQr().solve(mom_bt.col(k)));
+  }
+  
+  // 6. P-value
+  double prob = (stat_bt.array() >= stat).cast<double>().mean();
+  
+  // 7. test for asymmetry
+  Eigen::ArrayXd TestAsym(3);
+  if (asymmetry) {
+    TestAsym(0) = thetastr0(1) - thetastr0(0); // betah - betal
+    TestAsym(1) = Vstr(0, 0) + Vstr(1, 1) - 2 * Vstr(0, 1);
+    TestAsym(2) = 1 - R::pchisq(TestAsym(0) * TestAsym(0) / TestAsym(1), 1, 1, 0);
+    TestAsym(1) = sqrt(TestAsym(1));
+  }
+  
+  return Rcpp::List::create(Rcpp::_["estimate"] = thetastr0,
+                            Rcpp::_["cov"]      = Vstr,
+                            Rcpp::_["serr"]     = std::numeric_limits<double>::quiet_NaN(),
+                            Rcpp::_["serriso"]  = std::numeric_limits<double>::quiet_NaN(),
+                            Rcpp::_["serrniso"] = std::numeric_limits<double>::quiet_NaN(),
+                            Rcpp::_["Jstat"]    = stat,
+                            Rcpp::_["Jdf"]      = Kz - Ktheta,
+                            Rcpp::_["Jprob"]    = prob,
+                            Rcpp::_["TestAsym"] = TestAsym);
+}
 // ///////////////////////////////////////////////////////////////////////
 // ////////////////////////////// Structures /////////////////////////////
 // ///////////////////////////////////////////////////////////////////////

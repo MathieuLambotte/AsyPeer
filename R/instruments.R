@@ -293,7 +293,9 @@ gen.instrument <- function(formula,
     if (full){ # In this case we also predict Gy exogenously
       ARG       <- list(Gy = ybar, insyBar = insyBar, GinsChey = GinsChey, 
                        id_fold = id_fold_i, estimatorint = estimatorint,  nthread = nthread, ...)
+
       insyBar   <- do.call(mpredict_bar, ARG)
+
       out       <- cbind(insyBar, insChey)
       colnames(out) <- c("y_bar_hat", "y_check_hat")
     } else {

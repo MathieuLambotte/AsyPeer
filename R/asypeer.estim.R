@@ -702,7 +702,7 @@ print.summary.asypeer.estim <- function(x, ...) {
       }
     }
   } else{
-    warning("Conformity parameter lower than -0.5; total Peer effects are outside the [-1, 1] interval.")
+    warning("\nConformity parameter lower than -0.5; total Peer effects are outside the [-1, 1] interval.")
   }
   
   class(x) <- "print.summary.asypeer.estim"

@@ -562,8 +562,9 @@ asypeer.estim <- function(formula,
 #'   These include an F-test of the first-stage regression for weak instruments, a Wu-Hausman test
 #'   for endogeneity, and a Hansen's J-test for overidentifying restrictions (the latter only when
 #'   the number of instruments exceeds the number of regressors).
-#' @param KPtest A logical value indicating whether a Kleibergen-Paap Wald test (5% level) should be performed in addition to the standard F test 
-#'   of the first-stage regression for weak instruments.
+#' @param KP A logical value indicating whether a Kleibergen-Paap Wald test should be performed in addition to the standard F test 
+#'   of the first-stage regression for weak instruments. should be performed instead of the standard F test.
+#' @param SW Logical value indicating whether the Sanderson–Windmeijer conditional F-statistic is computed instead of the classical first-stage F-statistic.
 #' @param nthread A strictly positive integer specifying the number of threads used in
 #'   computationally intensive steps of the estimation procedure.
 #' @param x An object of class \code{\link{summary.asypeer.estim}} or \code{\link{asypeer.estim}} as returned by the function \link{summary.asypeer.estim} or \link{asypeer.estim}, respectively.
@@ -586,7 +587,8 @@ asypeer.estim <- function(formula,
 summary.asypeer.estim <- function(object, 
                                   diagnostic  = FALSE, 
                                   diagnostics = FALSE,
-                                  KPtest      = diagnostics || diagnostic,  
+                                  SW          = FALSE,
+                                  KP          = diagnostics || diagnostic,  
                                   nthread     = 1L,
                                   ...) {
   stopifnot(inherits(object, "asypeer.estim"))
@@ -597,7 +599,7 @@ summary.asypeer.estim <- function(object,
       warning("OpenMP is not available. Sequential processing is used.")
       nthread <- tp
     }
-    diagn <- fdiagnostic(object, KPtest, nthread)
+    diagn <- fdiagnostic(object, KP, SW, nthread)
   }
   yname   <- object$model.info$yname
   xnames  <- object$model.info$xnames

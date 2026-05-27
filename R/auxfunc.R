@@ -378,7 +378,7 @@ fprintcoeft <- function(coef) {
 }
 
 #' @importFrom stats pf
-fdiagnostic <- function(object, KPtest, nthread) {
+fdiagnostic <- function(object, KP, SW, nthread) {
   fixed.effects <- object$model.info$fixed.effects
   spillover <- object$model.info$spillover
   asymmetry <- object$model.info$asymmetry
@@ -417,34 +417,43 @@ fdiagnostic <- function(object, KPtest, nthread) {
   Kinc   <- ncol(Z) - length(index)
   
   ## Weak instrument test
-  tpF    <- fFstat(y = endo, X = Z, index = index, cumsn = cumsn, HAC = HACn, 
-                   nthread = nthread)
-  tpKP    <- NULL
-  if (KPtest) {
-    xname <- object$model.info$xname
-    zname <- object$model.info$zname
-    tpKP  <- fKPstat(endo = endo, Z = Z, K = Kinc, cumsn = cumsn, 
+  if (!asymmetry) {
+    SW  <- FALSE
+  }
+  
+  tpF   <- NULL
+
+  if (SW) {
+    tpF <- fswstat(endo = endo, Z = Z, K = Kinc, nthread = nthread)
+    rownames(tpF) <- paste0("Weak instruments - Cond. F (", c("ybar", "ycheck"), ")")
+  } else {
+    tpF <- fFstat(endo = endo, Z = Z, K = Kinc, cumsn = cumsn, 
+                  cluster = (HACn == 3), nthread = nthread)
+    rn  <- if (asymmetry) {
+      paste0("Weak instruments F (", c("ybar", "ycheck"), ")")
+    } else {
+      "Weak instruments F"
+    }
+    rownames(tpF) <- rn
+  }
+  out   <- tpF
+  
+  # LM test KP
+  tpKP  <- NULL
+  if (KP) {
+    tpKP <- fKPstat(endo = endo, Z = Z, K = Kinc, cumsn = cumsn, 
                      cluster = (HACn == 3))
+    rownames(tpKP) <- "Kleibergen-Paap rk Wald (LM)"
+    out  <- rbind(out, tpKP)
   }
   
+  ### Sargan
+  tpS    <- matrix(c(object$gmm$Sargan$df, NA, 
+                     object$gmm$Sargan$stat, object$gmm$Sargan$pvalue), 1)
+  rownames(tpS) <- "Sargan J"
+  out    <- rbind(out, tpS)
   
-  out    <- cbind(df1        = unlist(c(rep(tpF$df1, 1 + asymmetry), tpKP$df, 
-                                        object$gmm$Sargan["df"])),
-                  df2        = c(rep(tpF$df2, 1 + asymmetry), rep(NA, 1 + KPtest)),
-                  statistic  = unlist(c(tpF$F, tpKP$stat, object$gmm$Sargan["stat"])),
-                  "p-value"  = unlist(c(rep(NA, 1 + asymmetry), tpKP["pvalue"], object$gmm$Sargan["pvalue"])))
-  out[1:(1 + asymmetry), 4]   <- pf(out[1:(1 + asymmetry), 3], out[1:(1 + asymmetry), 1], out[1:(1 + asymmetry), 2], lower.tail = FALSE)
-  rn            <- if (asymmetry) {
-    paste0("Weak instruments (", c("ybar", "ycheck"), ")")
-  } else {
-    "Weak instruments"
-  }
-  if (KPtest) {
-    rn          <- c(rn, "Kleibergen-Paap rk Wald", "Sargan J")
-  } else {
-    rn          <- c(rn, "Sargan J")
-  }
-  rownames(out) <- rn
+  colnames(out) <- c("df1", "df2", "statistic", "p-value")
   out
 }
 

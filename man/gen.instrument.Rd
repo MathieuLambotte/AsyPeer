@@ -12,7 +12,7 @@ gen.instrument(
   Glist,
   data,
   asymmetry = TRUE,
-  estimator = c("ols", "logit"),
+  estimator = "ols",
   power = c(1, 1),
   full = FALSE,
   nfold = 2,

@@ -1,66 +1,75 @@
-#' @title Estimating the Asymmetric Peer Effects Model
+#' @title Estimate the Asymmetric Peer Effects Model
 #'
-#' @param formula An object of class \link[stats]{formula}: a symbolic description of the model. 
-#'   `formula` should be specified as \code{y ~ x1 + x2 + ....}, where `y` is the outcome and `x1`, `x2`, .... 
-#'   are the vectors or matrices of control variables, which may include contextual variables such as averages among peers.
+#' @param formula An object of class \link[stats]{formula}: a symbolic description 
+#'   of the model. It should be specified as \code{y ~ x1 + x2 + ...}, where 
+#'   \code{y} is the outcome variable and \code{x1}, \code{x2}, ... are control 
+#'   variables, which may include contextual variables such as peer averages.
 #'
-#' @param excluded.instruments A \link[stats]{formula} specifying the excluded
-#'   instruments. It should be written as \code{~ z1 + z2 + ...}, where \code{z1},
-#'   \code{z2}, ... are the vectors or matrices of excluded instruments for the two
-#'   endogenous variables in the asymmetric model: the average peers' outcomes and
-#'   the average difference in outcomes between an agent and her peers who have a
-#'   higher outcome. If omitted, default instruments are generated using
-#'   \link{gen.instrument}.
+#' @param excluded.instruments A \link[stats]{formula} specifying the excluded 
+#'   instruments. It should be written as \code{~ z1 + z2 + ...}, where 
+#'   \code{z1}, \code{z2}, ... are the excluded instruments for the two endogenous 
+#'   variables in the asymmetric model: the average peers' outcomes and the average 
+#'   difference in outcomes between an agent and her higher-performing peers. If 
+#'   omitted, default instruments are generated using \link{gen.instrument}.
 #'
-#' @param common.gamma A character vector indicating the control variables assumed to have the same marginal effect on marginal utility for isolated and non-isolated agents. 
-#' If omitted, all control variables are included. A value of \code{NULL} or \code{character(0)} indicates that none of the variables.
+#' @param common.gamma A character vector indicating the control variables assumed 
+#'   to have the same marginal effect on marginal utility for isolated and 
+#'   non-isolated agents. If omitted, all control variables are included. A value 
+#'   of \code{NULL} or \code{character(0)} indicates that none are included.
 #'
-#' @param Glist The adjacency matrix. For networks consisting of multiple subnets (e.g., schools), 
-#'   `Glist` must be a list of subnets, with the \code{s}-th element being an \eqn{n_s \times n_s} 
-#'   adjacency matrix, where \eqn{n_s} is the number of nodes in the \code{s}-th subnet.
+#' @param Glist The adjacency matrix or list of adjacency matrices. For networks 
+#'   consisting of multiple subnets (e.g., schools), \code{Glist} must be a list, 
+#'   where the \code{s}-th element is an \eqn{n_s x n_s} adjacency matrix and 
+#'   \eqn{n_s} is the number of nodes in subnet \code{s}.
 #'
-#' @param data An optional data frame, list, or environment (or an object that can be coerced to a 
-#'   data frame via \link[base]{as.data.frame}) containing the variables in the model. If a variable 
-#'   is not found in `data`, it is taken from \code{environment(formula)}, typically the environment 
-#'   from which `asypeer.estim` is called.
+#' @param data An optional data frame, list, or environment (or an object that can 
+#'   be coerced to a data frame via \link[base]{as.data.frame}) containing the 
+#'   variables in the model. If a variable is not found in \code{data}, it is 
+#'   retrieved from \code{environment(formula)}, typically the environment from 
+#'   which \code{asypeer.estim} is called.
 #'
-#' @param weight A character string specifying the weighting matrix used in the GMM estimation. 
-#'   Available options are: `"identity"` for GMM with the identity matrix as the weighting matrix; 
-#'   `"IV"` for the standard instrumental-variable GMM estimator; and `"optimal"` for GMM with the 
-#'   optimal weighting matrix.
-#'   
-#' @param nboot The number of bootstrap simulations when `HAC = "cluster"`.
+#' @param weight A character string specifying the weighting matrix used in GMM 
+#'   estimation. Available options are \code{"identity"} for GMM with the identity 
+#'   matrix, \code{"IV"} for the standard instrumental-variable GMM estimator, and 
+#'   \code{"optimal"} for GMM with the optimal weighting matrix.
 #'
-#' @param tol A tolerance value used in the QR factorization to detect collinear columns in the 
-#'   matrices of explanatory variables and instruments, ensuring a full-rank matrix (see 
-#'   \link[base]{qr}).
+#' @param nboot The number of bootstrap replications when \code{HAC = "cluster"}.
 #'
-#' @param HAC A character string specifying the correlation structure of the idiosyncratic errors
-#'   used for covariance estimation. Options are `"iid"` for independent errors; `"group iid"` for
-#'   independence within the groups of isolated and non-isolated players; `"hetero"` for
-#'   heteroskedastic but non-autocorrelated errors; `"cluster"` for heteroskedastic errors with
-#'   potential within-subnetwork correlation; and `"cboot"` for the pair-bootstrap version of
-#'   `"cluster"`.
+#' @param tol A numeric tolerance used in QR factorization to detect collinear 
+#'   columns in the matrices of explanatory variables and instruments, ensuring a 
+#'   full-rank matrix (see \link[base]{qr}).
 #'
-#' @param fixed.effects A logical value indicating whether the model includes subnetwork fixed effects.
+#' @param HAC A character string specifying the correlation structure of the 
+#'   idiosyncratic errors used for covariance estimation. Options are 
+#'   \code{"iid"} for independent errors; \code{"group iid"} for independence within 
+#'   groups of isolated and non-isolated agents; \code{"hetero"} for 
+#'   heteroskedastic but non-autocorrelated errors; \code{"cluster"} for 
+#'   heteroskedastic errors with within-subnetwork correlation; and 
+#'   \code{"cboot"} for the pair-bootstrap version of \code{"cluster"}.
 #'
-#' @param nthread Number of CPU cores (threads) used to run parts of the estimation in parallel.
+#' @param fixed.effects A logical value indicating whether subnetwork fixed effects 
+#'   are included in the model.
+#'
+#' @param nthread The number of CPU cores (threads) used for parallel computation.
+#'
+#' @param drop A logical vector of the same length as the sample, indicating which 
+#'   observations should be dropped. This can be used, for example, to remove false 
+#'   isolates or to estimate the model only for non-isolated agents. These 
+#'   observations cannot be removed from the network structure because they may 
+#'   remain connected to other agents.
+#'
+#' @param spillover A logical value indicating whether the model includes an 
+#'   additional spillover component alongside the asymmetric conformity effect.
+#'
+#' @param asymmetry A logical value indicating whether preferences for conformity 
+#'   are asymmetric.
+#'
+#' @param tol.optim A numeric tolerance used in \link[stats]{optimize}. The objective 
+#'   function is concentrated in a function of \eqn{\beta_l} or \eqn{\beta} alone, 
+#'   which is optimized using \link[stats]{optimize}.
+#'
+#' @param ... Further arguments passed to or from other methods.
 #' 
-#' @param drop A dummy vector of the same length as the sample, indicating whether an observation should be dropped.
-#' This can be used, for example, to remove false isolates or to estimate the model only on non-isolated agents.
-#' These observations cannot be directly removed from the network by the user because they may still be friends with other agents.
-#'   
-#' @param spillover A logical value indicating if the model included a spillover component in additional to the asymmetric conformity effect.
-#'    
-#' @param asymmetry A logical value indicating if the preference for conformity is asymmetric or not.
-#' 
-#' @param tol.optim The tolerance value for \link[stats]{optimize}. 
-#'   The objective function is concentrated in a 
-#'   function of \eqn{\beta_l} or \eqn{\beta} alone, which is optimized 
-#'   using \link[stats]{optimize}.
-#' 
-#' @param ... Further arguments passed to or from other methods.   
-#'
 #' @return A list containing:
 #'     \item{model.info}{A list with information about the model, such as the number of subnets, number of observations, and other key details.}
 #'     \item{gmm}{A list of GMM estimation results, including parameter estimates, the covariance matrix, and related statistics.}
@@ -147,6 +156,7 @@ asypeer.estim <- function(formula,
     Z      <- do.call(gen.inst, ARG)
     detInst$estimator <- Z$model.info$estimator
     detInst$power     <- Z$model.info$power
+    detInst$full.pred <- Z$model.info$full
     Z                 <- Z$instruments
     zname             <- colnames(Z)
   }  else {
@@ -619,14 +629,17 @@ print.summary.asypeer.estim <- function(x, ...) {
   sig_niso     <- x$gmm$sigma["nonisolates"]
   FE           <- x$model.info$fixed.effects
   
-  inst   <- ""
+  inst     <- ""
   if (is.null(x$model.info$excluded.instruments)) {
-    inst <- paste("(G^p)X with max(p) =", max(x$model.info$power))
+    if (x$model.info$full.pred) {
+      inst <- ifelse(x$model.info$asymmetry, "predictions of y_bar and y_check", 
+                     "predictions of y_bar")
+    } else {
+      inst <- paste("(G^p)X with max(p) =", max(x$model.info$power),
+                    ifelse(x$model.info$asymmetry, "and predictions of y_check", ""))
+    }
   }
-  
-  if (x$model.info$asymmetry) {
-    inst <- paste(inst, "and y_check predictions")
-  } 
+
   cat("Formula: ", deparse(x$model.info$formula),
       "\nExcluded instruments: ", ifelse(!is.null(x$model.info$excluded.instruments), 
                                          deparse(x$model.info$excluded.instruments),

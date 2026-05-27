@@ -44,7 +44,8 @@ fcheckrank <- function(X, tol = 1e-10) {
   which(fcheckrankEigen(X, tol)) - 1
 }
 
-mpredict  <- function(ddyext, ddyint, ddX, id_fold, 
+############ Function to predict ych
+mpredict_ch  <- function(ddyext, ddyint, ddX, id_fold, 
                       estimatorext, estimatorint, nthread, ...){
   #Given a vector of fold id, create a list of the corresponding row of each ddyad
   # belonging in each fold
@@ -67,11 +68,11 @@ mpredict  <- function(ddyext, ddyint, ddX, id_fold,
   registerDoRNG(seed)
   
   lycheckh <- foreach(k         = id_list, 
-                      .export   = "mpredict_fold", #comment out
+                      .export   = "mpredict_fold_ch", #comment out
                       .packages = c("ranger", "xgboost", "glmnet", "AsyPeer") 
   ) %dorng% {
     #each observation in fold k is predicted using a model trained
-    do.call(mpredict_fold, c(ARG, list(id_listk = k)))
+    do.call(mpredict_fold_ch, c(ARG, list(id_listk = k)))
   }
   
   ycheckh  <- numeric(length(ddyext))
@@ -82,7 +83,7 @@ mpredict  <- function(ddyext, ddyint, ddX, id_fold,
 }
 
 
-mpredict_fold <-function(ddX, ddyext, ddyint, id_listk, 
+mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk, 
                          estimatorext, estimatorint, ...){
   exthat <- NULL
   inthat <- NULL
@@ -188,6 +189,103 @@ mpredict_fold <-function(ddX, ddyext, ddyint, id_listk,
   return(exthat * inthat)
 }
 
+
+############ Function to predict ych
+mpredict_bar  <- function(Gy, insyBar, GinsChey, id_fold, estimatorint, nthread, ...){
+  # Given a vector of fold id, create a list of the corresponding row of each ddyad
+  # belonging in each fold
+  id_list <- split(seq_along(id_fold), id_fold)
+  seed    <- as.integer(runif(1, 0, 1e9))
+
+  # Prediction
+  cl      <- NULL
+  on.exit({
+    registerDoSEQ()
+    try(stopCluster(cl), silent = TRUE)
+  }, add = TRUE)
+  
+  cl      <- makeCluster(nthread)
+  registerDoParallel(cl)
+  registerDoRNG(seed)
+  
+  ARG     <- list(Gy = Gy, insyBar = insyBar, GinsChey = GinsChey,
+                  estimatorint = estimatorint, ...)
+  lybarh  <-  foreach(k         = id_list, 
+                      .export   = "mpredict_fold_bar", #comment out
+                      .packages = c("ranger", "xgboost", "glmnet", "AsyPeer") 
+  ) %dorng% {
+    #each observation in fold k is predicted using a model trained
+    print(k)
+    do.call(mpredict_fold_bar, c(ARG, list(id_listk = k)))
+  }
+
+  ybarh   <- numeric(length(Gy))
+  for (k in 1:length(id_list)) {
+    ybarh[id_list[[k]]] <- lybarh[[k]]
+  }
+  return(ybarh)
+}
+
+
+mpredict_fold_bar <-function(Gy, insyBar, GinsChey, id_listk, estimatorint, ...){
+  ybarh  <- NULL
+  dots   <- list(...)
+  
+  # Y for the train sample
+  Gy_train  <- Gy[-id_listk]
+  if (is.null(GinsChey)) {
+    # X for fold k
+    X_k     <- data.frame(insyBar[id_listk, , drop = FALSE])
+    # X for other folds
+    X_train <- data.frame(insyBar[-id_listk, ,drop = FALSE])
+  } else {
+    # X for fold k
+    X_k     <- data.frame(insyBar[id_listk, , drop = FALSE],
+                          GinsChey[id_listk, , drop = FALSE])
+    # X for other folds
+    X_train <- data.frame(insyBar[-id_listk, ,drop = FALSE],
+                          GinsChey[-id_listk, , drop = FALSE])
+  }
+ 
+  # Estimation 
+  if (estimatorint == "OLS") {
+    
+    dotname     <- setdiff(names(formals(lm)), c("formula", "data", "..."))
+    ARG         <- c(list(formula = Gy_train ~ ., data = X_train),
+                     dots[names(dots) %in% dotname])
+    model_train <- do.call(lm, ARG) 
+    ybarh       <- predict(model_train, newdata = X_k)
+    
+  } else if (estimatorint == "Random Forest") {
+    
+    dotname     <- setdiff(names(formals(ranger)), c("formula", "data", "..."))
+    ARG         <- c(list(formula = Gy_train ~ ., data = X_train),
+                     dots[names(dots) %in% dotname])
+    model_train <- do.call(ranger, ARG)  
+    ybarh       <- predict(model_train, data = X_k)$predictions
+    
+  } else if (estimatorint == "XGBoost") {
+    
+    ARG         <- c(list(y = Gy_train, x = X_train, objective = "reg:squarederror"),
+                     dots)
+    model_train <- do.call(xgboost, ARG)  
+    ybarh       <- predict(model_train, newdata = X_k)
+    
+  } else if (estimatorint == "LASSO") {
+    
+    dotname     <- setdiff(names(formals(cv.glmnet)), c("y", "x", "alpha", "..."))
+    ARG         <- c(list(y = Gy_train, x = as.matrix(X_train), alpha = 1),
+                     dots[names(dots) %in% dotname])
+    fitlasso    <- do.call(cv.glmnet, ARG) 
+    ybarh       <- as.numeric(predict(fitlasso, newx = as.matrix(X_k), 
+                                      s = "lambda.min"))
+  }
+  
+  return(ybarh)
+}
+
+
+########## Transform formulat to data
 formula2data <- function(formula,
                          data, 
                          simulations   = FALSE,

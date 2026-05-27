@@ -97,14 +97,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // fassignfold
-Eigen::ArrayXi fassignfold(const Eigen::ArrayXi& ddgroup, const int& nfold);
-RcppExport SEXP _AsyPeer_fassignfold(SEXP ddgroupSEXP, SEXP nfoldSEXP) {
+Eigen::ArrayXi fassignfold(const Eigen::ArrayXi& group, const int& nfold);
+RcppExport SEXP _AsyPeer_fassignfold(SEXP groupSEXP, SEXP nfoldSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type ddgroup(ddgroupSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type group(groupSEXP);
     Rcpp::traits::input_parameter< const int& >::type nfold(nfoldSEXP);
-    rcpp_result_gen = Rcpp::wrap(fassignfold(ddgroup, nfold));
+    rcpp_result_gen = Rcpp::wrap(fassignfold(group, nfold));
     return rcpp_result_gen;
 END_RCPP
 }

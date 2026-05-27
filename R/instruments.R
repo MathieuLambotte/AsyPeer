@@ -1,48 +1,66 @@
-#' @title Generating Instruments for the Asymmetric Peer Effects Model
+#' @title Generate Instruments for the Asymmetric Peer Effects Model
 #'
-#' @param formula An object of class \link[stats]{formula}: a symbolic description of the model. 
-#'   The formula should be specified as \code{y ~ x1 + x2}, where \code{y} is the outcome and `x1`, `x2`, .... 
-#'   are the vectors or matrices of control variables, which may include contextual variables such as 
-#'   peer averages.
-#' @param ... Further arguments passed to or from other methods.  
-#' @param Glist The adjacency matrix or list of adjacency matrices. For networks composed of 
-#'   multiple subnets (e.g., schools), \code{Glist} must be a list, where the \code{s}-th element 
-#'   is an \eqn{n_s \times n_s} adjacency matrix, and \eqn{n_s} is the number of nodes in the 
-#'   \code{s}-th subnet.
+#' @param formula An object of class \link[stats]{formula}: a symbolic description 
+#'   of the model. The formula should be specified as \code{y ~ x1 + x2}, where 
+#'   \code{y} is the outcome variable and \code{x1}, \code{x2}, ... are control 
+#'   variables, which may include contextual variables such as peer averages.
 #'
-#' @param data An optional data frame, list, or environment (or an object that can be coerced to a 
-#'   data frame via \link[base]{as.data.frame}) containing the variables in the model. If a variable 
-#'   is not found in \code{data}, it is searched for in \code{environment(formula)}, typically the 
-#'   environment from which \code{gen.instrument} is called.
+#' @param ... Further arguments passed to or from other methods.
 #'
-
-#' @param estimator A vector of two character strings specifying the estimators 
-#' used for the extensive margin \eqn{P(y_j > y_i)} and the intensive margin 
-#' \eqn{E(y_j - y_i \mid y_j - y_i > 0)}.
+#' @param Glist The adjacency matrix or a list of adjacency matrices. For networks 
+#'   composed of multiple subnets (e.g., schools), \code{Glist} must be a list, 
+#'   where the \code{s}-th element is an \eqn{n_s \times n_s} adjacency matrix, 
+#'   and \eqn{n_s} is the number of nodes in subnet \code{s}.
 #'
-#' Supported parametric options include `"ols"` and `"lasso"` for linear models, 
-#' and `"glm"` for generalized linear models (only for the extensive margin). 
-#' Nonparametric options include `"rf"` (random forest) and `"xgboost"` 
-#' (gradient boosting).
+#' @param data An optional data frame, list, or environment (or an object that can 
+#'   be coerced to a data frame via \link[base]{as.data.frame}) containing the 
+#'   variables in the model. If a variable is not found in \code{data}, it is 
+#'   searched for in \code{environment(formula)}, typically the environment from 
+#'   which \code{gen.instrument} is called.
 #'
-#' For example, `estimator = c("glm", "xgboost")` uses a generalized linear model 
-#' for the extensive margin and gradient boosting for the intensive margin.
+#' @param drop A logical vector of the same length as the sample, indicating which 
+#'   observations should be dropped. This can be used, for example, to remove false 
+#'   isolates or to estimate the model only on non-isolated agents. These 
+#'   observations cannot be physically removed from the network structure because 
+#'   they may still be connected to other agents.
 #'
-#' @param power A numeric vector of length 2 indicating the maximum walk lengths to be used (typically k in \eqn{G^kX}). 
-#' The two entries allow specifying a different value of k for each endogenous variable.
+#' @param estimator A character vector of length 2 specifying the estimators used 
+#'   for the intensive margin \eqn{E(y_j - y_i \mid y_j - y_i > 0)} (or \eqn{E(\bar{y}_i})) 
+#'   and the extensive margin \eqn{P(y_j > y_i)}.
 #'
-#' @param nfold A strictly positive integer specifying the number of folds used when estimating the probability model via cross-fitting.
-#' @param drop A dummy vector of the same length as the sample, indicating whether an observation should be dropped.
-#' This can be used, for example, to remove false isolates or to estimate the model only on non-isolated agents.
-#' These observations cannot be directly removed from the network by the user because they may still be friends with other agents.
+#'   Supported parametric options include \code{"ols"} and \code{"lasso"} for linear 
+#'   models, and \code{"glm"} for generalized linear models (only for the extensive 
+#'   margin). Nonparametric options include \code{"rf"} (random forest) and 
+#'   \code{"xgboost"} (gradient boosting).
 #'
-#' @param checkrank A logical value indicating whether the linearly dependent columns in the matrix of generated instruments should be drooped.
-#' @param nthread Number of CPU cores (threads) used to run parts of the estimation in parallel.
-#' @param tol A numeric tolerance used in QR factorization to detect linearly dependent columns in the 
-#'   matrices of explanatory variables and instruments, ensuring a full-rank matrix 
-#'   (see \link[base]{qr}).
-#' @param asymmetry A logical value indicating if the preference for conformity is asymmetric or not.
-#' 
+#'   For example, \code{estimator = c("xgboost", "glm")} uses gradient boosting for 
+#'   the intensive margin and a generalized linear model for the extensive margin.
+#'
+#' @param power A numeric vector of length 2 indicating the maximum walk lengths 
+#'   (typically \eqn{k} in \eqn{G^k X}) used to construct or estimate instruments for 
+#'   \eqn{\bar{y}_i} and \eqn{\check{y}_i}. The two entries allow different values 
+#'   of \eqn{k} for each endogenous variable.
+#'
+#' @param nfold A strictly positive integer specifying the number of folds used for 
+#'   cross-fitting in the estimation of the probability model.
+#'
+#' @param checkrank A logical value indicating whether linearly dependent columns 
+#'   in the matrix of generated instruments should be dropped.
+#'
+#' @param nthread Number of CPU cores (threads) used to run parts of the estimation 
+#'   in parallel.
+#'
+#' @param tol A numeric tolerance used in QR factorization to detect linearly 
+#'   dependent columns in the matrices of explanatory variables and instruments, 
+#'   ensuring a full-rank matrix (see \link[base]{qr}).
+#'
+#' @param asymmetry A logical value indicating whether preferences for conformity 
+#'   are asymmetric.
+#'
+#' @param full A logical value. If \code{TRUE}, predictions for both 
+#'   \eqn{\bar{y}_i} and \eqn{\check{y}_i} are used as instruments. If \code{FALSE}, 
+#'   only the prediction for \eqn{\check{y}_i} is used as an instrument, while 
+#'   \eqn{\bar{y}_i} is instrumented using the usual instruments, \eqn{G^k X}.
 #' @description
 #' `gen.instrument` generates instruments for the endogenous variables in asymmetric peer effects models.
 #' @return A list containing:
@@ -82,20 +100,21 @@
 #' 
 #' ### Generating instruments
 #' ins <- gen.instrument(formula = y ~ X, Glist = Gnorm, 
-#'                       estimator = c("logit", "ols"))}
+#'                       estimator = c("ols", "logit"))}
 #'  
 #' @export
 gen.instrument <- function(formula,
                            Glist, 
                            data,
                            asymmetry = TRUE,
-                           estimator = c("logit", "ols"),
+                           estimator = c("ols", "logit"),
                            power     = c(1, 1),
+                           full      = FALSE,
                            nfold     = 2,
                            checkrank = TRUE,
                            tol       = 1e-10,
                            nthread   = 1,
-                           drop = NULL,
+                           drop      = NULL,
                            ...) {
   ## power for G
   power   <- as.integer(power)
@@ -109,35 +128,49 @@ gen.instrument <- function(formula,
   }
   
   ## estimator
-  if (length(estimator) == 1) {
-    estimator    <- rep(estimator, 2)
+  if (!asymmetry & full){
+    if (length(estimator) != 1) {
+      stop("A single prediction method is required for the symmetric model.")
+    }
+  } else if (asymmetry) {
+    if (length(estimator) == 1) {
+      estimator    <- rep(estimator, 2)
+    } 
+    if (length(estimator) != 2) {
+      stop("Two prediction methods (for intensive and extensive margins) are required for the asymmetric model.")
+    }
   }
   
-  if (tolower(estimator[1]) %in% c("lin", "linear", "ols", "lm")) {
-    estimator[1] <- "OLS"
-  } else if (tolower(estimator[1]) %in% c("logit", "logistic")) {
-    estimator[1] <- "Logit"
-  } else if (tolower(estimator[1]) %in% c("rf", "r-f", "random forest", "random-forest", "randomforest")) {
-    estimator[1] <- "Random Forest"
-  } else if (tolower(estimator[1]) %in% c("xgboost")) {
-    estimator[1] <- "XGBoost"
-  } else if (tolower(estimator[1]) %in% c("lasso")) {
-    estimator[1] <- "LASSO"
-  } else {
-    stop("This estimator is not available.")
+  estimatorint <- NULL
+  estimatorext <- NULL
+  if (length(estimator) >= 1) {
+    if (tolower(estimator[1]) %in% c("lin", "linear", "ols", "lm")) {
+      estimatorint <- "OLS"
+    }  else if (tolower(estimator[1]) %in% c("rf", "r-f", "random forest", "random-forest", "randomforest")) {
+      estimatorint <- "Random Forest"
+    } else if (tolower(estimator[1]) %in% c("xgboost")) {
+      estimatorint <- "XGBoost"
+    } else if (tolower(estimator[1]) %in% c("lasso")) {
+      estimatorint <- "LASSO"
+    } else {
+      stop("This estimator is not available.")
+    }
   }
   
-  
-  if (tolower(estimator[2]) %in% c("lin", "linear", "ols", "lm")) {
-    estimator[2] <- "OLS"
-  }  else if (tolower(estimator[2]) %in% c("rf", "r-f", "random forest", "random-forest", "randomforest")) {
-    estimator[2] <- "Random Forest"
-  } else if (tolower(estimator[2]) %in% c("xgboost")) {
-    estimator[2] <- "XGBoost"
-  } else if (tolower(estimator[2]) %in% c("lasso")) {
-    estimator[2] <- "LASSO"
-  } else {
-    stop("This estimator is not available.")
+  if (length(estimator) == 2) {
+    if (tolower(estimator[2]) %in% c("lin", "linear", "ols", "lm")) {
+      estimatorext <- "OLS"
+    } else if (tolower(estimator[2]) %in% c("logit", "logistic")) {
+      estimatorext <- "Logit"
+    } else if (tolower(estimator[2]) %in% c("rf", "r-f", "random forest", "random-forest", "randomforest")) {
+      estimatorext <- "Random Forest"
+    } else if (tolower(estimator[2]) %in% c("xgboost")) {
+      estimatorext <- "XGBoost"
+    } else if (tolower(estimator[2]) %in% c("lasso")) {
+      estimatorext <- "LASSO"
+    } else {
+      stop("This estimator is not available.")
+    }
   }
   
   ## Thread
@@ -187,6 +220,11 @@ gen.instrument <- function(formula,
   X        <- cbind(1 - dg, X * (1 - dg), dg, X * dg)
   xname    <- c("iso", paste0("iso_", xname), "niso", paste0("niso_", xname))
   
+  ### ybar
+  endo   <- highlowstat1(X = as.matrix(y), G = Glist, cumsn = cumsn, nvec = nvec, 
+                         ngroup = S, nthread = nthread)
+  ybar   <- as.numeric(endo$Xbar)
+  
   ### Drop
   if (is.null(drop)){
     drop  <- rep(0, n)
@@ -200,71 +238,91 @@ gen.instrument <- function(formula,
   keep    <- !as.logical(drop)
   
   ### Instrument for ybar
-  insBary <- peeravgpower(G = Glist, V = X, cumsn = cumsn, nvec = nvec, 
+  insyBar    <- peeravgpower(G = Glist, V = X, cumsn = cumsn, nvec = nvec, 
                           power = power[1], nthread = nthread)
+  insyBar_cn <- sapply(paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_"), \(x) paste0(x, xname))
+  
+  ### Folds construction for individuals
+  if (nfold > S) {
+    nfold  <- S
+    warning("The number of folds exceeds the number of subnets; it has been reset to the number of subnets.")
+  } 
+  if (nfold == 1) {
+    stop("At lead two folds is required.")
+  }
+  group      <- rep(0:(S - 1), nvec)
+  id_fold_i  <- fassignfold(group, nfold = nfold)
   
   ### Instrument for ycheck
-  out     <- NULL
+  out        <- NULL
   if(asymmetry){
     Xtp      <- peeravgpower(G = Glist, V = X, cumsn = cumsn, nvec = nvec, 
                              power = power[2], nthread = nthread)
     ## Dyadic dada
-    group    <- rep(0:(S - 1), nvec)
     IDi      <- unlist(lapply(1:S, \(s) 0:(nvec[s] - 1)))
     gij      <- lapply(1:n, \(i) Glist[[group[i] + 1]][IDi[i] + 1, idpeer[[i]] + 1])
     ddni     <- sapply(gij, length)
     ddncs    <- c(0, cumsum(ddni))
-    ddkeep   <- rep(keep, ddni)
-    
     tp       <- fdataML(y = y, X = Xtp, group = group, IDi = IDi, gij = gij,
                         idpeer = idpeer, ddni = ddni, ddncs = ddncs, ncs = cumsn,
                         nthread = nthread)
     
-    ddyext   <- as.integer(tp$ddy[ddkeep, 7]) # extensive margin
-    ddyint   <- tp$ddy[ddkeep, 6] - tp$ddy[ddkeep, 5] #intensive margin
+    ddyext   <- as.integer(tp$ddy[, 7]) # extensive margin
+    ddyint   <- tp$ddy[, 6] - tp$ddy[, 5] #intensive margin
     ddX      <- tp$ddXj - tp$ddXi
-    ddX      <- ddX[ddkeep, ,drop = FALSE]
     
     ## Check rank of ddX
     ddX      <- as.data.frame(ddX[, fcheckrank(X = ddX, tol = tol) + 1, drop = FALSE])
     
-    ## Fold construction
-    nfold    <- as.integer(nfold)
-    if (nfold > S) {
-      nfold  <- S
-      warning("The number of folds exceeds the number of subnets; it has been reset to the number of subnets.")
-    } 
-    if (nfold == 1) {
-      stop("At lead two folds is required.")
-    }
-    id_fold  <- fassignfold(tp$ddy[ddkeep, 1], nfold = nfold)
+    ## Fold construction for dyadic
+    nfold      <- as.integer(nfold)
+    id_fold_d  <- fassignfold(tp$ddy[, 1], nfold = nfold)
     
     ## Prediction
-    ARG      <- list(ddyext = ddyext, ddyint = ddyint, ddX = ddX, id_fold = id_fold, 
-                     estimatorext = estimator[1], estimatorint = estimator[2], 
+    ARG      <- list(ddyext = ddyext, ddyint = ddyint, ddX = ddX, id_fold = id_fold_d, 
+                     estimatorext = estimatorext, estimatorint = estimatorint, 
                      nthread = nthread, ...)
+
+    insChey  <- fInstChecky(rhoddX = as.matrix(do.call(mpredict_ch, ARG)), 
+                            ddni = ddni, nthread = nthread)
     
-    insChey  <- fInstChecky(rhoddX = as.matrix(do.call(mpredict, ARG)), ddni = ddni, 
-                            nthread = nthread)
-    
-    insChey  <- peeravgpower(G = Glist, V = insChey, cumsn = cumsn, nvec = nvec, 
+    GinsChey    <- peeravgpower(G = Glist, V = insChey, cumsn = cumsn, nvec = nvec, 
                              power = power[1], nthread = nthread)
+    GinsChey_cn <- sapply(paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_"), \(x) paste0(x, "y_check_hat"))
     
-    out      <- cbind(insBary, insChey)
-    colnames(out) <- c(sapply(c("", paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_")), \(x) paste0(x, xname)),
-                       "y_check_hat", sapply(paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_"), \(x) paste0(x, "y_check_hat")))
+    if (full){ # In this case we also predict Gy exogenously
+      ARG       <- list(Gy = ybar, insyBar = insyBar, GinsChey = GinsChey, 
+                       id_fold = id_fold_i, estimatorint = estimatorint,  nthread = nthread, ...)
+      insyBar   <- do.call(mpredict_bar, ARG)
+      out       <- cbind(insyBar, insChey)
+      colnames(out) <- c("y_bar_hat", "y_check_hat")
+    } else {
+      out       <- cbind(insyBar, insChey, GinsChey)
+      colnames(out) <- c(insyBar_cn, "y_check_hat",  GinsChey_cn)
+    }
+   
   } else {
-    out      <- insBary
-    colnames(out) <- c(sapply(c("", paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_")), \(x) paste0(x, xname)))
+    
+    if (full){ # In this case we also predict Gy exogenously
+      ARG       <- list(Gy = ybar, insyBar = insyBar, GinsChey = NULL, 
+                        id_fold = id_fold_i, estimatorint = estimatorint,  nthread = nthread, ...)
+      insyBar   <- do.call(mpredict_bar, ARG)
+      out       <- as.matrix(insyBar)
+      colnames(out) <- "y_bar_hat"
+    } else {
+      out       <- insyBar
+      colnames(out) <- insyBar_cn
+    }
     
   }
+  
   if (checkrank) {
     keepcol    <- fcheckrank(X = out[keep, , drop = FALSE], tol = tol) + 1
     out        <- out[, keepcol, drop = FALSE]
   }
   out[!keep, ] <- NA
-  list(model.info  = list(power = power, estimator = estimator,
-                          nfold = nfold, tol = tol),
+  list(model.info  = list(power = power, estimator = c(estimatorint, estimatorext), 
+                          nfold = nfold, tol = tol, full = full),
        instruments = out)
 }
 
@@ -274,8 +332,9 @@ gen.instruments <- function(formula,
                             Glist, 
                             data,
                             asymmetry = TRUE,
-                            estimator = c("logit", "ols"),
+                            estimator = c("ols", "logit"),
                             power     = c(1, 1),
+                            full      = FALSE,
                             nfold     = 2,
                             checkrank = TRUE,
                             tol       = 1e-10,
@@ -286,9 +345,8 @@ gen.instruments <- function(formula,
     data  <- env(formula)
   }
   ARG <- list(formula = formula, Glist = Glist, data = data, asymmetry = asymmetry, 
-              estimator = estimator, power = power, nfold = nfold, 
-              checkrank = checkrank, tol = tol, nthread = nthread,
-              drop = drop, ...)
+              estimator = estimator, power = power, full = full, nfold = nfold, 
+              checkrank = checkrank, tol = tol, nthread = nthread, drop = drop, ...)
   do.call(gen.instrument, ARG)
 }
 
@@ -298,8 +356,9 @@ gen.insts <- function(formula,
                       Glist, 
                       data,
                       asymmetry = TRUE,
-                      estimator = c("logit", "ols"),
+                      estimator = c("ols", "logit"),
                       power     = c(1, 1),
+                      full      = FALSE,
                       nfold     = 2,
                       checkrank = TRUE,
                       tol       = 1e-10,
@@ -310,9 +369,8 @@ gen.insts <- function(formula,
     data  <- env(formula)
   }
   ARG <- list(formula = formula, Glist = Glist, data = data, asymmetry = asymmetry, 
-              estimator = estimator, power = power, nfold = nfold, 
-              checkrank = checkrank, tol = tol, nthread = nthread,
-              drop = drop, ...)
+              estimator = estimator, power = power, full = full, nfold = nfold, 
+              checkrank = checkrank, tol = tol, nthread = nthread, drop = drop, ...)
   do.call(gen.instrument, ARG)
 }
 
@@ -322,8 +380,9 @@ gen.inst <- function(formula,
                      Glist, 
                      data,
                      asymmetry = TRUE,
-                     estimator = c("logit", "ols"),
+                     estimator = c("ols", "logit"),
                      power     = c(1, 1),
+                     full      = FALSE,
                      nfold     = 2,
                      checkrank = TRUE,
                      tol       = 1e-10,
@@ -334,8 +393,7 @@ gen.inst <- function(formula,
     data  <- env(formula)
   }
   ARG <- list(formula = formula, Glist = Glist, data = data, asymmetry = asymmetry, 
-              estimator = estimator, power = power, nfold = nfold, 
-              checkrank = checkrank, tol = tol, nthread = nthread,
-              drop = drop, ...)
+              estimator = estimator, power = power, full = full, nfold = nfold, 
+              checkrank = checkrank, tol = tol, nthread = nthread, drop = drop,...)
   do.call(gen.instrument, ARG)
 }

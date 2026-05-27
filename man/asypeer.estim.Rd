@@ -2,7 +2,7 @@
 % Please edit documentation in R/asypeer.estim.R
 \name{asypeer.estim}
 \alias{asypeer.estim}
-\title{Estimating the Asymmetric Peer Effects Model}
+\title{Estimate the Asymmetric Peer Effects Model}
 \usage{
 asypeer.estim(
   formula,
@@ -24,64 +24,73 @@ asypeer.estim(
 )
 }
 \arguments{
-\item{formula}{An object of class \link[stats]{formula}: a symbolic description of the model.
-\code{formula} should be specified as \code{y ~ x1 + x2 + ....}, where \code{y} is the outcome and \code{x1}, \code{x2}, ....
-are the vectors or matrices of control variables, which may include contextual variables such as averages among peers.}
+\item{formula}{An object of class \link[stats]{formula}: a symbolic description
+of the model. It should be specified as \code{y ~ x1 + x2 + ...}, where
+\code{y} is the outcome variable and \code{x1}, \code{x2}, ... are control
+variables, which may include contextual variables such as peer averages.}
 
 \item{excluded.instruments}{A \link[stats]{formula} specifying the excluded
-instruments. It should be written as \code{~ z1 + z2 + ...}, where \code{z1},
-\code{z2}, ... are the vectors or matrices of excluded instruments for the two
-endogenous variables in the asymmetric model: the average peers' outcomes and
-the average difference in outcomes between an agent and her peers who have a
-higher outcome. If omitted, default instruments are generated using
-\link{gen.instrument}.}
+instruments. It should be written as \code{~ z1 + z2 + ...}, where
+\code{z1}, \code{z2}, ... are the excluded instruments for the two endogenous
+variables in the asymmetric model: the average peers' outcomes and the average
+difference in outcomes between an agent and her higher-performing peers. If
+omitted, default instruments are generated using \link{gen.instrument}.}
 
-\item{Glist}{The adjacency matrix. For networks consisting of multiple subnets (e.g., schools),
-\code{Glist} must be a list of subnets, with the \code{s}-th element being an \eqn{n_s \times n_s}
-adjacency matrix, where \eqn{n_s} is the number of nodes in the \code{s}-th subnet.}
+\item{Glist}{The adjacency matrix or list of adjacency matrices. For networks
+consisting of multiple subnets (e.g., schools), \code{Glist} must be a list,
+where the \code{s}-th element is an \eqn{n_s x n_s} adjacency matrix and
+\eqn{n_s} is the number of nodes in subnet \code{s}.}
 
-\item{data}{An optional data frame, list, or environment (or an object that can be coerced to a
-data frame via \link[base]{as.data.frame}) containing the variables in the model. If a variable
-is not found in \code{data}, it is taken from \code{environment(formula)}, typically the environment
-from which \code{asypeer.estim} is called.}
+\item{data}{An optional data frame, list, or environment (or an object that can
+be coerced to a data frame via \link[base]{as.data.frame}) containing the
+variables in the model. If a variable is not found in \code{data}, it is
+retrieved from \code{environment(formula)}, typically the environment from
+which \code{asypeer.estim} is called.}
 
-\item{common.gamma}{A character vector indicating the control variables assumed to have the same marginal effect on marginal utility for isolated and non-isolated agents.
-If omitted, all control variables are included. A value of \code{NULL} or \code{character(0)} indicates that none of the variables.}
+\item{common.gamma}{A character vector indicating the control variables assumed
+to have the same marginal effect on marginal utility for isolated and
+non-isolated agents. If omitted, all control variables are included. A value
+of \code{NULL} or \code{character(0)} indicates that none are included.}
 
-\item{spillover}{A logical value indicating if the model included a spillover component in additional to the asymmetric conformity effect.}
+\item{spillover}{A logical value indicating whether the model includes an
+additional spillover component alongside the asymmetric conformity effect.}
 
-\item{asymmetry}{A logical value indicating if the preference for conformity is asymmetric or not.}
+\item{asymmetry}{A logical value indicating whether preferences for conformity
+are asymmetric.}
 
-\item{weight}{A character string specifying the weighting matrix used in the GMM estimation.
-Available options are: \code{"identity"} for GMM with the identity matrix as the weighting matrix;
-\code{"IV"} for the standard instrumental-variable GMM estimator; and \code{"optimal"} for GMM with the
-optimal weighting matrix.}
+\item{weight}{A character string specifying the weighting matrix used in GMM
+estimation. Available options are \code{"identity"} for GMM with the identity
+matrix, \code{"IV"} for the standard instrumental-variable GMM estimator, and
+\code{"optimal"} for GMM with the optimal weighting matrix.}
 
-\item{HAC}{A character string specifying the correlation structure of the idiosyncratic errors
-used for covariance estimation. Options are \code{"iid"} for independent errors; \code{"group iid"} for
-independence within the groups of isolated and non-isolated players; \code{"hetero"} for
-heteroskedastic but non-autocorrelated errors; \code{"cluster"} for heteroskedastic errors with
-potential within-subnetwork correlation; and \code{"cboot"} for the pair-bootstrap version of
-\code{"cluster"}.}
+\item{HAC}{A character string specifying the correlation structure of the
+idiosyncratic errors used for covariance estimation. Options are
+\code{"iid"} for independent errors; \code{"group iid"} for independence within
+groups of isolated and non-isolated agents; \code{"hetero"} for
+heteroskedastic but non-autocorrelated errors; \code{"cluster"} for
+heteroskedastic errors with within-subnetwork correlation; and
+\code{"cboot"} for the pair-bootstrap version of \code{"cluster"}.}
 
-\item{nboot}{The number of bootstrap simulations when \code{HAC = "cluster"}.}
+\item{nboot}{The number of bootstrap replications when \code{HAC = "cluster"}.}
 
-\item{fixed.effects}{A logical value indicating whether the model includes subnetwork fixed effects.}
+\item{fixed.effects}{A logical value indicating whether subnetwork fixed effects
+are included in the model.}
 
-\item{tol}{A tolerance value used in the QR factorization to detect collinear columns in the
-matrices of explanatory variables and instruments, ensuring a full-rank matrix (see
-\link[base]{qr}).}
+\item{tol}{A numeric tolerance used in QR factorization to detect collinear
+columns in the matrices of explanatory variables and instruments, ensuring a
+full-rank matrix (see \link[base]{qr}).}
 
-\item{nthread}{Number of CPU cores (threads) used to run parts of the estimation in parallel.}
+\item{nthread}{The number of CPU cores (threads) used for parallel computation.}
 
-\item{drop}{A dummy vector of the same length as the sample, indicating whether an observation should be dropped.
-This can be used, for example, to remove false isolates or to estimate the model only on non-isolated agents.
-These observations cannot be directly removed from the network by the user because they may still be friends with other agents.}
+\item{drop}{A logical vector of the same length as the sample, indicating which
+observations should be dropped. This can be used, for example, to remove false
+isolates or to estimate the model only for non-isolated agents. These
+observations cannot be removed from the network structure because they may
+remain connected to other agents.}
 
-\item{tol.optim}{The tolerance value for \link[stats]{optimize}.
-The objective function is concentrated in a
-function of \eqn{\beta_l} or \eqn{\beta} alone, which is optimized
-using \link[stats]{optimize}.}
+\item{tol.optim}{A numeric tolerance used in \link[stats]{optimize}. The objective
+function is concentrated in a function of \eqn{\beta_l} or \eqn{\beta} alone,
+which is optimized using \link[stats]{optimize}.}
 
 \item{...}{Further arguments passed to or from other methods.}
 }

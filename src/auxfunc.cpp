@@ -174,7 +174,7 @@ Eigen::MatrixXd peeravgpower(const std::vector<Eigen::MatrixXd>& G,
     }
   }
 #endif
-  return out;//.rightCols(kV * power);
+  return out.rightCols(kV * power);
 }
 
 // This function removes columns to obtain full rank matrices
@@ -197,13 +197,18 @@ Eigen::Array<bool, Eigen::Dynamic, 1> fcheckrankEigen(const Eigen::MatrixXd& X, 
 
 // Assigning folds to groups
 //[[Rcpp::export]]
-Eigen::ArrayXi fassignfold(const Eigen::ArrayXi& ddgroup,
+Eigen::ArrayXi fassignfold(const Eigen::ArrayXi& group,
                            const int& nfold) {
-  int ngroup(ddgroup.maxCoeff() + 1);
+  std::unordered_set<int> unigroup(group.data(), group.data() + group.size());
+  int ngroup(unigroup.size());
+  if (ngroup < 2) {
+    Rcpp::stop("Only one subnet remains for the intensive/extensive model.");
+  }
+  
   // Number of pairs per group
   Eigen::ArrayXi nvec(Eigen::ArrayXi::Zero(ngroup));
-  for (int i(0); i < ddgroup.size(); ++i) {
-    nvec(ddgroup(i)) += 1;
+  for (int i(0); i < group.size(); ++i) {
+    nvec(group(i)) += 1;
   }
   // Fold for each group
   Eigen::ArrayXi fold(ngroup);
@@ -218,7 +223,7 @@ Eigen::ArrayXi fassignfold(const Eigen::ArrayXi& ddgroup,
       }
     }
   }
-  return fold(ddgroup);
+  return fold(group);
 }
 
 //[[Rcpp::export]]

@@ -47,7 +47,7 @@
 #' Eddelbuettel, D., Francois, R., Allaire, J., Ushey, K., Kou, Q., Russel, N., ... & Bates, D. (2011).
 #' \pkg{Rcpp}: Seamless \R and \code{C++} integration. \emph{Journal of Statistical Software}, 40(8), 1-18, \doi{10.18637/jss.v040.i08}.
 #' @references 
-#' Houndetoungan A (2025). QuantilePeer: Quantile Peer Effect Models. \doi{10.32614/CRAN.package.QuantilePeer},, R package version 0.0.1.
+#' Houndetoungan A (2025). QuantilePeer: Quantile Peer Effect Models. \doi{10.32614/CRAN.package.QuantilePeer}, R package version 0.0.1.
 #' @references 
 #' Houndetoungan and Lambotte (2026). Asymmetries in Peer Effects for Continuous Outcomes.
 #' @references 

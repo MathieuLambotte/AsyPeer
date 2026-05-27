@@ -5,15 +5,16 @@
 \alias{gen.instruments}
 \alias{gen.insts}
 \alias{gen.inst}
-\title{Generating Instruments for the Asymmetric Peer Effects Model}
+\title{Generate Instruments for the Asymmetric Peer Effects Model}
 \usage{
 gen.instrument(
   formula,
   Glist,
   data,
   asymmetry = TRUE,
-  estimator = c("logit", "ols"),
+  estimator = c("ols", "logit"),
   power = c(1, 1),
+  full = FALSE,
   nfold = 2,
   checkrank = TRUE,
   tol = 1e-10,
@@ -27,8 +28,9 @@ gen.instruments(
   Glist,
   data,
   asymmetry = TRUE,
-  estimator = c("logit", "ols"),
+  estimator = c("ols", "logit"),
   power = c(1, 1),
+  full = FALSE,
   nfold = 2,
   checkrank = TRUE,
   tol = 1e-10,
@@ -42,8 +44,9 @@ gen.insts(
   Glist,
   data,
   asymmetry = TRUE,
-  estimator = c("logit", "ols"),
+  estimator = c("ols", "logit"),
   power = c(1, 1),
+  full = FALSE,
   nfold = 2,
   checkrank = TRUE,
   tol = 1e-10,
@@ -57,8 +60,9 @@ gen.inst(
   Glist,
   data,
   asymmetry = TRUE,
-  estimator = c("logit", "ols"),
+  estimator = c("ols", "logit"),
   power = c(1, 1),
+  full = FALSE,
   nfold = 2,
   checkrank = TRUE,
   tol = 1e-10,
@@ -68,51 +72,65 @@ gen.inst(
 )
 }
 \arguments{
-\item{formula}{An object of class \link[stats]{formula}: a symbolic description of the model.
-The formula should be specified as \code{y ~ x1 + x2}, where \code{y} is the outcome and \code{x1}, \code{x2}, ....
-are the vectors or matrices of control variables, which may include contextual variables such as
-peer averages.}
+\item{formula}{An object of class \link[stats]{formula}: a symbolic description
+of the model. The formula should be specified as \code{y ~ x1 + x2}, where
+\code{y} is the outcome variable and \code{x1}, \code{x2}, ... are control
+variables, which may include contextual variables such as peer averages.}
 
-\item{Glist}{The adjacency matrix or list of adjacency matrices. For networks composed of
-multiple subnets (e.g., schools), \code{Glist} must be a list, where the \code{s}-th element
-is an \eqn{n_s \times n_s} adjacency matrix, and \eqn{n_s} is the number of nodes in the
-\code{s}-th subnet.}
+\item{Glist}{The adjacency matrix or a list of adjacency matrices. For networks
+composed of multiple subnets (e.g., schools), \code{Glist} must be a list,
+where the \code{s}-th element is an \eqn{n_s \times n_s} adjacency matrix,
+and \eqn{n_s} is the number of nodes in subnet \code{s}.}
 
-\item{data}{An optional data frame, list, or environment (or an object that can be coerced to a
-data frame via \link[base]{as.data.frame}) containing the variables in the model. If a variable
-is not found in \code{data}, it is searched for in \code{environment(formula)}, typically the
-environment from which \code{gen.instrument} is called.}
+\item{data}{An optional data frame, list, or environment (or an object that can
+be coerced to a data frame via \link[base]{as.data.frame}) containing the
+variables in the model. If a variable is not found in \code{data}, it is
+searched for in \code{environment(formula)}, typically the environment from
+which \code{gen.instrument} is called.}
 
-\item{asymmetry}{A logical value indicating if the preference for conformity is asymmetric or not.}
+\item{asymmetry}{A logical value indicating whether preferences for conformity
+are asymmetric.}
 
-\item{estimator}{A vector of two character strings specifying the estimators
-used for the extensive margin \eqn{P(y_j > y_i)} and the intensive margin
-\eqn{E(y_j - y_i \mid y_j - y_i > 0)}.
+\item{estimator}{A character vector of length 2 specifying the estimators used
+for the intensive margin \eqn{E(y_j - y_i \mid y_j - y_i > 0)} (or \eqn{E(\bar{y}_i}))
+and the extensive margin \eqn{P(y_j > y_i)}.
 
-Supported parametric options include \code{"ols"} and \code{"lasso"} for linear models,
-and \code{"glm"} for generalized linear models (only for the extensive margin).
-Nonparametric options include \code{"rf"} (random forest) and \code{"xgboost"}
-(gradient boosting).
+Supported parametric options include \code{"ols"} and \code{"lasso"} for linear
+models, and \code{"glm"} for generalized linear models (only for the extensive
+margin). Nonparametric options include \code{"rf"} (random forest) and
+\code{"xgboost"} (gradient boosting).
 
-For example, \code{estimator = c("glm", "xgboost")} uses a generalized linear model
-for the extensive margin and gradient boosting for the intensive margin.}
+For example, \code{estimator = c("xgboost", "glm")} uses gradient boosting for
+the intensive margin and a generalized linear model for the extensive margin.}
 
-\item{power}{A numeric vector of length 2 indicating the maximum walk lengths to be used (typically k in \eqn{G^kX}).
-The two entries allow specifying a different value of k for each endogenous variable.}
+\item{power}{A numeric vector of length 2 indicating the maximum walk lengths
+(typically \eqn{k} in \eqn{G^k X}) used to construct or estimate instruments for
+\eqn{\bar{y}_i} and \eqn{\check{y}_i}. The two entries allow different values
+of \eqn{k} for each endogenous variable.}
 
-\item{nfold}{A strictly positive integer specifying the number of folds used when estimating the probability model via cross-fitting.}
+\item{full}{A logical value. If \code{TRUE}, predictions for both
+\eqn{\bar{y}_i} and \eqn{\check{y}_i} are used as instruments. If \code{FALSE},
+only the prediction for \eqn{\check{y}_i} is used as an instrument, while
+\eqn{\bar{y}_i} is instrumented using the usual instruments, \eqn{G^k X}.}
 
-\item{checkrank}{A logical value indicating whether the linearly dependent columns in the matrix of generated instruments should be drooped.}
+\item{nfold}{A strictly positive integer specifying the number of folds used for
+cross-fitting in the estimation of the probability model.}
 
-\item{tol}{A numeric tolerance used in QR factorization to detect linearly dependent columns in the
-matrices of explanatory variables and instruments, ensuring a full-rank matrix
-(see \link[base]{qr}).}
+\item{checkrank}{A logical value indicating whether linearly dependent columns
+in the matrix of generated instruments should be dropped.}
 
-\item{nthread}{Number of CPU cores (threads) used to run parts of the estimation in parallel.}
+\item{tol}{A numeric tolerance used in QR factorization to detect linearly
+dependent columns in the matrices of explanatory variables and instruments,
+ensuring a full-rank matrix (see \link[base]{qr}).}
 
-\item{drop}{A dummy vector of the same length as the sample, indicating whether an observation should be dropped.
-This can be used, for example, to remove false isolates or to estimate the model only on non-isolated agents.
-These observations cannot be directly removed from the network by the user because they may still be friends with other agents.}
+\item{nthread}{Number of CPU cores (threads) used to run parts of the estimation
+in parallel.}
+
+\item{drop}{A logical vector of the same length as the sample, indicating which
+observations should be dropped. This can be used, for example, to remove false
+isolates or to estimate the model only on non-isolated agents. These
+observations cannot be physically removed from the network structure because
+they may still be connected to other agents.}
 
 \item{...}{Further arguments passed to or from other methods.}
 }
@@ -158,6 +176,6 @@ y <- y$y
 
 ### Generating instruments
 ins <- gen.instrument(formula = y ~ X, Glist = Gnorm, 
-                      estimator = c("logit", "ols"))}
+                      estimator = c("ols", "logit"))}
  
 }

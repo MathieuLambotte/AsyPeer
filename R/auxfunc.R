@@ -210,12 +210,11 @@ mpredict_bar  <- function(Gy, insyBar, GinsChey, id_fold, estimatorint, nthread,
   
   ARG     <- list(Gy = Gy, insyBar = insyBar, GinsChey = GinsChey,
                   estimatorint = estimatorint, ...)
-  lybarh  <-  foreach(k         = id_list, 
+  lybarh  <-  foreach(k         = id_list,
                       .export   = "mpredict_fold_bar", #comment out
-                      .packages = c("ranger", "xgboost", "glmnet", "AsyPeer") 
+                      .packages = c("ranger", "xgboost", "glmnet", "AsyPeer")
   ) %dorng% {
     #each observation in fold k is predicted using a model trained
-    print(k)
     do.call(mpredict_fold_bar, c(ARG, list(id_listk = k)))
   }
 
@@ -233,6 +232,9 @@ mpredict_fold_bar <-function(Gy, insyBar, GinsChey, id_listk, estimatorint, ...)
   
   # Y for the train sample
   Gy_train  <- Gy[-id_listk]
+  
+  X_k       <- NULL
+  X_train   <- NULL
   if (is.null(GinsChey)) {
     # X for fold k
     X_k     <- data.frame(insyBar[id_listk, , drop = FALSE])
@@ -246,6 +248,7 @@ mpredict_fold_bar <-function(Gy, insyBar, GinsChey, id_listk, estimatorint, ...)
     X_train <- data.frame(insyBar[-id_listk, ,drop = FALSE],
                           GinsChey[-id_listk, , drop = FALSE])
   }
+  colnames(X_k) <- colnames(X_train) <- paste0("X", 1:ncol(X_k))
  
   # Estimation 
   if (estimatorint == "OLS") {

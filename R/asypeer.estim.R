@@ -672,9 +672,9 @@ print.summary.asypeer.estim <- function(x, ...) {
   
   cat("\nHAC: ", hete, sep = "")
   if(hete %in% c("group-iid")){
-    cat(", sigma (isolates): ", format(sig_iso, digits = 5), ", (non-isolates): ", format(sig_niso, digits = 5), sep = "")
+    cat(", sigma (isolates): ", format(sig_iso, digits = 5), ", (non-isolates): ", format(sig_niso, digits = 5), "\n", sep = "")
   } else if (hete == "iid") {
-    cat(", sigma: ", format(sig_overall, digits = 5), sep = "")
+    cat(", sigma: ", format(sig_overall, digits = 5), "\n", sep = "")
   }
   
   ## range
@@ -689,20 +689,20 @@ print.summary.asypeer.estim <- function(x, ...) {
       boundl <- unname((delta + minbeta) / (1 + minbeta))
       boundh <- unname((delta + maxbeta) / (1 + maxbeta))
       if ((abs(boundl) < 1) && (abs(boundh) < 1)) {
-        cat("\nTotal Peer Effects Range:", " [", deparse(round(boundl,4)),", ", deparse(round(boundh,4)),"]\n", sep = "")
+        cat("Total Peer Effects Range:", " [", deparse(round(boundl,4)),", ", deparse(round(boundh,4)),"]\n", sep = "")
       } else{
-        warning("Total Peer effects are outside the [-1, 1] interval, there might be multiple equilibria.")
+        warning("Total Peer effects are outside the [-1, 1] interval, there might be multiple equilibria.\n")
       }
     } else {
       bound  <- unname((delta + minbeta) / (1 + minbeta))
       if (abs(bound) < 1) {
-        cat("\nTotal Peer Effects: ",deparse(round(bound,4)), "\n", sep = "")
+        cat("nTotal Peer Effects: ",deparse(round(bound,4)), "\n", sep = "")
       } else{
-        warning("Total Peer effects are outside the [-1, 1] interval, there might be multiple equilibria.")
+        warning("Total Peer effects are outside the [-1, 1] interval, there might be multiple equilibria.\n")
       }
     }
   } else{
-    warning("\nConformity parameter lower than -0.5; total Peer effects are outside the [-1, 1] interval.")
+    warning("Conformity parameter lower than -0.5; total Peer effects are outside the [-1, 1] interval.\n")
   }
   
   class(x) <- "print.summary.asypeer.estim"

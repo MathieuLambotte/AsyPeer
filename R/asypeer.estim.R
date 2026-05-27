@@ -670,7 +670,7 @@ print.summary.asypeer.estim <- function(x, ...) {
     cat(" (p-value: ", ifelse(x$gmm$diffbeta[3] < 2e-16, "<2e-16", format(unname(x$gmm$diffbeta[3]), digit = 4)), ")\n", sep = "")
   }
   
-  cat("\nHAC: ", hete, sep = "")
+  cat("\nHAC: ", hete, "\n", sep = "")
   if(hete %in% c("group-iid")){
     cat(", sigma (isolates): ", format(sig_iso, digits = 5), ", (non-isolates): ", format(sig_niso, digits = 5), "\n", sep = "")
   } else if (hete == "iid") {

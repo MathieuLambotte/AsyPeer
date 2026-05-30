@@ -205,6 +205,11 @@ Eigen::ArrayXi fassignfold(const Eigen::ArrayXi& group,
     Rcpp::stop("Only one subnet remains for the intensive/extensive model.");
   }
   
+  // group should take values from 0 to ngroup - 1 with possible duplication
+  if ((group.minCoeff() != 0) || (group.maxCoeff() != (ngroup - 1))) {
+    Rcpp::stop("group should take values from 0, 1, 2, ... without jumps.");
+  }
+  
   // Number of pairs per group
   Eigen::ArrayXi nvec(Eigen::ArrayXi::Zero(ngroup));
   for (int i(0); i < group.size(); ++i) {

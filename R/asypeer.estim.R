@@ -140,7 +140,7 @@ asypeer.estim <- function(formula,
     warning("OpenMP is not available. Sequential processing is used.")
     nthread <- tp
   }
-
+  
   ## Instrument
   Z        <- NULL
   detInst  <- list()
@@ -170,7 +170,7 @@ asypeer.estim <- function(formula,
     Z           <- f.t.data$X
     zname       <- f.t.data$xname
   } 
-
+  
   ## Network
   if (!is.list(Glist)) {
     if (is.matrix(Glist)) {
@@ -180,7 +180,7 @@ asypeer.estim <- function(formula,
     }
   }
   Glist      <- fGnormalise(Glist, nthread)
-
+  
   ## HAC
   boot    <- FALSE
   HACn    <- NULL
@@ -323,12 +323,12 @@ asypeer.estim <- function(formula,
   if(!all(common.gamma %in% xname)){
     stop("At least one variable name in `common.gamma` is not written correctly.")
   }
-
+  
   cgamma    <- common.gamma
   ncgamma   <- setdiff(xname, cgamma)
   cgamma    <- which(xname %in% cgamma) - 1
   ncgamma   <- which(xname %in% ncgamma) - 1
-
+  
   ## degree of freedom
   dfiso    <- NULL
   dfniso   <- NULL
@@ -394,7 +394,7 @@ asypeer.estim <- function(formula,
   opt    <- NULL
   if (spillover) {
     opt  <- optimize(f = fAsyobj, lower = -0.5, upper = 100, tol = tol.optim,
-              Z = Z, y = y, V = V, W = W, nIso = nIso)
+                     Z = Z, y = y, V = V, W = W, nIso = nIso)
     opt  <- c(opt, fGmmEstim(betal = opt$minimum, Z = Z, y = y, V = V, W = W, 
                              nIso = nIso))
   } else {
@@ -485,7 +485,7 @@ asypeer.estim <- function(formula,
     }
     
     Cov     <- fAsyparmsVar_bt(outbt = outbt, theta0 = opt$theta, Zeta0 = opt$moment,
-                 asymmetry = asymmetry, spillover = spillover)
+                               asymmetry = asymmetry, spillover = spillover)
     
   } else {
     
@@ -641,7 +641,7 @@ print.summary.asypeer.estim <- function(x, ...) {
                     ifelse(x$model.info$asymmetry, "and predictions of y_check", ""))
     }
   }
-
+  
   cat("Formula: ", deparse(x$model.info$formula),
       "\nExcluded instruments: ", ifelse(!is.null(x$model.info$excluded.instruments), 
                                          deparse(x$model.info$excluded.instruments),

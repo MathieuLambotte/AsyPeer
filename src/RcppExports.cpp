@@ -396,8 +396,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // fdataML
-Rcpp::List fdataML(const Eigen::ArrayXd& y, const Eigen::ArrayXXd& X, const Eigen::ArrayXi& group, const Eigen::ArrayXi& IDi, const std::vector<Eigen::ArrayXd>& gij, const std::vector<Eigen::ArrayXi>& idpeer, const Eigen::ArrayXi& ddni, const Eigen::ArrayXi& ddncs, const Eigen::ArrayXi& ncs, const int& nthread);
-RcppExport SEXP _AsyPeer_fdataML(SEXP ySEXP, SEXP XSEXP, SEXP groupSEXP, SEXP IDiSEXP, SEXP gijSEXP, SEXP idpeerSEXP, SEXP ddniSEXP, SEXP ddncsSEXP, SEXP ncsSEXP, SEXP nthreadSEXP) {
+Rcpp::List fdataML(const Eigen::ArrayXd& y, const Eigen::ArrayXXd& X, const Eigen::ArrayXi& group, const Eigen::ArrayXi& IDi, const std::vector<Eigen::ArrayXd>& gij, const std::vector<Eigen::ArrayXi>& idpeer, const Eigen::ArrayXi& ddni, const Eigen::ArrayXi& ddncs, const Eigen::ArrayXi& ncs);
+RcppExport SEXP _AsyPeer_fdataML(SEXP ySEXP, SEXP XSEXP, SEXP groupSEXP, SEXP IDiSEXP, SEXP gijSEXP, SEXP idpeerSEXP, SEXP ddniSEXP, SEXP ddncsSEXP, SEXP ncsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -410,8 +410,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type ddni(ddniSEXP);
     Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type ddncs(ddncsSEXP);
     Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type ncs(ncsSEXP);
-    Rcpp::traits::input_parameter< const int& >::type nthread(nthreadSEXP);
-    rcpp_result_gen = Rcpp::wrap(fdataML(y, X, group, IDi, gij, idpeer, ddni, ddncs, ncs, nthread));
+    rcpp_result_gen = Rcpp::wrap(fdataML(y, X, group, IDi, gij, idpeer, ddni, ddncs, ncs));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -792,7 +791,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_AsyPeer_fCESWeight_2ins", (DL_FUNC) &_AsyPeer_fCESWeight_2ins, 25},
     {"_AsyPeer_fCESparmCovrho", (DL_FUNC) &_AsyPeer_fCESparmCovrho, 18},
     {"_AsyPeer_fCESparmCov", (DL_FUNC) &_AsyPeer_fCESparmCov, 25},
-    {"_AsyPeer_fdataML", (DL_FUNC) &_AsyPeer_fdataML, 10},
+    {"_AsyPeer_fdataML", (DL_FUNC) &_AsyPeer_fdataML, 9},
     {"_AsyPeer_fInstChecky", (DL_FUNC) &_AsyPeer_fInstChecky, 3},
     {"_AsyPeer_fV", (DL_FUNC) &_AsyPeer_fV, 6},
     {"_AsyPeer_fAsyobj", (DL_FUNC) &_AsyPeer_fAsyobj, 6},

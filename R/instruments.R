@@ -200,6 +200,8 @@ gen.instrument <- function(formula,
   n        <- dg$n
   cumsn    <- dg$cumsn
   idpeer   <- dg$idpeer
+  Is       <- dg$Is
+  nIs      <- dg$nIs
   dg       <- dg$dg
   if (!all(dg %in% c(0, 1))) {
     stop("G is not row-normalized.")
@@ -239,7 +241,7 @@ gen.instrument <- function(formula,
   
   ### Instrument for ybar
   insyBar    <- peeravgpower(G = Glist, V = X, cumsn = cumsn, nvec = nvec, 
-                          power = power[1], nthread = nthread)
+                             power = power[1], nthread = nthread)
   insyBar_cn <- sapply(paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_"), \(x) paste0(x, xname))
   
   ### Folds construction for individuals
@@ -251,22 +253,22 @@ gen.instrument <- function(formula,
     stop("At lead two folds is required.")
   }
   group      <- rep(0:(S - 1), nvec)
-  id_fold_i  <- fassignfold(group, nfold = nfold)
+  # Only for non isolated but group should take value from 0, 1, 2, ... without jump
+  id_fold_i  <- fassignfold(as.numeric(as.factor(group[nIs + 1])) - 1, nfold = nfold)
   
   ### Instrument for ycheck
   out        <- NULL
   if(asymmetry){
     Xtp      <- peeravgpower(G = Glist, V = X, cumsn = cumsn, nvec = nvec, 
                              power = power[2], nthread = nthread)
+    
     ## Dyadic dada
     IDi      <- unlist(lapply(1:S, \(s) 0:(nvec[s] - 1)))
     gij      <- lapply(1:n, \(i) Glist[[group[i] + 1]][IDi[i] + 1, idpeer[[i]] + 1])
     ddni     <- sapply(gij, length)
     ddncs    <- c(0, cumsum(ddni))
     tp       <- fdataML(y = y, X = Xtp, group = group, IDi = IDi, gij = gij,
-                        idpeer = idpeer, ddni = ddni, ddncs = ddncs, ncs = cumsn,
-                        nthread = nthread)
-    
+                        idpeer = idpeer, ddni = ddni, ddncs = ddncs, ncs = cumsn)
     ddyext   <- as.integer(tp$ddy[, 7]) # extensive margin
     ddyint   <- tp$ddy[, 6] - tp$ddy[, 5] #intensive margin
     ddX      <- tp$ddXj - tp$ddXi
@@ -282,32 +284,41 @@ gen.instrument <- function(formula,
     ARG      <- list(ddyext = ddyext, ddyint = ddyint, ddX = ddX, id_fold = id_fold_d, 
                      estimatorext = estimatorext, estimatorint = estimatorint, 
                      nthread = nthread, ...)
-
+    
     insChey  <- fInstChecky(rhoddX = as.matrix(do.call(mpredict_ch, ARG)), 
                             ddni = ddni, nthread = nthread)
     
     GinsChey    <- peeravgpower(G = Glist, V = insChey, cumsn = cumsn, nvec = nvec, 
-                             power = power[1], nthread = nthread)
+                                power = power[1], nthread = nthread)
+    
     GinsChey_cn <- sapply(paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_"), \(x) paste0(x, "y_check_hat"))
     
     if (full){ # In this case we also predict Gy exogenously
-      ARG       <- list(Gy = ybar, insyBar = insyBar, GinsChey = GinsChey, 
-                       id_fold = id_fold_i, estimatorint = estimatorint,  nthread = nthread, ...)
-
+      X_for_yb  <- cbind(insyBar, GinsChey)[nIs + 1, , drop = FALSE]
+      X_for_yb  <- as.data.frame(X_for_yb[, fcheckrank(X = X_for_yb, tol = tol) + 1, drop = FALSE])
+      colnames(X_for_yb) <- paste0("X", 1:ncol(X_for_yb))
+      
+      ARG       <- list(Gy = ybar[nIs + 1], X = X_for_yb, id_fold = id_fold_i, 
+                        estimatorint = estimatorint, Is = Is, nIs = nIs,
+                        nthread = nthread, ...)
       insyBar   <- do.call(mpredict_bar, ARG)
-
       out       <- cbind(insyBar, insChey)
       colnames(out) <- c("y_bar_hat", "y_check_hat")
     } else {
       out       <- cbind(insyBar, insChey, GinsChey)
       colnames(out) <- c(insyBar_cn, "y_check_hat",  GinsChey_cn)
     }
-   
+    
   } else {
     
     if (full){ # In this case we also predict Gy exogenously
-      ARG       <- list(Gy = ybar, insyBar = insyBar, GinsChey = NULL, 
-                        id_fold = id_fold_i, estimatorint = estimatorint,  nthread = nthread, ...)
+      X_for_yb  <- insyBar[nIs + 1, , drop = FALSE]
+      X_for_yb  <- as.data.frame(X_for_yb[, fcheckrank(X = X_for_yb, tol = tol) + 1, drop = FALSE])
+      colnames(X_for_yb) <- paste0("X", 1:ncol(X_for_yb))
+      
+      ARG       <- list(Gy = ybar[nIs + 1], X = X_for_yb, id_fold = id_fold_i, 
+                        estimatorint = estimatorint, Is = Is, nIs = nIs,  
+                        nthread = nthread, ...)
       insyBar   <- do.call(mpredict_bar, ARG)
       out       <- as.matrix(insyBar)
       colnames(out) <- "y_bar_hat"
@@ -322,7 +333,7 @@ gen.instrument <- function(formula,
     keepcol    <- fcheckrank(X = out[keep, , drop = FALSE], tol = tol) + 1
     out        <- out[, keepcol, drop = FALSE]
   }
-  out[!keep, ] <- NA
+  out[!keep, ] <- 0
   list(model.info  = list(power = power, estimator = c(estimatorint, estimatorext), 
                           nfold = nfold, tol = tol, full = full),
        instruments = out)

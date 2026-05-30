@@ -46,7 +46,7 @@ fcheckrank <- function(X, tol = 1e-10) {
 
 ############ Function to predict ych
 mpredict_ch  <- function(ddyext, ddyint, ddX, id_fold, 
-                      estimatorext, estimatorint, nthread, ...){
+                         estimatorext, estimatorint, nthread, ...){
   #Given a vector of fold id, create a list of the corresponding row of each ddyad
   # belonging in each fold
   id_list <- split(seq_along(id_fold), id_fold)
@@ -84,7 +84,7 @@ mpredict_ch  <- function(ddyext, ddyint, ddX, id_fold,
 
 
 mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk, 
-                         estimatorext, estimatorint, ...){
+                            estimatorext, estimatorint, ...){
   exthat <- NULL
   inthat <- NULL
   dots   <- list(...)
@@ -191,12 +191,12 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
 
 
 ############ Function to predict ych
-mpredict_bar  <- function(Gy, insyBar, GinsChey, id_fold, estimatorint, nthread, ...){
+mpredict_bar  <- function(Gy, X, id_fold, estimatorint, Is, nIs, nthread, ...){
   # Given a vector of fold id, create a list of the corresponding row of each ddyad
   # belonging in each fold
   id_list <- split(seq_along(id_fold), id_fold)
   seed    <- as.integer(runif(1, 0, 1e9))
-
+  
   # Prediction
   cl      <- NULL
   on.exit({
@@ -208,8 +208,7 @@ mpredict_bar  <- function(Gy, insyBar, GinsChey, id_fold, estimatorint, nthread,
   registerDoParallel(cl)
   registerDoRNG(seed)
   
-  ARG     <- list(Gy = Gy, insyBar = insyBar, GinsChey = GinsChey,
-                  estimatorint = estimatorint, ...)
+  ARG     <- list(Gy = Gy, X = X, estimatorint = estimatorint, ...)
   lybarh  <-  foreach(k         = id_list,
                       .export   = "mpredict_fold_bar", #comment out
                       .packages = c("ranger", "xgboost", "glmnet", "AsyPeer")
@@ -217,39 +216,31 @@ mpredict_bar  <- function(Gy, insyBar, GinsChey, id_fold, estimatorint, nthread,
     #each observation in fold k is predicted using a model trained
     do.call(mpredict_fold_bar, c(ARG, list(id_listk = k)))
   }
-
-  ybarh   <- numeric(length(Gy))
+  
+  # Prediction of ybar for non isolates
+  ybarh_nIs   <- numeric(length(nIs))
   for (k in 1:length(id_list)) {
-    ybarh[id_list[[k]]] <- lybarh[[k]]
+    ybarh_nIs[id_list[[k]]] <- lybarh[[k]]
   }
+  
+  # Full y bar
+  ybarh          <- rep(0, length(Is) + length(nIs))
+  ybarh[nIs + 1] <- ybarh_nIs
   return(ybarh)
 }
 
 
-mpredict_fold_bar <-function(Gy, insyBar, GinsChey, id_listk, estimatorint, ...){
+mpredict_fold_bar <-function(Gy, X, id_listk, estimatorint, ...){
   ybarh  <- NULL
   dots   <- list(...)
   
   # Y for the train sample
-  Gy_train  <- Gy[-id_listk]
+  Gy_train      <- Gy[-id_listk]
+  # X for fold k
+  X_k           <- data.frame(X[id_listk, , drop = FALSE])
+  # X for other folds
+  X_train       <- data.frame(X[-id_listk, ,drop = FALSE])
   
-  X_k       <- NULL
-  X_train   <- NULL
-  if (is.null(GinsChey)) {
-    # X for fold k
-    X_k     <- data.frame(insyBar[id_listk, , drop = FALSE])
-    # X for other folds
-    X_train <- data.frame(insyBar[-id_listk, ,drop = FALSE])
-  } else {
-    # X for fold k
-    X_k     <- data.frame(insyBar[id_listk, , drop = FALSE],
-                          GinsChey[id_listk, , drop = FALSE])
-    # X for other folds
-    X_train <- data.frame(insyBar[-id_listk, ,drop = FALSE],
-                          GinsChey[-id_listk, , drop = FALSE])
-  }
-  colnames(X_k) <- colnames(X_train) <- paste0("X", 1:ncol(X_k))
- 
   # Estimation 
   if (estimatorint == "OLS") {
     
@@ -422,7 +413,7 @@ fdiagnostic <- function(object, KP, SW, nthread) {
   }
   
   tpF   <- NULL
-
+  
   if (SW) {
     tpF <- fswstat(endo = endo, Z = Z, K = Kinc, nthread = nthread)
     rownames(tpF) <- paste0("Weak instruments - Cond. F (", c("ybar", "ycheck"), ")")
@@ -442,7 +433,7 @@ fdiagnostic <- function(object, KP, SW, nthread) {
   tpKP  <- NULL
   if (KP) {
     tpKP <- fKPstat(endo = endo, Z = Z, K = Kinc, cumsn = cumsn, 
-                     cluster = (HACn == 3))
+                    cluster = (HACn == 3))
     rownames(tpKP) <- "Kleibergen-Paap rk Wald (LM)"
     out  <- rbind(out, tpKP)
   }

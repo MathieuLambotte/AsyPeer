@@ -191,7 +191,7 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
 
 
 ############ Function to predict ych
-mpredict_bar  <- function(Gy, X, id_fold, estimatorint, Is, nIs, nthread, ...){
+mpredict_bar  <- function(Gy, X, id_fold, estimatorint, nthread, ...){
   # Given a vector of fold id, create a list of the corresponding row of each ddyad
   # belonging in each fold
   id_list <- split(seq_along(id_fold), id_fold)
@@ -217,15 +217,12 @@ mpredict_bar  <- function(Gy, X, id_fold, estimatorint, Is, nIs, nthread, ...){
     do.call(mpredict_fold_bar, c(ARG, list(id_listk = k)))
   }
   
-  # Prediction of ybar for non isolates
-  ybarh_nIs   <- numeric(length(nIs))
+  # Prediction
+  ybarh   <- numeric(length(Gy))
   for (k in 1:length(id_list)) {
-    ybarh_nIs[id_list[[k]]] <- lybarh[[k]]
+    ybarh[id_list[[k]]] <- lybarh[[k]]
   }
-  
-  # Full y bar
-  ybarh          <- rep(0, length(Is) + length(nIs))
-  ybarh[nIs + 1] <- ybarh_nIs
+
   return(ybarh)
 }
 

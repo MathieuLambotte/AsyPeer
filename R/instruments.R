@@ -200,8 +200,6 @@ gen.instrument <- function(formula,
   n        <- dg$n
   cumsn    <- dg$cumsn
   idpeer   <- dg$idpeer
-  Is       <- dg$Is
-  nIs      <- dg$nIs
   dg       <- dg$dg
   if (!all(dg %in% c(0, 1))) {
     stop("G is not row-normalized.")
@@ -254,7 +252,7 @@ gen.instrument <- function(formula,
   }
   group      <- rep(0:(S - 1), nvec)
   # Only for non isolated but group should take value from 0, 1, 2, ... without jump
-  id_fold_i  <- fassignfold(as.numeric(as.factor(group[nIs + 1])) - 1, nfold = nfold)
+  id_fold_i  <- fassignfold(group, nfold = nfold)
   
   ### Instrument for ycheck
   out        <- NULL
@@ -294,13 +292,12 @@ gen.instrument <- function(formula,
     GinsChey_cn <- sapply(paste0("G", ifelse(1:power[1] == 1, "", 1:power[1]), "_"), \(x) paste0(x, "y_check_hat"))
     
     if (full){ # In this case we also predict Gy exogenously
-      X_for_yb  <- cbind(insyBar, GinsChey)[nIs + 1, , drop = FALSE]
+      X_for_yb  <- cbind(insyBar, GinsChey)
       X_for_yb  <- as.data.frame(X_for_yb[, fcheckrank(X = X_for_yb, tol = tol) + 1, drop = FALSE])
       colnames(X_for_yb) <- paste0("X", 1:ncol(X_for_yb))
       
-      ARG       <- list(Gy = ybar[nIs + 1], X = X_for_yb, id_fold = id_fold_i, 
-                        estimatorint = estimatorint, Is = Is, nIs = nIs,
-                        nthread = nthread, ...)
+      ARG       <- list(Gy = ybar, X = X_for_yb, id_fold = id_fold_i, 
+                        estimatorint = estimatorint, nthread = nthread, ...)
       insyBar   <- do.call(mpredict_bar, ARG)
       out       <- cbind(insyBar, insChey)
       colnames(out) <- c("y_bar_hat", "y_check_hat")
@@ -312,13 +309,12 @@ gen.instrument <- function(formula,
   } else {
     
     if (full){ # In this case we also predict Gy exogenously
-      X_for_yb  <- insyBar[nIs + 1, , drop = FALSE]
+      X_for_yb  <- insyBar
       X_for_yb  <- as.data.frame(X_for_yb[, fcheckrank(X = X_for_yb, tol = tol) + 1, drop = FALSE])
       colnames(X_for_yb) <- paste0("X", 1:ncol(X_for_yb))
       
-      ARG       <- list(Gy = ybar[nIs + 1], X = X_for_yb, id_fold = id_fold_i, 
-                        estimatorint = estimatorint, Is = Is, nIs = nIs,  
-                        nthread = nthread, ...)
+      ARG       <- list(Gy = ybar, X = X_for_yb, id_fold = id_fold_i, 
+                        estimatorint = estimatorint, nthread = nthread, ...)
       insyBar   <- do.call(mpredict_bar, ARG)
       out       <- as.matrix(insyBar)
       colnames(out) <- "y_bar_hat"

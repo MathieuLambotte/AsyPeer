@@ -5,7 +5,7 @@
 #' @importFrom doParallel registerDoParallel  
 #' @importFrom doRNG registerDoRNG "%dorng%"
 #' @importFrom foreach foreach registerDoSEQ
-#' @importFrom xgboost xgboost
+#' @importFrom xgboost xgb.train xgb.DMatrix xgb.params
 #' @importFrom glmnet cv.glmnet
 fdrop <- function(drop, ldg, nvec, S, y, X, Z, endo) {
   n        <- sum(nvec)
@@ -130,11 +130,34 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
     
   } else if (estimatorext == "XGBoost") {
     
-    ddy_train   <- factor(ddy_train, levels = c(0, 1))
-    ARG         <- c(list(y = ddy_train, x = ddX_train, objective = "binary:logistic"),
-                     dots)
-    model_train <- do.call(xgboost, ARG)  
-    exthat      <- predict(model_train, newdata = ddX_k)
+    # Training data
+    ddtrain     <- xgb.DMatrix(data = as.matrix(ddX_train),
+                               label = ddy_train)
+    # prediction
+    ddpred      <- xgb.DMatrix(data = as.matrix(ddX_k))
+    # parameters
+    dotname     <- setdiff(names(formals(xgb.params)),  
+                           c("objective", "nthread", "seed", "..."))
+    ddpar       <- c(list(objective = "binary:logistic",
+                          nthread = 1), 
+                     dots[names(dots) %in% dotname])
+    ## assign if null
+    ddpar$eta              <- fassignnull(ddpar$eta, 0.1) 
+    ddpar$max_depth        <- fassignnull(ddpar$max_depth, 6)
+    ddpar$subsample        <- fassignnull(ddpar$subsample, 0.8)
+    ddpar$colsample_bytree <- fassignnull(ddpar$colsample_bytree, 0.8)
+    ddpar <- do.call(xgb.params, ddpar)
+    # Training argument
+    dotname <- setdiff(names(formals(xgb.train)),  
+                       c("params", "data", "objective", 
+                         "verbose", "xgb_model", "evals", "..."))
+    ARG     <- c(list(params = ddpar, data = ddtrain, verbose = 0),
+                 dots[names(dots) %in% dotname])
+    ARG$nrounds <- fassignnull(ARG$nrounds, 200)
+    # Training
+    model_train   <- do.call(xgb.train, ARG)
+    # Prediction 
+    exthat  <- predict(model_train, newdata = ddpred)
     
   } else if (estimatorext == "LASSO") {
     
@@ -171,11 +194,35 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
     
   } else if (estimatorint == "XGBoost") {
     
-    ARG         <- c(list(y = ddy_train, x = ddX_train, objective = "reg:squarederror"),
-                     dots)
-    model_train <- do.call(xgboost, ARG)  
-    inthat      <- predict(model_train, newdata = ddX_k)
-    
+    # Training data
+    ddtrain     <- xgb.DMatrix(data = as.matrix(ddX_train),
+                               label = ddy_train)
+    # prediction
+    ddpred      <- xgb.DMatrix(data = as.matrix(ddX_k))
+    # parameters
+    dotname     <- setdiff(names(formals(xgb.params)),  
+                           c("objective", "nthread", "seed", "..."))
+    ddpar       <- c(list(objective = "reg:squarederror",
+                          nthread = 1), 
+                     dots[names(dots) %in% dotname])
+    ## assign if null
+    ddpar$eta              <- fassignnull(ddpar$eta, 0.1) 
+    ddpar$max_depth        <- fassignnull(ddpar$max_depth, 6)
+    ddpar$subsample        <- fassignnull(ddpar$subsample, 0.8)
+    ddpar$colsample_bytree <- fassignnull(ddpar$colsample_bytree, 0.8)
+    ddpar <- do.call(xgb.params, ddpar)
+    # Training arguments
+    dotname <- setdiff(names(formals(xgb.train)),  
+                       c("params", "data", "objective", 
+                         "verbose", "xgb_model", "evals", "..."))
+    ARG     <- c(list(params = ddpar, data = ddtrain, verbose = 0),
+                 dots[names(dots) %in% dotname])
+    ARG$nrounds <- fassignnull(ARG$nrounds, 200)
+    # Training
+    model_train   <- do.call(xgb.train, ARG)
+    # Prediction 
+    inthat <- predict(model_train, newdata = ddpred)
+
   } else if (estimatorint == "LASSO") {
     
     dotname     <- setdiff(names(formals(cv.glmnet)), c("y", "x", "alpha", "..."))
@@ -257,10 +304,34 @@ mpredict_fold_bar <-function(Gy, X, id_listk, estimatorint, ...){
     
   } else if (estimatorint == "XGBoost") {
     
-    ARG         <- c(list(y = Gy_train, x = X_train, objective = "reg:squarederror"),
-                     dots)
-    model_train <- do.call(xgboost, ARG)  
-    ybarh       <- predict(model_train, newdata = X_k)
+    # Training data
+    dtrain      <- xgb.DMatrix(data = as.matrix(X_train),
+                               label = Gy_train)
+    # prediction
+    dpred       <- xgb.DMatrix(data = as.matrix(X_k))
+    # parameters
+    dotname     <- setdiff(names(formals(xgb.params)),  
+                           c("objective", "nthread", "seed", "..."))
+    dpar       <- c(list(objective = "reg:squarederror",
+                          nthread = 1), 
+                     dots[names(dots) %in% dotname])
+    ## assign if null
+    dpar$eta              <- fassignnull(dpar$eta, 0.1) 
+    dpar$max_depth        <- fassignnull(dpar$max_depth, 6)
+    dpar$subsample        <- fassignnull(dpar$subsample, 0.8)
+    dpar$colsample_bytree <- fassignnull(dpar$colsample_bytree, 0.8)
+    dpar <- do.call(xgb.params, dpar)
+    # Training arguments
+    dotname <- setdiff(names(formals(xgb.train)),  
+                       c("params", "data", "objective", 
+                         "verbose", "xgb_model", "evals", "..."))
+    ARG     <- c(list(params = dpar, data = dtrain, verbose = 0),
+                 dots[names(dots) %in% dotname])
+    ARG$nrounds <- fassignnull(ARG$nrounds, 200)
+    # Training
+    model_train  <- do.call(xgb.train, ARG)
+    # Prediction 
+    ybarh <- predict(model_train, newdata = dpred)
     
   } else if (estimatorint == "LASSO") {
     
@@ -513,3 +584,12 @@ fCESdatainit  <- function (y, z, G, nvec, S, ldg, lIs, lnIs, drop) {
        Is = Is, lnIs = lnIs, nIs = nIs, hasIso = (length(Is) > 0), yFmax = yFmax, 
        yFmin = yFmin, zFmax = zFmax, zFmin = zFmin)
 }
+
+fassignnull <- function(x, val){
+  if (is.null(x)) {
+    return(val)
+  } else {
+    return(x)
+  }
+} 
+

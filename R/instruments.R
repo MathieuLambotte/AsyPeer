@@ -266,7 +266,8 @@ gen.instrument <- function(formula,
     ddni     <- sapply(gij, length)
     ddncs    <- c(0, cumsum(ddni))
     tp       <- fdataML(y = y, X = Xtp, group = group, IDi = IDi, gij = gij,
-                        idpeer = idpeer, ddni = ddni, ddncs = ddncs, ncs = cumsn)
+                        idpeer = idpeer, ddni = ddni, ddncs = ddncs, ncs = cumsn,
+                        nthread = nthread)
     ddyext   <- as.integer(tp$ddy[, 7]) # extensive margin
     ddyint   <- tp$ddy[, 6] - tp$ddy[, 5] #intensive margin
     ddX      <- tp$ddXj - tp$ddXi
@@ -276,7 +277,8 @@ gen.instrument <- function(formula,
     
     ## Fold construction for dyadic
     nfold      <- as.integer(nfold)
-    id_fold_d  <- fassignfold(tp$ddy[, 1], nfold = nfold)
+    id_fold_d  <- fassignfold(group = as.numeric(as.factor(tp$ddy[, 1])) - 1, 
+                              nfold = nfold)
     
     ## Prediction
     ARG      <- list(ddyext = ddyext, ddyint = ddyint, ddX = ddX, id_fold = id_fold_d, 

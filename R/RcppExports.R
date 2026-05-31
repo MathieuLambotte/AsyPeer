@@ -73,8 +73,8 @@ fCESparmCov <- function(theta, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz,
     .Call(`_AsyPeer_fCESparmCov`, theta, X, y, z, G, friendindex, cumsn, frzeroy, frzeroz, lIso, lnIso, Iso, nIso, nvec, yFMiMa, zFMiMa, W, idXiso, idXniso, sel, FE, HACn, dfiso, dfniso, nthread)
 }
 
-fdataML <- function(y, X, group, IDi, gij, idpeer, ddni, ddncs, ncs) {
-    .Call(`_AsyPeer_fdataML`, y, X, group, IDi, gij, idpeer, ddni, ddncs, ncs)
+fdataML <- function(y, X, group, IDi, gij, idpeer, ddni, ddncs, ncs, nthread) {
+    .Call(`_AsyPeer_fdataML`, y, X, group, IDi, gij, idpeer, ddni, ddncs, ncs, nthread)
 }
 
 fInstChecky <- function(rhoddX, ddni, nthread) {

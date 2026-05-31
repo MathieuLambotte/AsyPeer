@@ -153,7 +153,7 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
                          "verbose", "xgb_model", "evals", "..."))
     ARG     <- c(list(params = ddpar, data = ddtrain, verbose = 0),
                  dots[names(dots) %in% dotname])
-    ARG$nrounds <- fassignnull(ARG$nrounds, 200)
+    ARG$nrounds <- fassignnull(ARG$nrounds, 300)
     # Training
     model_train   <- do.call(xgb.train, ARG)
     # Prediction 
@@ -217,7 +217,7 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
                          "verbose", "xgb_model", "evals", "..."))
     ARG     <- c(list(params = ddpar, data = ddtrain, verbose = 0),
                  dots[names(dots) %in% dotname])
-    ARG$nrounds <- fassignnull(ARG$nrounds, 200)
+    ARG$nrounds <- fassignnull(ARG$nrounds, 300)
     # Training
     model_train   <- do.call(xgb.train, ARG)
     # Prediction 
@@ -327,7 +327,7 @@ mpredict_fold_bar <-function(Gy, X, id_listk, estimatorint, ...){
                          "verbose", "xgb_model", "evals", "..."))
     ARG     <- c(list(params = dpar, data = dtrain, verbose = 0),
                  dots[names(dots) %in% dotname])
-    ARG$nrounds <- fassignnull(ARG$nrounds, 200)
+    ARG$nrounds <- fassignnull(ARG$nrounds, 300)
     # Training
     model_train  <- do.call(xgb.train, ARG)
     # Prediction 

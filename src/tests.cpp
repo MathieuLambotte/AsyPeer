@@ -70,7 +70,7 @@ Eigen::ArrayXXd fFstat(const Eigen::MatrixXd& endo,
     prob(k) = R::pf(F(k), df1, df2, 0, 0);
   }
 #else
-  for (int k = 0; k < Ky; ++ k) {
+  for (int k = 0; k < Kendo; ++ k) {
     Eigen::MatrixXd V(Eigen::MatrixXd::Zero(L, L));
     
     if (cluster) {

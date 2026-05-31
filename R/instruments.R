@@ -173,16 +173,6 @@ gen.instrument <- function(formula,
     }
   }
   
-  if (any("XGBoost" %in% c(estimatorint, estimatorint))) {
-    # Warm up OpenMP thread pool (tiny data, result discarded)
-    xgb.train(
-      params = list(nthread = parallel::detectCores()),
-      data   = xgb.DMatrix(matrix(1:4, nrow = 2), label = c(0, 1)),
-      nrounds = 1,
-      verbose = 0
-    )
-  }
-  
   ## Thread
   tp        <- fnthreads(nthread = nthread)
   if ((tp == 1) & (nthread != 1)) {

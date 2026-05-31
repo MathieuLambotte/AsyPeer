@@ -142,11 +142,9 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
                           nthread = 1), 
                      dots[names(dots) %in% dotname])
     ## assign if null
-    ddpar$eta              <- fassignnull(ddpar$eta, 0.1) 
-    ddpar$max_depth        <- fassignnull(ddpar$max_depth, 6)
-    ddpar$subsample        <- fassignnull(ddpar$subsample, 0.8)
-    ddpar$colsample_bytree <- fassignnull(ddpar$colsample_bytree, 0.8)
-    ddpar <- do.call(xgb.params, ddpar)
+    ddpar$subsample        <- fassignnull(ddpar$subsample, 1)
+    ddpar$colsample_bytree <- fassignnull(ddpar$colsample_bytree, 1)
+    ddpar$tree_method      <- fassignnull(ddpar$tree_method, "exact")
     # Training argument
     dotname <- setdiff(names(formals(xgb.train)),  
                        c("params", "data", "objective", 
@@ -206,11 +204,9 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
                           nthread = 1), 
                      dots[names(dots) %in% dotname])
     ## assign if null
-    ddpar$eta              <- fassignnull(ddpar$eta, 0.1) 
-    ddpar$max_depth        <- fassignnull(ddpar$max_depth, 6)
-    ddpar$subsample        <- fassignnull(ddpar$subsample, 0.8)
-    ddpar$colsample_bytree <- fassignnull(ddpar$colsample_bytree, 0.8)
-    ddpar <- do.call(xgb.params, ddpar)
+    ddpar$subsample        <- fassignnull(ddpar$subsample, 1)
+    ddpar$colsample_bytree <- fassignnull(ddpar$colsample_bytree, 1)
+    ddpar$tree_method      <- fassignnull(ddpar$tree_method, "exact")
     # Training arguments
     dotname <- setdiff(names(formals(xgb.train)),  
                        c("params", "data", "objective", 
@@ -316,11 +312,9 @@ mpredict_fold_bar <-function(Gy, X, id_listk, estimatorint, ...){
                           nthread = 1), 
                      dots[names(dots) %in% dotname])
     ## assign if null
-    dpar$eta              <- fassignnull(dpar$eta, 0.1) 
-    dpar$max_depth        <- fassignnull(dpar$max_depth, 6)
-    dpar$subsample        <- fassignnull(dpar$subsample, 0.8)
-    dpar$colsample_bytree <- fassignnull(dpar$colsample_bytree, 0.8)
-    dpar <- do.call(xgb.params, dpar)
+    dpar$subsample        <- fassignnull(dpar$subsample, 1)
+    dpar$colsample_bytree <- fassignnull(dpar$colsample_bytree, 1)
+    dpar$tree_method      <- fassignnull(dpar$tree_method, "exact")
     # Training arguments
     dotname <- setdiff(names(formals(xgb.train)),  
                        c("params", "data", "objective", 

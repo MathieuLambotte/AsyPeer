@@ -20,6 +20,7 @@ asypeer.estim(
   nthread = 1,
   drop = NULL,
   tol.optim = .Machine$double.eps^0.25,
+  gen.inst.arg = list(),
   ...
 )
 }
@@ -88,9 +89,15 @@ isolates or to estimate the model only for non-isolated agents. These
 observations cannot be removed from the network structure because they may
 remain connected to other agents.}
 
-\item{tol.optim}{A numeric tolerance used in \link[stats]{optimize}. The objective
+\item{tol.optim}{A numeric tolerance used in \code{\link[stats]{optimize}}. The objective
 function is concentrated in a function of \eqn{\beta_l} or \eqn{\beta} alone,
 which is optimized using \link[stats]{optimize}.}
+
+\item{gen.inst.arg}{A list of arguments for the \code{\link{gen.instrument}}
+function, used when instruments are to be generated. These arguments exclude
+\code{formula}, \code{Glist}, \code{data}, \code{asymmetry},
+\code{fold.nthread}, \code{drop}, and \code{tol}, which are taken directly
+from the \code{asypeer.estim} function.}
 
 \item{...}{Further arguments passed to or from other methods.}
 }

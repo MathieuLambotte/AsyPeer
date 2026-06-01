@@ -18,7 +18,7 @@ gen.instrument(
   nfold = 2,
   checkrank = TRUE,
   tol = 1e-10,
-  nthread = 1,
+  fold.nthread = 1,
   drop = NULL,
   ...
 )
@@ -34,7 +34,7 @@ gen.instruments(
   nfold = 2,
   checkrank = TRUE,
   tol = 1e-10,
-  nthread = 1,
+  fold.nthread = 1,
   drop = NULL,
   ...
 )
@@ -50,7 +50,7 @@ gen.insts(
   nfold = 2,
   checkrank = TRUE,
   tol = 1e-10,
-  nthread = 1,
+  fold.nthread = 1,
   drop = NULL,
   ...
 )
@@ -66,7 +66,7 @@ gen.inst(
   nfold = 2,
   checkrank = TRUE,
   tol = 1e-10,
-  nthread = 1,
+  fold.nthread = 1,
   drop = NULL,
   ...
 )
@@ -123,8 +123,12 @@ in the matrix of generated instruments should be dropped.}
 dependent columns in the matrices of explanatory variables and instruments,
 ensuring a full-rank matrix (see \link[base]{qr}).}
 
-\item{nthread}{Number of CPU cores (threads) used to run parts of the estimation
-in parallel.}
+\item{fold.nthread}{Number of CPU cores (threads) used to run parts of the estimation
+in parallel. This refers to the number of threads used for estimations across different
+folds. Each estimation method can define its own number of threads, which can be passed
+through the \code{...} argument. For example, for a random forest estimation
+(\code{estimation = "rf"}), the \code{num.threads} argument can be specified as described
+in the \link[ranger]{ranger} function documentation.}
 
 \item{drop}{A logical vector of the same length as the sample, indicating which
 observations should be dropped. This can be used, for example, to remove false
@@ -132,7 +136,13 @@ isolates or to estimate the model only on non-isolated agents. These
 observations cannot be physically removed from the network structure because
 they may still be connected to other agents.}
 
-\item{...}{Further arguments passed to or from other methods.}
+\item{...}{Further arguments passed to or from other methods. These correspond
+to arguments of the functions used for each estimation method. For \code{"ols"}, see
+the arguments of the \link[stats]{lm} function; for \code{"logit"}, see
+the arguments of the \link[stats]{glm} function; for \code{"lasso"}, see the arguments
+of the \link[glmnet]{cv.glmnet} function; for \code{"xgboost"}, see the arguments of
+the \link[xgboost]{xgb.params} and \link[xgboost]{xgb.train} functions; and for
+\code{"rf"}, see the arguments of the \link[ranger]{ranger} function.}
 }
 \value{
 A list containing:

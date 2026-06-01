@@ -46,7 +46,7 @@ fcheckrank <- function(X, tol = 1e-10) {
 
 ############ Function to predict ych
 mpredict_ch  <- function(ddyext, ddyint, ddX, id_fold, estimatorext, 
-                         estimatorint, nthread, DoRNGseed, ...){
+                         estimatorint, fold.nthread, DoRNGseed, ...){
   #Given a vector of fold id, create a list of the corresponding row of each ddyad
   # belonging in each fold
   id_list <- split(seq_along(id_fold), id_fold)
@@ -62,7 +62,7 @@ mpredict_ch  <- function(ddyext, ddyint, ddX, id_fold, estimatorext,
     try(stopCluster(cl), silent = TRUE)
   }, add = TRUE)
   
-  cl      <- makeCluster(nthread)
+  cl      <- makeCluster(fold.nthread)
   registerDoParallel(cl)
   registerDoRNG(DoRNGseed)
   
@@ -136,10 +136,10 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
     ddpred      <- xgb.DMatrix(data = as.matrix(ddX_k))
     # parameters
     dotname     <- setdiff(names(formals(xgb.params)),  
-                           c("objective", "nthread", "..."))
-    ddpar       <- c(list(objective = "binary:logistic",
-                          nthread = 1), 
+                           c("objective", "..."))
+    ddpar       <- c(list(objective = "binary:logistic"), 
                      dots[names(dots) %in% dotname])
+    ddpar$nthread <- fassignnull(ddpar$nthread, 1)
     # Training argument
     dotname <- setdiff(names(formals(xgb.train)),  
                        c("params", "data", "objective", 
@@ -194,10 +194,10 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
     ddpred      <- xgb.DMatrix(data = as.matrix(ddX_k))
     # parameters
     dotname     <- setdiff(names(formals(xgb.params)),  
-                           c("objective", "nthread", "..."))
-    ddpar       <- c(list(objective = "reg:squarederror",
-                          nthread = 1), 
+                           c("objective", "..."))
+    ddpar       <- c(list(objective = "reg:squarederror"), 
                      dots[names(dots) %in% dotname])
+    ddpar$nthread <- fassignnull(ddpar$nthread, 1)
     # Training arguments
     dotname <- setdiff(names(formals(xgb.train)),  
                        c("params", "data", "objective", 
@@ -225,7 +225,8 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
 
 
 ############ Function to predict ych
-mpredict_bar  <- function(Gy, X, id_fold, estimatorint, nthread, DoRNGseed, ...){
+mpredict_bar  <- function(Gy, X, id_fold, estimatorint, fold.nthread, 
+                          DoRNGseed, ...){
   # Given a vector of fold id, create a list of the corresponding row of each ddyad
   # belonging in each fold
   id_list <- split(seq_along(id_fold), id_fold)
@@ -237,7 +238,7 @@ mpredict_bar  <- function(Gy, X, id_fold, estimatorint, nthread, DoRNGseed, ...)
     try(stopCluster(cl), silent = TRUE)
   }, add = TRUE)
   
-  cl      <- makeCluster(nthread)
+  cl      <- makeCluster(fold.nthread)
   registerDoParallel(cl)
   registerDoRNG(DoRNGseed)
   
@@ -297,10 +298,10 @@ mpredict_fold_bar <-function(Gy, X, id_listk, estimatorint, ...){
     dpred       <- xgb.DMatrix(data = as.matrix(X_k))
     # parameters
     dotname     <- setdiff(names(formals(xgb.params)),  
-                           c("objective", "nthread", "..."))
-    dpar       <- c(list(objective = "reg:squarederror",
-                          nthread = 1), 
+                           c("objective", "..."))
+    dpar       <- c(list(objective = "reg:squarederror"), 
                      dots[names(dots) %in% dotname])
+    dpar$nthread <- fassignnull(dpar$nthread, 1)
     # Training arguments
     dotname <- setdiff(names(formals(xgb.train)),  
                        c("params", "data", "objective", 

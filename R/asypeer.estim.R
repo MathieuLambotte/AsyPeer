@@ -64,11 +64,17 @@
 #' @param asymmetry A logical value indicating whether preferences for conformity 
 #'   are asymmetric.
 #'
-#' @param tol.optim A numeric tolerance used in \link[stats]{optimize}. The objective 
+#' @param tol.optim A numeric tolerance used in \code{\link[stats]{optimize}}. The objective 
 #'   function is concentrated in a function of \eqn{\beta_l} or \eqn{\beta} alone, 
 #'   which is optimized using \link[stats]{optimize}.
 #'
 #' @param ... Further arguments passed to or from other methods.
+#' 
+#' @param gen.inst.arg A list of arguments for the \code{\link{gen.instrument}}
+#'   function, used when instruments are to be generated. These arguments exclude 
+#'   \code{formula}, \code{Glist}, \code{data}, \code{asymmetry}, 
+#'   \code{fold.nthread}, \code{drop}, and \code{tol}, which are taken directly 
+#'   from the \code{asypeer.estim} function.
 #' 
 #' @return A list containing:
 #'     \item{model.info}{A list with information about the model, such as the number of subnets, number of observations, and other key details.}
@@ -133,6 +139,7 @@ asypeer.estim <- function(formula,
                           nthread       = 1,
                           drop          = NULL,
                           tol.optim     = .Machine$double.eps^0.25,
+                          gen.inst.arg  = list(),
                           ...){
   ## Thread
   tp        <- fnthreads(nthread = nthread)
@@ -150,9 +157,9 @@ asypeer.estim <- function(formula,
       data <- env(formula)
     }
     excluded.instruments <- NULL
-    ARG    <-  list(formula = formula, Glist = Glist, data = data, 
-                    asymmetry = asymmetry, nthread = nthread, drop = drop, 
-                    tol = tol, ...) ## Remember to add ... 
+    ARG    <-  c(list(formula = formula, Glist = Glist, data = data, 
+                    asymmetry = asymmetry, fold.nthread = nthread, drop = drop, 
+                    tol = tol, ...), gen.inst.arg) 
     Z      <- do.call(gen.inst, ARG)
     detInst$estimator <- Z$model.info$estimator
     detInst$power     <- Z$model.info$power

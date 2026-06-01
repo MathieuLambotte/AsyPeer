@@ -2,7 +2,7 @@ Package: AsyPeer
 Type: Package
 Title: Estimating Asymmetric Peer Effects
 Version: 0.0.1
-Date: 2026-05-20
+Date: 2026-07-01
 Authors@R: c(person("Aristide", "Houndetoungan",  role = c("aut"), email =  "ahoundetoungan@ecn.ulaval.ca", comment = c(ORCID = "0009-0003-2733-9362")), person("Mathieu", "Lambotte",  role = c("cre","aut"), email =  "mathieu.lambotte@univ-rennes.fr",comment = c(ORCID = "0000-0002-7806-7286")))
 Description: 
     Simulating and estimating asymmetric peer-effect models

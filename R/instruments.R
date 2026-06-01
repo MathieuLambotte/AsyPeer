@@ -255,6 +255,7 @@ gen.instrument <- function(formula,
   id_fold_i  <- fassignfold(group, nfold = nfold)
   
   ### Instrument for ycheck
+  DoRNGseed  <- as.integer(runif(1, 0, 1e9))
   out        <- NULL
   if(asymmetry){
     Xtp      <- peeravgpower(G = Glist, V = X, cumsn = cumsn, nvec = nvec, 
@@ -283,7 +284,7 @@ gen.instrument <- function(formula,
     ## Prediction
     ARG      <- list(ddyext = ddyext, ddyint = ddyint, ddX = ddX, id_fold = id_fold_d, 
                      estimatorext = estimatorext, estimatorint = estimatorint, 
-                     nthread = nthread, ...)
+                     nthread = nthread, DoRNGseed = DoRNGseed, ...)
     
     insChey  <- fInstChecky(rhoddX = as.matrix(do.call(mpredict_ch, ARG)), 
                             ddni = ddni, nthread = nthread)
@@ -299,7 +300,8 @@ gen.instrument <- function(formula,
       colnames(X_for_yb) <- paste0("X", 1:ncol(X_for_yb))
       
       ARG       <- list(Gy = ybar, X = X_for_yb, id_fold = id_fold_i, 
-                        estimatorint = estimatorint, nthread = nthread, ...)
+                        estimatorint = estimatorint, nthread = nthread,
+                        DoRNGseed = DoRNGseed, ...)
       insyBar   <- do.call(mpredict_bar, ARG)
       out       <- cbind(insyBar, insChey)
       colnames(out) <- c("y_bar_hat", "y_check_hat")
@@ -316,7 +318,8 @@ gen.instrument <- function(formula,
       colnames(X_for_yb) <- paste0("X", 1:ncol(X_for_yb))
       
       ARG       <- list(Gy = ybar, X = X_for_yb, id_fold = id_fold_i, 
-                        estimatorint = estimatorint, nthread = nthread, ...)
+                        estimatorint = estimatorint, nthread = nthread,
+                        DoRNGseed = DoRNGseed, ...)
       insyBar   <- do.call(mpredict_bar, ARG)
       out       <- as.matrix(insyBar)
       colnames(out) <- "y_bar_hat"

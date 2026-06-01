@@ -45,12 +45,11 @@ fcheckrank <- function(X, tol = 1e-10) {
 }
 
 ############ Function to predict ych
-mpredict_ch  <- function(ddyext, ddyint, ddX, id_fold, 
-                         estimatorext, estimatorint, nthread, ...){
+mpredict_ch  <- function(ddyext, ddyint, ddX, id_fold, estimatorext, 
+                         estimatorint, nthread, DoRNGseed, ...){
   #Given a vector of fold id, create a list of the corresponding row of each ddyad
   # belonging in each fold
   id_list <- split(seq_along(id_fold), id_fold)
-  seed    <- as.integer(runif(1, 0, 1e9))
   
   # Arguments
   ARG    <- list(ddX = ddX, ddyext = ddyext, ddyint = ddyint, 
@@ -65,7 +64,7 @@ mpredict_ch  <- function(ddyext, ddyint, ddX, id_fold,
   
   cl      <- makeCluster(nthread)
   registerDoParallel(cl)
-  registerDoRNG(seed)
+  registerDoRNG(DoRNGseed)
   
   lycheckh <- foreach(k         = id_list, 
                       .export   = "mpredict_fold_ch", #comment out
@@ -88,7 +87,6 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
   exthat <- NULL
   inthat <- NULL
   dots   <- list(...)
-  seed   <- as.integer(runif(1, 0, 1e9))
   
   # gather the observations from the fold k
   ddX_k  <- ddX[id_listk, , drop = FALSE]
@@ -138,9 +136,9 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
     ddpred      <- xgb.DMatrix(data = as.matrix(ddX_k))
     # parameters
     dotname     <- setdiff(names(formals(xgb.params)),  
-                           c("objective", "nthread", "seed", "..."))
+                           c("objective", "nthread", "..."))
     ddpar       <- c(list(objective = "binary:logistic",
-                          nthread = 1, seed = seed), 
+                          nthread = 1), 
                      dots[names(dots) %in% dotname])
     ## assign if null
     ddpar$eta              <- fassignnull(ddpar$eta, 0.1) 
@@ -201,9 +199,9 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
     ddpred      <- xgb.DMatrix(data = as.matrix(ddX_k))
     # parameters
     dotname     <- setdiff(names(formals(xgb.params)),  
-                           c("objective", "nthread", "seed", "..."))
+                           c("objective", "nthread", "..."))
     ddpar       <- c(list(objective = "reg:squarederror",
-                          nthread = 1, seed = seed), 
+                          nthread = 1), 
                      dots[names(dots) %in% dotname])
     ## assign if null
     ddpar$eta              <- fassignnull(ddpar$eta, 0.1) 
@@ -237,11 +235,10 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
 
 
 ############ Function to predict ych
-mpredict_bar  <- function(Gy, X, id_fold, estimatorint, nthread, ...){
+mpredict_bar  <- function(Gy, X, id_fold, estimatorint, nthread, DoRNGseed, ...){
   # Given a vector of fold id, create a list of the corresponding row of each ddyad
   # belonging in each fold
   id_list <- split(seq_along(id_fold), id_fold)
-  seed    <- as.integer(runif(1, 0, 1e9))
   
   # Prediction
   cl      <- NULL
@@ -252,7 +249,7 @@ mpredict_bar  <- function(Gy, X, id_fold, estimatorint, nthread, ...){
   
   cl      <- makeCluster(nthread)
   registerDoParallel(cl)
-  registerDoRNG(seed)
+  registerDoRNG(DoRNGseed)
   
   ARG     <- list(Gy = Gy, X = X, estimatorint = estimatorint, ...)
   lybarh  <-  foreach(k         = id_list,
@@ -276,7 +273,6 @@ mpredict_bar  <- function(Gy, X, id_fold, estimatorint, nthread, ...){
 mpredict_fold_bar <-function(Gy, X, id_listk, estimatorint, ...){
   ybarh  <- NULL
   dots   <- list(...)
-  seed   <- as.integer(runif(1, 0, 1e9))
   
   # Y for the train sample
   Gy_train      <- Gy[-id_listk]
@@ -311,9 +307,9 @@ mpredict_fold_bar <-function(Gy, X, id_listk, estimatorint, ...){
     dpred       <- xgb.DMatrix(data = as.matrix(X_k))
     # parameters
     dotname     <- setdiff(names(formals(xgb.params)),  
-                           c("objective", "nthread", "seed", "..."))
+                           c("objective", "nthread", "..."))
     dpar       <- c(list(objective = "reg:squarederror",
-                          nthread = 1, seed = seed), 
+                          nthread = 1), 
                      dots[names(dots) %in% dotname])
     ## assign if null
     dpar$eta              <- fassignnull(dpar$eta, 0.1) 

@@ -140,11 +140,6 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
     ddpar       <- c(list(objective = "binary:logistic",
                           nthread = 1), 
                      dots[names(dots) %in% dotname])
-    ## assign if null
-    ddpar$eta              <- fassignnull(ddpar$eta, 0.1) 
-    ddpar$max_depth        <- fassignnull(ddpar$max_depth, 6)
-    ddpar$subsample        <- fassignnull(ddpar$subsample, 0.8)
-    ddpar$colsample_bytree <- fassignnull(ddpar$colsample_bytree, 0.8)
     # Training argument
     dotname <- setdiff(names(formals(xgb.train)),  
                        c("params", "data", "objective", 
@@ -203,11 +198,6 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
     ddpar       <- c(list(objective = "reg:squarederror",
                           nthread = 1), 
                      dots[names(dots) %in% dotname])
-    ## assign if null
-    ddpar$eta              <- fassignnull(ddpar$eta, 0.1) 
-    ddpar$max_depth        <- fassignnull(ddpar$max_depth, 6)
-    ddpar$subsample        <- fassignnull(ddpar$subsample, 0.8)
-    ddpar$colsample_bytree <- fassignnull(ddpar$colsample_bytree, 0.8)
     # Training arguments
     dotname <- setdiff(names(formals(xgb.train)),  
                        c("params", "data", "objective", 
@@ -311,11 +301,6 @@ mpredict_fold_bar <-function(Gy, X, id_listk, estimatorint, ...){
     dpar       <- c(list(objective = "reg:squarederror",
                           nthread = 1), 
                      dots[names(dots) %in% dotname])
-    ## assign if null
-    dpar$eta              <- fassignnull(dpar$eta, 0.1) 
-    dpar$max_depth        <- fassignnull(dpar$max_depth, 6)
-    dpar$subsample        <- fassignnull(dpar$subsample, 0.8)
-    dpar$colsample_bytree <- fassignnull(dpar$colsample_bytree, 0.8)
     # Training arguments
     dotname <- setdiff(names(formals(xgb.train)),  
                        c("params", "data", "objective", 

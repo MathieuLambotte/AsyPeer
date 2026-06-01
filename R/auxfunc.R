@@ -88,6 +88,7 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
   exthat <- NULL
   inthat <- NULL
   dots   <- list(...)
+  seed   <- as.integer(runif(1, 0, 1e9))
   
   # gather the observations from the fold k
   ddX_k  <- ddX[id_listk, , drop = FALSE]
@@ -139,19 +140,20 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
     dotname     <- setdiff(names(formals(xgb.params)),  
                            c("objective", "nthread", "seed", "..."))
     ddpar       <- c(list(objective = "binary:logistic",
-                          nthread = 1), 
+                          nthread = 1, seed = seed), 
                      dots[names(dots) %in% dotname])
     ## assign if null
-    ddpar$subsample        <- fassignnull(ddpar$subsample, 1)
-    ddpar$colsample_bytree <- fassignnull(ddpar$colsample_bytree, 1)
-    ddpar$tree_method      <- fassignnull(ddpar$tree_method, "exact")
+    ddpar$eta              <- fassignnull(ddpar$eta, 0.1) 
+    ddpar$max_depth        <- fassignnull(ddpar$max_depth, 6)
+    ddpar$subsample        <- fassignnull(ddpar$subsample, 0.8)
+    ddpar$colsample_bytree <- fassignnull(ddpar$colsample_bytree, 0.8)
     # Training argument
     dotname <- setdiff(names(formals(xgb.train)),  
                        c("params", "data", "objective", 
                          "verbose", "xgb_model", "evals", "..."))
     ARG     <- c(list(params = ddpar, data = ddtrain, verbose = 0),
                  dots[names(dots) %in% dotname])
-    ARG$nrounds <- fassignnull(ARG$nrounds, 300)
+    ARG$nrounds <- fassignnull(ARG$nrounds, 200)
     # Training
     model_train   <- do.call(xgb.train, ARG)
     # Prediction 
@@ -201,19 +203,20 @@ mpredict_fold_ch <-function(ddX, ddyext, ddyint, id_listk,
     dotname     <- setdiff(names(formals(xgb.params)),  
                            c("objective", "nthread", "seed", "..."))
     ddpar       <- c(list(objective = "reg:squarederror",
-                          nthread = 1), 
+                          nthread = 1, seed = seed), 
                      dots[names(dots) %in% dotname])
     ## assign if null
-    ddpar$subsample        <- fassignnull(ddpar$subsample, 1)
-    ddpar$colsample_bytree <- fassignnull(ddpar$colsample_bytree, 1)
-    ddpar$tree_method      <- fassignnull(ddpar$tree_method, "exact")
+    ddpar$eta              <- fassignnull(ddpar$eta, 0.1) 
+    ddpar$max_depth        <- fassignnull(ddpar$max_depth, 6)
+    ddpar$subsample        <- fassignnull(ddpar$subsample, 0.8)
+    ddpar$colsample_bytree <- fassignnull(ddpar$colsample_bytree, 0.8)
     # Training arguments
     dotname <- setdiff(names(formals(xgb.train)),  
                        c("params", "data", "objective", 
                          "verbose", "xgb_model", "evals", "..."))
     ARG     <- c(list(params = ddpar, data = ddtrain, verbose = 0),
                  dots[names(dots) %in% dotname])
-    ARG$nrounds <- fassignnull(ARG$nrounds, 300)
+    ARG$nrounds <- fassignnull(ARG$nrounds, 200)
     # Training
     model_train   <- do.call(xgb.train, ARG)
     # Prediction 
@@ -273,6 +276,7 @@ mpredict_bar  <- function(Gy, X, id_fold, estimatorint, nthread, ...){
 mpredict_fold_bar <-function(Gy, X, id_listk, estimatorint, ...){
   ybarh  <- NULL
   dots   <- list(...)
+  seed   <- as.integer(runif(1, 0, 1e9))
   
   # Y for the train sample
   Gy_train      <- Gy[-id_listk]
@@ -309,19 +313,20 @@ mpredict_fold_bar <-function(Gy, X, id_listk, estimatorint, ...){
     dotname     <- setdiff(names(formals(xgb.params)),  
                            c("objective", "nthread", "seed", "..."))
     dpar       <- c(list(objective = "reg:squarederror",
-                          nthread = 1), 
+                          nthread = 1, seed = seed), 
                      dots[names(dots) %in% dotname])
     ## assign if null
-    dpar$subsample        <- fassignnull(dpar$subsample, 1)
-    dpar$colsample_bytree <- fassignnull(dpar$colsample_bytree, 1)
-    dpar$tree_method      <- fassignnull(dpar$tree_method, "exact")
+    dpar$eta              <- fassignnull(dpar$eta, 0.1) 
+    dpar$max_depth        <- fassignnull(dpar$max_depth, 6)
+    dpar$subsample        <- fassignnull(dpar$subsample, 0.8)
+    dpar$colsample_bytree <- fassignnull(dpar$colsample_bytree, 0.8)
     # Training arguments
     dotname <- setdiff(names(formals(xgb.train)),  
                        c("params", "data", "objective", 
                          "verbose", "xgb_model", "evals", "..."))
     ARG     <- c(list(params = dpar, data = dtrain, verbose = 0),
                  dots[names(dots) %in% dotname])
-    ARG$nrounds <- fassignnull(ARG$nrounds, 300)
+    ARG$nrounds <- fassignnull(ARG$nrounds, 200)
     # Training
     model_train  <- do.call(xgb.train, ARG)
     # Prediction 

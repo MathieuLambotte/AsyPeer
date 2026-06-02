@@ -84,14 +84,15 @@ BEGIN_RCPP
 END_RCPP
 }
 // fassignfold
-Eigen::ArrayXi fassignfold(const Eigen::ArrayXi& group, const int& nfold);
-RcppExport SEXP _AsyPeer_fassignfold(SEXP groupSEXP, SEXP nfoldSEXP) {
+Eigen::ArrayXi fassignfold(const Eigen::ArrayXi& subnetwork, const int& nfold, const unsigned long long& seed);
+RcppExport SEXP _AsyPeer_fassignfold(SEXP subnetworkSEXP, SEXP nfoldSEXP, SEXP seedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type group(groupSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type subnetwork(subnetworkSEXP);
     Rcpp::traits::input_parameter< const int& >::type nfold(nfoldSEXP);
-    rcpp_result_gen = Rcpp::wrap(fassignfold(group, nfold));
+    Rcpp::traits::input_parameter< const unsigned long long& >::type seed(seedSEXP);
+    rcpp_result_gen = Rcpp::wrap(fassignfold(subnetwork, nfold, seed));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -779,7 +780,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_AsyPeer_highlowstat2", (DL_FUNC) &_AsyPeer_highlowstat2, 7},
     {"_AsyPeer_peeravgpower", (DL_FUNC) &_AsyPeer_peeravgpower, 6},
     {"_AsyPeer_fcheckrankEigen", (DL_FUNC) &_AsyPeer_fcheckrankEigen, 2},
-    {"_AsyPeer_fassignfold", (DL_FUNC) &_AsyPeer_fassignfold, 2},
+    {"_AsyPeer_fassignfold", (DL_FUNC) &_AsyPeer_fassignfold, 3},
     {"_AsyPeer_Demean_separate", (DL_FUNC) &_AsyPeer_Demean_separate, 5},
     {"_AsyPeer_Demean_common", (DL_FUNC) &_AsyPeer_Demean_common, 3},
     {"_AsyPeer_fGnormalise", (DL_FUNC) &_AsyPeer_fGnormalise, 2},

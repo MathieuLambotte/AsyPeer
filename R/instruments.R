@@ -261,11 +261,16 @@ gen.instrument <- function(formula,
     stop("At lead two folds is required.")
   }
   group      <- rep(0:(S - 1), nvec)
+  
+  # seed
+  genseed    <- as.integer(runif(1, 0, 1e9))
+  set.seed(genseed)
+  
   # Only for non isolated but group should take value from 0, 1, 2, ... without jump
-  id_fold_i  <- fassignfold(group, nfold = nfold)
+  nfold      <- as.integer(nfold)
+  id_fold_i  <- fassignfold(subnetwork = group, nfold = nfold, seed = genseed)
   
   ### Instrument for ycheck
-  DoRNGseed  <- as.integer(runif(1, 0, 1e9))
   out        <- NULL
   if(asymmetry){
     Xtp      <- peeravgpower(G = Glist, V = X, cumsn = cumsn, nvec = nvec, 
@@ -287,14 +292,13 @@ gen.instrument <- function(formula,
     ddX      <- as.data.frame(ddX[, fcheckrank(X = ddX, tol = tol) + 1, drop = FALSE])
     
     ## Fold construction for dyadic
-    nfold      <- as.integer(nfold)
-    id_fold_d  <- fassignfold(group = as.numeric(as.factor(tp$ddy[, 1])) - 1, 
-                              nfold = nfold)
+    id_fold_d  <- fassignfold(subnetwork = as.numeric(as.factor(tp$ddy[, 1])) - 1, 
+                              nfold = nfold, seed = genseed)
     
     ## Prediction
     ARG      <- list(ddyext = ddyext, ddyint = ddyint, ddX = ddX, id_fold = id_fold_d, 
                      estimatorext = estimatorext, estimatorint = estimatorint, 
-                     fold.nthread = fold.nthread, DoRNGseed = DoRNGseed, ...)
+                     fold.nthread = fold.nthread, DoRNGseed = genseed, ...)
     
     insChey  <- fInstChecky(rhoddX = as.matrix(do.call(mpredict_ch, ARG)), 
                             ddni = ddni, nthread = fold.nthread)
@@ -311,7 +315,7 @@ gen.instrument <- function(formula,
       
       ARG       <- list(Gy = ybar, X = X_for_yb, id_fold = id_fold_i, 
                         estimatorint = estimatorint, fold.nthread = fold.nthread,
-                        DoRNGseed = DoRNGseed, ...)
+                        DoRNGseed = genseed, ...)
       insyBar   <- do.call(mpredict_bar, ARG)
       out       <- cbind(insyBar, insChey)
       colnames(out) <- c("y_bar_hat", "y_check_hat")
@@ -329,7 +333,7 @@ gen.instrument <- function(formula,
       
       ARG       <- list(Gy = ybar, X = X_for_yb, id_fold = id_fold_i, 
                         estimatorint = estimatorint, fold.nthread = fold.nthread,
-                        DoRNGseed = DoRNGseed, ...)
+                        DoRNGseed = genseed, ...)
       insyBar   <- do.call(mpredict_bar, ARG)
       out       <- as.matrix(insyBar)
       colnames(out) <- "y_bar_hat"

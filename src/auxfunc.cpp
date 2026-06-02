@@ -1,5 +1,7 @@
 // [[Rcpp::depends(RcppEigen)]]
 #include <RcppEigen.h>
+#include <random>
+
 #ifdef _OPENMP
 #include <omp.h>
 // [[Rcpp::plugins(openmp)]]
@@ -196,39 +198,51 @@ Eigen::Array<bool, Eigen::Dynamic, 1> fcheckrankEigen(const Eigen::MatrixXd& X, 
 }
 
 // Assigning folds to groups
+// This function assigning folds to subnetworks
 //[[Rcpp::export]]
-Eigen::ArrayXi fassignfold(const Eigen::ArrayXi& group,
-                           const int& nfold) {
-  std::unordered_set<int> unigroup(group.data(), group.data() + group.size());
-  int ngroup(unigroup.size());
-  if (ngroup < 2) {
+Eigen::ArrayXi fassignfold(const Eigen::ArrayXi& subnetwork,
+                           const int& nfold,
+                           const unsigned long long& seed) {
+  
+  // sizes
+  int n = subnetwork.size();
+  std::unordered_set<int> usubnetwork(subnetwork.data(), subnetwork.data() + n);
+  int R(usubnetwork.size());
+  if (R < 2) {
     Rcpp::stop("Only one subnet remains for the intensive/extensive model.");
   }
   
   // group should take values from 0 to ngroup - 1 with possible duplication
-  if ((group.minCoeff() != 0) || (group.maxCoeff() != (ngroup - 1))) {
-    Rcpp::stop("group should take values from 0, 1, 2, ... without jumps.");
+  if ((subnetwork.minCoeff() != 0) || (subnetwork.maxCoeff() != (R - 1))) {
+    Rcpp::stop("Subnetwork should take values from 0, 1, 2, ... without jumps.");
   }
   
-  // Number of pairs per group
-  Eigen::ArrayXi nvec(Eigen::ArrayXi::Zero(ngroup));
-  for (int i(0); i < group.size(); ++i) {
-    nvec(group(i)) += 1;
+  // Number of data per subnetwork
+  Eigen::ArrayXi nvec(Eigen::ArrayXi::Zero(R));
+  for (int i(0); i < n; ++i) {
+    nvec(subnetwork(i)) += 1;
   }
-  // Fold for each group
-  Eigen::ArrayXi fold(ngroup);
+  
+  // Shuffle order
+  std::mt19937 rng(seed);
+  std::vector<int> netorder(R);
+  std::iota(netorder.begin(), netorder.end(), 0);
+  std::shuffle(netorder.begin(), netorder.end(), rng);
+  
+  // Fold for each subnetwork
+  Eigen::ArrayXi fold(R);
   Eigen::ArrayXi foldsize(Eigen::ArrayXi::Zero(nfold));
-  for (int s(0); s < ngroup; ++s) {
+  for (int r : netorder) {
     int minsize(foldsize.minCoeff());
     for (int k(0); k < nfold; ++k) {
       if (foldsize(k) == minsize) {
-        fold(s)      = k;
-        foldsize(k) += nvec(s);
+        fold(r)      = k;
+        foldsize(k) += nvec(r);
         break;
       }
     }
   }
-  return fold(group);
+  return fold(subnetwork);
 }
 
 //[[Rcpp::export]]

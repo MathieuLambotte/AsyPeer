@@ -705,7 +705,7 @@ print.summary.asypeer.estim <- function(x, ...) {
     } else {
       bound  <- unname((delta + minbeta) / (1 + minbeta))
       if (abs(bound) < 1) {
-        cat("nTotal Peer Effects: ",deparse(round(bound,4)), "\n", sep = "")
+        cat("Total Peer Effects: ",deparse(round(bound,4)), "\n", sep = "")
       } else{
         warning("Total Peer effects are outside the [-1, 1] interval, there might be multiple equilibria.\n")
       }

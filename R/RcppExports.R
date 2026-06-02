@@ -21,8 +21,8 @@ fcheckrankEigen <- function(X, tol = 1e-10) {
     .Call(`_AsyPeer_fcheckrankEigen`, X, tol)
 }
 
-fassignfold <- function(group, nfold) {
-    .Call(`_AsyPeer_fassignfold`, group, nfold)
+fassignfold <- function(subnetwork, nfold, seed) {
+    .Call(`_AsyPeer_fassignfold`, subnetwork, nfold, seed)
 }
 
 Demean_separate <- function(X, cumsn, lIso, lnIso, nthread) {

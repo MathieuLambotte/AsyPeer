@@ -28,6 +28,7 @@ sfriend  <- read_xpt(paste0(InDataPath, "/sfriend.xpt")) %>% arrange(SQID) %>%
 # Inschool data set (WAVE I)
 Inschool <- read_xpt(paste0(InDataPath, "/Inschool.xpt")) %>% arrange(SQID) %>% 
   filter(!(SQID %in% c("999999", "")), AID != "") %>% # Remove student with missing questionnaire ID and missing student ID (cannot be matched)
+  filter(SSCHLCDE != "080") %>%
   mutate(across(c("SQID", "AID", "SSCHLCDE"), as.character))
 
 # Variable to keep in the Inschool data set
@@ -119,7 +120,7 @@ exovar       <- c("age", "age2", "female", "grade", "grade2", "hispanic", "racew
                   "raceasian", "melhigh", "memhigh", "memiss", "mjprof", "mjother",  "mjmiss")
 
 # List of outcomes 
-depvar       <- c("optimism", "smoke", "fight", "drink")
+depvar       <- c("smoke","fight", "optimism", "drink")
 # This loop creates data for each outcome
 # The data consist of a data set of y and X as well as the network.
 for (outcome in depvar) {

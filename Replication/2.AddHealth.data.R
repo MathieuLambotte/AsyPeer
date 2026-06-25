@@ -28,7 +28,7 @@ sfriend  <- read_xpt(paste0(InDataPath, "/sfriend.xpt")) %>% arrange(SQID) %>%
 # Inschool data set (WAVE I)
 Inschool <- read_xpt(paste0(InDataPath, "/Inschool.xpt")) %>% arrange(SQID) %>% 
   filter(!(SQID %in% c("999999", "")), AID != "") %>% # Remove student with missing questionnaire ID and missing student ID (cannot be matched)
-  filter(SSCHLCDE != "080") %>%
+  filter(!(SSCHLCDE %in% c("080", "175"))) %>% # Schools with many missing values. Only 2 students remain after the data cleaning process
   mutate(across(c("SQID", "AID", "SSCHLCDE"), as.character))
 
 # Variable to keep in the Inschool data set

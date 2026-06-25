@@ -14,7 +14,6 @@ library(openxlsx)
 library(dplyr)
 
 OutResPath  <- "PATH/TO/WHERE/RESULTS/WILL/BE/SAVED" # Where results should be saved
-OutResPath  <- "~/Dropbox/Academy/1.Papers/AsymmetricPeer/AsyPeerCode/package/AsyPeer/Replication"
 
 ### Sample size
 ngr   <- 50  # Number of subnets

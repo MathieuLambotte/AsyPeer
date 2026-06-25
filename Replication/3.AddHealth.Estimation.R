@@ -23,14 +23,6 @@ library(openxlsx)
 OutDataPath <- "PATH/TO/WHERE/PREPARED/DATA/WILL/BE/SAVED" # Where prepared data are saved
 OutResPath  <- "PATH/TO/WHERE/RESULTS/WILL/BE/SAVED" # Where results should be saved
 
-###################
-# Should be deleted before pushing online
-OutDataPath <- "~/projects/def-eahou5/AsyPeer/data" 
-OutResPath  <- "~/projects/def-eahou5/AsyPeer" 
-OutDataPath <- "~/Dropbox/Data/AHdata/CleanData/AsyPeer"
-OutResPath  <- "~/Dropbox/Academy/1.Papers/AsymmetricPeer/AsyPeerCode/package/AsyPeer/Replication"
-###################
-
 # List of outcome variables
 depvar  <- c("smoke","fight", "optimism", "drink")
 

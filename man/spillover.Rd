@@ -17,12 +17,12 @@ spillover(
 )
 }
 \arguments{
-\item{asymodel}{An object of class \code{\link[Asypeer]{asypeer.estim}} or
-\code{\link[Asypeer]{summary.asypeer.estim}},
+\item{asymodel}{An object of class \code{\link{asypeer.estim}} or
+\code{\link{summary.asypeer.estim}},
 estimated using the asymmetric specification (\code{asymmetry=TRUE}).}
 
-\item{symodel}{An object of class \code{\link[Asypeer]{asypeer.estim}} or
-\code{\link[Asypeer]{summary.asypeer.estim}},
+\item{symodel}{An object of class \code{\link{asypeer.estim}} or
+\code{\link{summary.asypeer.estim}},
 estimated using the symmetric specification (\code{asymmetry=FALSE}).}
 
 \item{Glist}{The adjacency matrix or list of adjacency matrices. For networks

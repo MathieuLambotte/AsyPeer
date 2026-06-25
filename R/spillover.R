@@ -6,11 +6,11 @@
 #' using the symmetric specification or the asymmetric specification. In the latter case,
 #' the optimal order is computed by forward or backward optimization.
 #' 
-#' @param asymodel An object of class \code{\link[Asypeer]{asypeer.estim}} or 
-#' \code{\link[Asypeer]{summary.asypeer.estim}}, 
+#' @param asymodel An object of class \code{\link{asypeer.estim}} or 
+#' \code{\link{summary.asypeer.estim}}, 
 #' estimated using the asymmetric specification (\code{asymmetry=TRUE}).
-#' @param symodel An object of class \code{\link[Asypeer]{asypeer.estim}} or 
-#' \code{\link[Asypeer]{summary.asypeer.estim}},
+#' @param symodel An object of class \code{\link{asypeer.estim}} or 
+#' \code{\link{summary.asypeer.estim}},
 #'  estimated using the symmetric specification (\code{asymmetry=FALSE}).
 #' 
 #' @param Glist The adjacency matrix or list of adjacency matrices. For networks 
@@ -314,7 +314,7 @@ plot.spillover <- function(x, metric = "all", ...) {
            horiz = FALSE,
            bty = "n",
            legend = c("Symmetric", "Asymmetric (Forward)", "Asymmetric (Backward)"),
-           col = c("red", "#2a9", "blue"),
+           col = c("red", "#22AA99", "blue"),
            lty = 1)
   } else {
     legend("bottom",
@@ -322,7 +322,7 @@ plot.spillover <- function(x, metric = "all", ...) {
            horiz = FALSE,
            bty = "n",
            legend = c("Asymmetric (Forward)", "Asymmetric (Backward)"),
-           col = c("#2a9", "blue"),
+           col = c("#22AA99", "blue"),
            lty = 1)
   }
 
@@ -338,7 +338,7 @@ fplot <- function(x, which) {
          xlab = "Budget", ylab = "Spillover (%)", col = "red", 
          ylim = c(min(unlist(x$spillover)), max(unlist(x$spillover))) * 100)
     lines(x$budget[,"asym.backw"], x$spillover$asym.backw * 100, col = "blue")
-    lines(x$budget[,"asym.forw"], x$spillover$asym.forw * 100, col = "#2a9")
+    lines(x$budget[,"asym.forw"], x$spillover$asym.forw * 100, col = "#22AA99")
     
   } else if (which == 2) {
     
@@ -349,7 +349,7 @@ fplot <- function(x, which) {
          xlab = "Budget", ylab = "Gain (%)", col = "blue", 
          ylim = c(min(unlist(gain), na.rm = TRUE), 
                   max(unlist(gain), na.rm = TRUE)))
-    lines(x$budget[,"asym.backw"], gain$asym.forw, col = "#2a9")
+    lines(x$budget[,"asym.backw"], gain$asym.forw, col = "#22AA99")
     
   } else {
     
@@ -357,7 +357,7 @@ fplot <- function(x, which) {
          xlab = "Budget", ylab = "Outcome increase", col = "red", 
          ylim = c(min(unlist(x$diff.y)), max(unlist(x$diff.y))))
     lines(x$budget[,"asym.backw"], x$diff.y$asym.backw, col = "blue")
-    lines(x$budget[,"asym.forw"], x$diff.y$asym.forw, col = "#2a9")
+    lines(x$budget[,"asym.forw"], x$diff.y$asym.forw, col = "#22AA99")
     
   }
   

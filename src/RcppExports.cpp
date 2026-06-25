@@ -11,6 +11,110 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// combn
+std::vector<std::vector<int>> combn(const std::vector<int>& elements, unsigned int n, unsigned int k);
+RcppExport SEXP _AsyPeer_combn(SEXP elementsSEXP, SEXP nSEXP, SEXP kSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const std::vector<int>& >::type elements(elementsSEXP);
+    Rcpp::traits::input_parameter< unsigned int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< unsigned int >::type k(kSEXP);
+    rcpp_result_gen = Rcpp::wrap(combn(elements, n, k));
+    return rcpp_result_gen;
+END_RCPP
+}
+// BRSingle
+Eigen::ArrayXd BRSingle(const Eigen::ArrayXd& alpha, const Eigen::ArrayXd& y, const Eigen::MatrixXd& G, const Eigen::ArrayXd& betadelta, const unsigned int& n, const std::vector<Eigen::ArrayXi>& idpeer, const Eigen::ArrayXd& d);
+RcppExport SEXP _AsyPeer_BRSingle(SEXP alphaSEXP, SEXP ySEXP, SEXP GSEXP, SEXP betadeltaSEXP, SEXP nSEXP, SEXP idpeerSEXP, SEXP dSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type alpha(alphaSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type G(GSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type betadelta(betadeltaSEXP);
+    Rcpp::traits::input_parameter< const unsigned int& >::type n(nSEXP);
+    Rcpp::traits::input_parameter< const std::vector<Eigen::ArrayXi>& >::type idpeer(idpeerSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type d(dSEXP);
+    rcpp_result_gen = Rcpp::wrap(BRSingle(alpha, y, G, betadelta, n, idpeer, d));
+    return rcpp_result_gen;
+END_RCPP
+}
+// NashSingle
+Eigen::VectorXd NashSingle(const Eigen::ArrayXd y0, const Eigen::ArrayXd& alpha, const Eigen::MatrixXd& G, const Eigen::ArrayXd& betadelta, const std::vector<Eigen::ArrayXi>& idpeer, const Eigen::ArrayXd& d, const double& tol);
+RcppExport SEXP _AsyPeer_NashSingle(SEXP y0SEXP, SEXP alphaSEXP, SEXP GSEXP, SEXP betadeltaSEXP, SEXP idpeerSEXP, SEXP dSEXP, SEXP tolSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd >::type y0(y0SEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type alpha(alphaSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type G(GSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type betadelta(betadeltaSEXP);
+    Rcpp::traits::input_parameter< const std::vector<Eigen::ArrayXi>& >::type idpeer(idpeerSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type d(dSEXP);
+    Rcpp::traits::input_parameter< const double& >::type tol(tolSEXP);
+    rcpp_result_gen = Rcpp::wrap(NashSingle(y0, alpha, G, betadelta, idpeer, d, tol));
+    return rcpp_result_gen;
+END_RCPP
+}
+// falpha
+Eigen::ArrayXd falpha(const Eigen::ArrayXd& betadelta, const Eigen::MatrixXd& G, const Eigen::ArrayXd& y, const Eigen::ArrayXi& isolates);
+RcppExport SEXP _AsyPeer_falpha(SEXP betadeltaSEXP, SEXP GSEXP, SEXP ySEXP, SEXP isolatesSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type betadelta(betadeltaSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type G(GSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type isolates(isolatesSEXP);
+    rcpp_result_gen = Rcpp::wrap(falpha(betadelta, G, y, isolates));
+    return rcpp_result_gen;
+END_RCPP
+}
+// fRankSym
+Rcpp::List fRankSym(const double& beta, const double& delta, const Eigen::ArrayXd& betadelta, const Eigen::ArrayXd& y, const Eigen::ArrayXd& alpha, const Eigen::MatrixXd& G, const std::vector<Eigen::ArrayXi>& idpeer, const Eigen::ArrayXd& treat, const Eigen::ArrayXd& d, const Eigen::ArrayXi& isolates, const double& tol, const unsigned int& nthread);
+RcppExport SEXP _AsyPeer_fRankSym(SEXP betaSEXP, SEXP deltaSEXP, SEXP betadeltaSEXP, SEXP ySEXP, SEXP alphaSEXP, SEXP GSEXP, SEXP idpeerSEXP, SEXP treatSEXP, SEXP dSEXP, SEXP isolatesSEXP, SEXP tolSEXP, SEXP nthreadSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const double& >::type beta(betaSEXP);
+    Rcpp::traits::input_parameter< const double& >::type delta(deltaSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type betadelta(betadeltaSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type alpha(alphaSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type G(GSEXP);
+    Rcpp::traits::input_parameter< const std::vector<Eigen::ArrayXi>& >::type idpeer(idpeerSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type treat(treatSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type d(dSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXi& >::type isolates(isolatesSEXP);
+    Rcpp::traits::input_parameter< const double& >::type tol(tolSEXP);
+    Rcpp::traits::input_parameter< const unsigned int& >::type nthread(nthreadSEXP);
+    rcpp_result_gen = Rcpp::wrap(fRankSym(beta, delta, betadelta, y, alpha, G, idpeer, treat, d, isolates, tol, nthread));
+    return rcpp_result_gen;
+END_RCPP
+}
+// fRankASym
+Rcpp::List fRankASym(const Eigen::ArrayXd& y, const Eigen::ArrayXd& alpha, const Eigen::ArrayXd& betadelta, const Eigen::MatrixXd& G, const std::vector<Eigen::ArrayXi>& idpeer, const Eigen::ArrayXd& treat, const Eigen::ArrayXd& d, const double& tol, const unsigned int& nthread, const unsigned int& seed, const bool& print);
+RcppExport SEXP _AsyPeer_fRankASym(SEXP ySEXP, SEXP alphaSEXP, SEXP betadeltaSEXP, SEXP GSEXP, SEXP idpeerSEXP, SEXP treatSEXP, SEXP dSEXP, SEXP tolSEXP, SEXP nthreadSEXP, SEXP seedSEXP, SEXP printSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type alpha(alphaSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type betadelta(betadeltaSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type G(GSEXP);
+    Rcpp::traits::input_parameter< const std::vector<Eigen::ArrayXi>& >::type idpeer(idpeerSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type treat(treatSEXP);
+    Rcpp::traits::input_parameter< const Eigen::ArrayXd& >::type d(dSEXP);
+    Rcpp::traits::input_parameter< const double& >::type tol(tolSEXP);
+    Rcpp::traits::input_parameter< const unsigned int& >::type nthread(nthreadSEXP);
+    Rcpp::traits::input_parameter< const unsigned int& >::type seed(seedSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type print(printSEXP);
+    rcpp_result_gen = Rcpp::wrap(fRankASym(y, alpha, betadelta, G, idpeer, treat, d, tol, nthread, seed, print));
+    return rcpp_result_gen;
+END_RCPP
+}
 // fnthreads
 int fnthreads(const int& nthread);
 RcppExport SEXP _AsyPeer_fnthreads(SEXP nthreadSEXP) {
@@ -775,6 +879,12 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_AsyPeer_combn", (DL_FUNC) &_AsyPeer_combn, 3},
+    {"_AsyPeer_BRSingle", (DL_FUNC) &_AsyPeer_BRSingle, 7},
+    {"_AsyPeer_NashSingle", (DL_FUNC) &_AsyPeer_NashSingle, 7},
+    {"_AsyPeer_falpha", (DL_FUNC) &_AsyPeer_falpha, 4},
+    {"_AsyPeer_fRankSym", (DL_FUNC) &_AsyPeer_fRankSym, 12},
+    {"_AsyPeer_fRankASym", (DL_FUNC) &_AsyPeer_fRankASym, 11},
     {"_AsyPeer_fnthreads", (DL_FUNC) &_AsyPeer_fnthreads, 1},
     {"_AsyPeer_highlowstat1", (DL_FUNC) &_AsyPeer_highlowstat1, 6},
     {"_AsyPeer_highlowstat2", (DL_FUNC) &_AsyPeer_highlowstat2, 7},

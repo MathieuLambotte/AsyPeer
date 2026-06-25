@@ -189,7 +189,6 @@ int fNashE(Eigen::Map<Eigen::VectorXd> y,
   // cout<<"*****"<<endl;
   Eigen::ArrayXd yst = BR(alpha, y, G, peffects, cumsn, nvec, 
                           idpeer, d, ngroup, nthread);
-  y.array().maxCoeff();
   
   // check convergence
   double dist = ((yst - y.array())/(y.array() + 1e-50)).abs().maxCoeff();

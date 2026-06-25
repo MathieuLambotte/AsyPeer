@@ -4,7 +4,7 @@
 ######################## Monte Carlo Simulations ##########################
 ###########################################################################
 
-# Last update: 2026-06-12
+# Last update: 2026-06-19
 
 rm(list = ls())
 
@@ -14,6 +14,7 @@ library(openxlsx)
 library(dplyr)
 
 OutResPath  <- "PATH/TO/WHERE/RESULTS/WILL/BE/SAVED" # Where results should be saved
+OutResPath  <- "~/Dropbox/Academy/1.Papers/AsymmetricPeer/AsyPeerCode/package/AsyPeer/Replication"
 
 ### Sample size
 ngr   <- 50  # Number of subnets
@@ -36,26 +37,20 @@ festim  <- function(beta, homophily){
   X     <- cbind(rnorm(n, eff, 1), rpois(n, 2)) # Make the effects correlated with X
   
   ### Network simulation
-  # Degree possible values (support)
-  dvalues  <- 0:10  # Agents can have up to 10 friends
-  
-  # Degree distribution
-  ddvalues <- c(0.22175143, 0.09047220, 0.10325461, 0.11262459, 0.11128805, 0.10039670,
-                0.08578010, 0.07272753, 0.05633362, 0.03411014, 0.01126104)  
-  
-  # Degree simulation
-  degree   <- lapply(1:ngr, function(s) sample(dvalues, nvec[s], replace = TRUE, 
-                                               prob = ddvalues))
-  
   G     <- NULL
   if (homophily) {
-
+    
+    # Degree simulation
+    degree   <- lapply(1:ngr, \(s) {
+      rpois(nvec[s], X[c(cumsn[s] + 1):cumsn[s + 1], 2] + 1)
+    })
+    
     # compute distance between individuals
-    X1dis <- mat.to.vec(lapply(1:ngr, function(s) {
+    X1dis <- mat.to.vec(lapply(1:ngr, \(s) {
       kronecker(X[c(cumsn[s] + 1):cumsn[s + 1], 1], 
                 t(X[c(cumsn[s] + 1):cumsn[s + 1], 1]), 
                 FUN = \(x, y) abs(x - y))})) 
-    X2dis <- mat.to.vec(lapply(1:ngr, function(s) {
+    X2dis <- mat.to.vec(lapply(1:ngr, \(s) {
       kronecker(X[c(cumsn[s] + 1):cumsn[s + 1], 2], 
                 t(X[c(cumsn[s] + 1):cumsn[s + 1], 2]), 
                 FUN = \(x, y) abs(x - y))})) 
@@ -75,8 +70,19 @@ festim  <- function(beta, homophily){
     
   } else {
     
+    # Degree possible values (support)
+    dvalues  <- 0:10  # Agents can have up to 10 friends
+    
+    # Degree distribution
+    ddvalues <- c(0.22175143, 0.09047220, 0.10325461, 0.11262459, 0.11128805, 0.10039670,
+                  0.08578010, 0.07272753, 0.05633362, 0.03411014, 0.01126104)  
+    
+    # Degree simulation
+    degree   <- lapply(1:ngr, \(s) sample(dvalues, nvec[s], replace = TRUE, 
+                                          prob = ddvalues))
+    
     # Peer group for each agent in each subnetwork
-    peerg    <- lapply(1:ngr, function(s){
+    peerg    <- lapply(1:ngr, \(s){
       lapply(1:nvec[s], function(i) sample((1:nvec[s])[-i], degree[[s]][i]))
     })    
     
@@ -115,6 +121,16 @@ festim  <- function(beta, homophily){
                        power = 2,
                        seed = as.integer(runif(1, 0, 1e9)))
   
+  # # using xgboost to generate instruments
+  # gen.inst.arg <- list(estimator = "xgboost",
+  #                      full = TRUE,
+  #                      nfold = 5,
+  #                      nrounds = 100,
+  #                      nthread = 8,
+  #                      subsample = 0.8,
+  #                      power = 2,
+  #                      seed = as.integer(runif(1, 0, 1e9)))
+  
   ### Estimation of the asymmetric model
   est1  <- asypeer.estim(y ~ X + GX, Glist = Gnorm, fixed.effects = TRUE, 
                          asymmetry = TRUE, gen.inst.arg = gen.inst.arg)
@@ -133,7 +149,7 @@ festim  <- function(beta, homophily){
 }
 
 ### Number of simulations
-nsim   <- 1000
+nsim   <- 50
 
 ### This function simulates and estimates nsim times for each specification
 run_sim <- function(beta, homophily) {

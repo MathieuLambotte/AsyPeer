@@ -16,8 +16,8 @@ rm(list = ls())
 library(dplyr)
 library(haven)
 
-InDataPath  <- "PATH/TO/RAW/DATA" # Where results should be saved
-OutDataPath <- "PATH/TO/WHERE/PREPARED/DATA/WILL/BE/SAVED"
+InDataPath  <- "PATH/TO/RAW/DATA" # Where raw data are located
+OutDataPath <- "PATH/TO/WHERE/PREPARED/DATA/WILL/BE/SAVED" # Where prepared data will be saved
 
 # Importing data sets
 # Friendship data set (WAVE I)

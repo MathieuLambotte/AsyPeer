@@ -107,7 +107,7 @@ Eigen::VectorXd NashSingle(const Eigen::ArrayXd y0,
   computeBR: Eigen::ArrayXd yst = BRSingle(alpha, y, G, betadelta, n, idpeer, d);
   
   // check convergence
-  double dist = ((yst - y.array())/(y.array() + 1e-50)).abs().maxCoeff();
+  double dist = (yst - y.array()).abs().maxCoeff() / y.array().abs().mean();
   y           = yst;
   if (dist > tol) goto computeBR;
   

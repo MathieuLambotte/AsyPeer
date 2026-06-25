@@ -191,7 +191,7 @@ int fNashE(Eigen::Map<Eigen::VectorXd> y,
                           idpeer, d, ngroup, nthread);
   
   // check convergence
-  double dist = ((yst - y.array())/(y.array() + 1e-50)).abs().maxCoeff();
+  double dist = (yst - y.array()).abs().maxCoeff() / y.array().abs().mean();
   y           = yst;
   if (print) {
     Rcpp::Rcout << "Iteration: " << t << " Distance: " << dist << endl;

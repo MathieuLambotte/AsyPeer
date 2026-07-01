@@ -4,7 +4,7 @@
 ######################## Monte Carlo Simulations ##########################
 ###########################################################################
 
-# Last update: 2026-06-19
+# Last update: 2026-06-30
 
 rm(list = ls())
 
@@ -15,66 +15,92 @@ library(dplyr)
 
 OutResPath  <- "PATH/TO/WHERE/RESULTS/WILL/BE/SAVED" # Where results should be saved
 
+OutResPath  <- "~/projects/def-haache/haache/AsyPeer/Results"
+OutResPath  <- "~/projects/def-eahou5/AsyPeer"
+OutResPath  <- "~/Dropbox/Academy/1.Papers/AsymmetricPeer/AsyPeerCode/package/AsyPeer/Replication"
+
+
 ### Sample size
 ngr   <- 50  # Number of subnets
 nvec  <- rep(50, ngr)  # Size of subnets
 n     <- sum(nvec)
 cumsn <- c(0, cumsum(nvec))
 
-### Model parameters
-gamma <- c(-0.8, 1.9, -0.5, 1.3)
-sigma <- 1 # variance of eps
+### variance of eps
+sigma <- 1
 
-### This function simulate the data and estimates the model
-# beta take the conformity parameter value
-# homophily is Boolean, indicating if the network is simulated with homophily
-festim  <- function(beta, homophily){
-  ### Exogenous characteristics
-  # Fixed effects
-  eff   <- rep(runif(ngr, -1, 1), nvec)
-  # X
-  X     <- cbind(rnorm(n, eff, 1), rpois(n, 2)) # Make the effects correlated with X
+### This function simulates the data and estimates the model
+# beta takes the conformity parameter value
+# segregated is a Boolean indicating whether the network is segregated
+festim  <- function(beta, segregated){
   
-  ### Network simulation
-  G     <- NULL
-  if (homophily) {
+  ### gamma
+  gamma <- c(1.4, -0.8, 0.7, -0.5)
+  if (segregated) {
+    gamma[3:4] <- 0 # No contextual effects for the segregated network
+  }
+  
+  ### Possible degree values (support)
+  dvalues  <- 0:10  # Agents can have up to 10 friends
+  
+  ### Degree distribution
+  ddvalues <- c(0.22175143, 0.09047220, 0.10325461, 0.11262459, 0.11128805, 0.10039670,
+                0.08578010, 0.07272753, 0.05633362, 0.03411014, 0.01126104)  
+  
+  ### Fixed effects, correlated with X1
+  eff   <- rep(rnorm(ngr, 10, 1), nvec)
+  
+  ### X and Network simulation
+  G     <- list()
+  X     <- cbind(NA, rpois(n, 2))
+  if (segregated) {
     
-    # Degree simulation
-    degree   <- lapply(1:ngr, \(s) {
-      rpois(nvec[s], X[c(cumsn[s] + 1):cumsn[s + 1], 2] + 1)
-    })
+    # X1 is simulated to reflect the segregated grouping structure
+    for (m in 1:ngr) {
+      effm <- eff[(cumsn[m] + 1):cumsn[m + 1]]
+      X[(cumsn[m] + 1):cumsn[m + 1], 1] <- 
+        c(runif(20, effm[1:20] - 2, effm[1:20] + 2), 
+          runif(30, effm[21:50] + 10, effm[21:50] + 20))
+    }
     
-    # compute distance between individuals
-    X1dis <- mat.to.vec(lapply(1:ngr, \(s) {
-      kronecker(X[c(cumsn[s] + 1):cumsn[s + 1], 1], 
-                t(X[c(cumsn[s] + 1):cumsn[s + 1], 1]), 
-                FUN = \(x, y) abs(x - y))})) 
-    X2dis <- mat.to.vec(lapply(1:ngr, \(s) {
-      kronecker(X[c(cumsn[s] + 1):cumsn[s + 1], 2], 
-                t(X[c(cumsn[s] + 1):cumsn[s + 1], 2]), 
-                FUN = \(x, y) abs(x - y))})) 
-    
-    # Friendship probability
-    p     <- vec.to.mat(plogis(-1.4 - 0.7 * X1dis - 0.2 * X2dis), nvec)
-    
-    # Network
-    G     <- lapply(1:ngr, \(s) {
-      Gs  <- matrix(0, nvec[s], nvec[s])
-      for (i in 1:nvec[s]) {
-        Gs[i,sample(setdiff(1:nvec[s], i), degree[[s]][i],
-                    prob = p[[s]][i,-i], replace = FALSE)] <- 1
+    for (m in 1:ngr) {
+      
+      Gm    <- matrix(0, nvec[m], nvec[m])
+      
+      # The three groups
+      n1    <- 10
+      n2    <- 10
+      n3    <- nvec[m] - n1 - n2
+      gr1   <- 1:n1
+      gr2   <- (n1 + 1):(n1 + n2)
+      gr3   <- (n1 + n2 + 1):nvec[m]
+      
+      # Nodes from gr2 choose friends in gr3; these links are not reciprocal
+      deg1  <- sample(dvalues, n1, replace = TRUE, prob = ddvalues)
+      ifr1  <- lapply(1:n1, \(i) sample(gr2, deg1[i]))
+      
+      for (i in 1:n1) {
+        Gm[gr1[i], ifr1[[i]]] <- Gm[ifr1[[i]], gr1[i]] <- 1
       }
-      Gs
-    })
+      
+      # Nodes from gr1 choose friends in gr2; these links are reciprocal
+      deg2  <- sample(dvalues, n2, replace = TRUE, prob = ddvalues)
+      ifr2  <- lapply(1:n2, \(i) {
+        sample(gr3, deg2[i])
+      })
+      
+      for (i in 1:n2) {
+        Gm[gr2[i], ifr2[[i]]] <- 1
+      }
+      
+      G[[m]] <- Gm
+      
+    }
     
   } else {
     
-    # Degree possible values (support)
-    dvalues  <- 0:10  # Agents can have up to 10 friends
-    
-    # Degree distribution
-    ddvalues <- c(0.22175143, 0.09047220, 0.10325461, 0.11262459, 0.11128805, 0.10039670,
-                  0.08578010, 0.07272753, 0.05633362, 0.03411014, 0.01126104)  
+    # X
+    X[,1]    <- runif(n, eff - 2, eff + 2) 
     
     # Degree simulation
     degree   <- lapply(1:ngr, \(s) sample(dvalues, nvec[s], replace = TRUE, 
@@ -87,12 +113,12 @@ festim  <- function(beta, homophily){
     
     # Network
     G        <- list()
-    for (s in 1:ngr) {
-      Gs     <- matrix(0, nvec[s], nvec[s])
-      for (i in 1:nvec[s]) {
-        Gs[i, peerg[[s]][[i]]] <- 1
+    for (m in 1:ngr) {
+      Gm     <- matrix(0, nvec[m], nvec[m])
+      for (i in 1:nvec[m]) {
+        Gm[i, peerg[[m]][[i]]] <- 1
       }
-      G[[s]] <- Gs
+      G[[m]] <- Gm
     }
     
   }
@@ -108,7 +134,7 @@ festim  <- function(beta, homophily){
   y     <- asypeer.sim(formula = ~ -1 + eff + X + GX, Glist = Gnorm, delta = 0, 
                        beta = beta, gamma = c(1, gamma), epsilon = eps)$y
   
-  ### Arguments for gen.inst
+  ### Arguments for instrument generation (gen.inst)
   gen.inst.arg <- list(estimator = "rf",
                        full = TRUE,
                        nfold = 5,
@@ -130,12 +156,19 @@ festim  <- function(beta, homophily){
   #                      power = 2,
   #                      seed = as.integer(runif(1, 0, 1e9)))
   
+  fm    <- NULL
+  if (segregated) {
+    fm  <- y ~ X # No contextual effects for segregated networks
+  } else {
+    fm  <- y ~ X + GX
+  }
+  
   ### Estimation of the asymmetric model
-  est1  <- asypeer.estim(y ~ X + GX, Glist = Gnorm, fixed.effects = TRUE, 
+  est1  <- asypeer.estim(fm, Glist = Gnorm, fixed.effects = TRUE, 
                          asymmetry = TRUE, gen.inst.arg = gen.inst.arg)
   
   ### Estimation of the symmetric model
-  est2  <- asypeer.estim(y ~ X + GX, Glist = Gnorm, fixed.effects = TRUE, 
+  est2  <- asypeer.estim(fm, Glist = Gnorm, fixed.effects = TRUE, 
                          asymmetry = FALSE, gen.inst.arg = gen.inst.arg)
   
   ### Output
@@ -148,47 +181,47 @@ festim  <- function(beta, homophily){
 }
 
 ### Number of simulations
-nsim   <- 50
+nsim   <- 1000
 
 ### This function simulates and estimates nsim times for each specification
-run_sim <- function(beta, homophily) {
+run_sim <- function(beta, segregated) {
   do.call(cbind, lapply(1:nsim, \(i) {
     message(sprintf("Iteration: %d", i))
-    festim(beta = beta, homophily = homophily)
+    festim(beta = beta, segregated = segregated)
   }))
 }
 
 ### DGP 1
 set.seed(123)
 beta1 <- c(1, 1)
-print("DGP 1 - No Homophily")
-Est1  <- run_sim(beta = beta1, homophily = FALSE)
-print("DGP 1 - Homophily")
-Est1H <- run_sim(beta1, homophily = TRUE)
+print("DGP 1 - random")
+Est1  <- run_sim(beta = beta1, segregated = FALSE)
+print("DGP 1 - segregated")
+Est1H <- run_sim(beta1, segregated = TRUE)
 
 ### DGP 2
 set.seed(123)
 beta2 <- c(0.4, 2.6)
-print("DGP 2 - No Homophily")
-Est2  <- run_sim(beta2, homophily = FALSE)
-print("DGP 2 - Homophily")
-Est2H <- run_sim(beta2, homophily = TRUE)
+print("DGP 2 - random")
+Est2  <- run_sim(beta2, segregated = FALSE)
+print("DGP 2 - segregated")
+Est2H <- run_sim(beta2, segregated = TRUE)
 
 ### DGP 3
 set.seed(123)
 beta3 <- c(2.6, 0.4)
-print("DGP 3 - No Homophily")
-Est3  <- run_sim(beta3, homophily = FALSE)
-print("DGP 3 - Homophily")
-Est3H <- run_sim(beta3, homophily = TRUE)
+print("DGP 3 - random")
+Est3  <- run_sim(beta3, segregated = FALSE)
+print("DGP 3 - segregated")
+Est3H <- run_sim(beta3, segregated = TRUE)
 
 ### DGP 4
 set.seed(123)
 beta4 <- c(-0.4, 2.6)
-print("DGP 4 - No Homophily")
-Est4  <- run_sim(beta4, homophily = FALSE)
-print("DGP 4 - Homophily")
-Est4H <- run_sim(beta4, homophily = TRUE)
+print("DGP 4 - random")
+Est4  <- run_sim(beta4, segregated = FALSE)
+print("DGP 4 - segregated")
+Est4H <- run_sim(beta4, segregated = TRUE)
 
 save(Est1, Est1H, Est2, Est2H, Est3, Est3H, Est4, Est4H, 
      file = paste0(OutResPath, "/Simulations.Rda"))
@@ -214,30 +247,28 @@ Est <- lapply(1:4, \(k) {
   
   # Construct tables
   outk <- data.frame(Model = c("betal", "betah", "beta",  
-                                  paste0("gamma1_", 1:2),
-                                  paste0("gamma2_", 1:2))) %>% 
+                               paste0("gamma1_", 1:2),
+                               paste0("gamma2_", 1:2))) %>% 
     ## Adding columns for asymmetry and random network
     left_join(data.frame(Model = c("betal", "betah", 
-                                      paste0("gamma1_", 1:2),
-                                      paste0("gamma2_", 1:2)),
+                                   paste0("gamma1_", 1:2),
+                                   paste0("gamma2_", 1:2)),
                          tp["ASY" == substr(rownames(tp), 1, 3),]) %>%
                 rename(mean_asym = mean, sd_asym = sd), by = "Model") %>%
     ## Adding columns for symmetry and random network
     left_join(data.frame(Model = c("beta", 
-                                      paste0("gamma1_", 1:2),
-                                      paste0("gamma2_", 1:2)),
+                                   paste0("gamma1_", 1:2),
+                                   paste0("gamma2_", 1:2)),
                          tp["SYM" == substr(rownames(tp), 1, 3),]) %>%
                 rename(mean_sym = mean, sd_sym = sd), by = "Model") %>% 
-    # Adding columns for asymmetry and homophilic network
+    # Adding columns for asymmetry and segregated network
     left_join(data.frame(Model = c("betal", "betah", 
-                                      paste0("gamma1_", 1:2),
-                                      paste0("gamma2_", 1:2)),
+                                   paste0("gamma1_", 1:2)),
                          tpH["ASY" == substr(rownames(tpH), 1, 3),]) %>%
                 rename(mean_asymH = mean, sd_asymH = sd), by = "Model") %>%
-    # Adding columns for symmetry and homophilic network
+    # Adding columns for symmetry and segregated network
     left_join(data.frame(Model = c("beta", 
-                                      paste0("gamma1_", 1:2),
-                                      paste0("gamma2_", 1:2)),
+                                   paste0("gamma1_", 1:2)),
                          tpH["SYM" == substr(rownames(tpH), 1, 3),]) %>%
                 rename(mean_symH = mean, sd_symH = sd), by = "Model") %>%
     # Formatting
@@ -249,8 +280,8 @@ Est <- lapply(1:4, \(k) {
   addrow <- data.frame(matrix(NA, 1, ncol(outk), dimnames =list(NULL, colnames(outk))))
   outk   <- addrow %>% bind_rows(outk) 
   outk$Model <- c(paste0("DGP ", k,
-                             ": $\\beta^l = ", sprintf("%.2f", bl),
-                             "$, $\\beta^h = ", sprintf("%.2f", bh)),
+                         ": $\\beta^l = ", sprintf("%.2f", bl),
+                         "$, $\\beta^h = ", sprintf("%.2f", bh)),
                   "$\\beta^l$", "$\\beta^h$", "$\\beta$",
                   "$\\gamma_{1,1}$", "$\\gamma_{1,2}$",
                   "$\\gamma_{2,1}$", "$\\gamma_{2,2}$")
@@ -272,7 +303,7 @@ writeData(wb, shname, Est,
           keepNA = TRUE, na.string = "", startRow = rstart)
 
 # First row
-val      <- c("Random Network", "Homophilic Network")
+val      <- c("Random Network", "Segregated Network")
 pos      <- c(2, 6)
 for (k in 1:length(pos)) {
   writeData(wb, shname, val[k], startCol = pos[k], startRow = rstart - 1)
@@ -295,3 +326,4 @@ for (k in 1:length(pos)) {
 
 # Export
 saveWorkbook(wb, paste0(OutResPath, "/Simulations.xlsx"), overwrite = TRUE)
+

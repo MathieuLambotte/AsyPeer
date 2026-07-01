@@ -172,8 +172,12 @@ spillover <- function(asymodel,
   # Outcome
   form     <- as.formula(paste0(asymodel$model.info$yname, " ~ 1"))
   if (missing(data)) {
-    data   <- environment(asymodel)
+    data   <- env(asymodel$model.info$formula)
   }
+  if (is.null(data)) {
+    data   <- env(asymodel$model.info$formula)
+  }
+  
   y        <- formula2data(formula = form, data = data, fixed.effects = FALSE,
                            simulations = FALSE)$y
   if (length(y) != sum(nvec)) {

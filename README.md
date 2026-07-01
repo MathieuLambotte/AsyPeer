@@ -7,7 +7,7 @@
   [![Lifecycle: experimental](https://img.shields.io/badge/Lifecycle-Experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![R-CMD-check](https://github.com/MathieuLambotte/AsyPeer/actions/workflows/R-CMD-check.yml/badge.svg)](https://github.com/MathieuLambotte/AsyPeer/actions/workflows/R-CMD-check.yml)
-  
+
 
   <!-- [![R-universe](https://MathieuLambotte.r-universe.dev/badges/AsyPeer)](https://MathieuLambotte.r-universe.dev/AsyPeer)
   [![CRAN](https://www.r-pkg.org/badges/version/AsyPeer)](https://CRAN.R-project.org/package=AsyPeer)
@@ -17,7 +17,7 @@
 ### Overview
 
 The **AsyPeer** package implements estimation and simulation routines for asymmetric peer effect models introduced in [Houndetoungan and Lambotte (2026)](https://doi.org/xxx).
-Replication code for all results in the paper is available in the [Replication](https://github.com/MathieuLambotte/AsyPeer/tree/main/Results) folder.
+Replication code for all results in the paper is available in the [Replication](https://github.com/MathieuLambotte/AsyPeer/tree/main/Replication) folder.
 
 ## Installation
 ### CRAN version
@@ -32,4 +32,3 @@ It may be possible that we updated the package without submitting the new versio
 ```R
 remotes::install_github("MathieuLambotte/AsyPeer")
 ```
-

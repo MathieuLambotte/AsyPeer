@@ -238,9 +238,6 @@ Rcpp::List fRankSym(const double& beta, // for the misspecified symmetric model
       alphak(setRank[l]) += treat / NTreat(l);
     }
     
-    // sum treatment
-    double treatsum = (k + 1) * treat;
-    
     // Nash equilibrium
     Diffy(k)  = NashSingle(y, alphak, G, betadelta, idpeer, d, tol).sum() - ysum;
     Spill(k)  = Diffy(k) / streat(k);

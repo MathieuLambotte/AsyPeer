@@ -4,12 +4,11 @@
 ########################### Add Health Estimation #########################
 ###########################################################################
 # This script replicates our empirical results using Add Health data.
-# Please, prior use the script AddHealth.data.R to prepare the data set for
-# each outcome in am expect form for this scrip.
-# This scripts assumes that the prepared data are saved in the folder with path 
-# `OutDataPath`
+# Before using this script, use first the script AddHealth.data.R to 
+# prepare the data set.
+# The data set should be saved in the folder with the path `OutDataPath`
 
-# Last update: 2026-06-15
+# Last update: 2026-07-02
 
 rm(list = ls())
 
@@ -20,13 +19,15 @@ library(dplyr)
 library(AsyPeer)
 library(openxlsx)
 
-OutDataPath <- "PATH/TO/WHERE/PREPARED/DATA/WILL/BE/SAVED" # Where prepared data are saved
-OutResPath  <- "PATH/TO/WHERE/RESULTS/WILL/BE/SAVED" # Where results should be saved
+
+OutDataPath <- "PATH/TO/WHERE/PREPARED/DATA/WILL/BE/SAVED" # Where prepared data will be saved
+OutResPath  <- "PATH/TO/WHERE/RESULTS/WILL/BE/SAVED" # Where results will be saved
+
 
 # List of outcome variables
 depvar  <- c("smoke","fight", "optimism", "drink")
 
-# This function estimate the symmetric and asymmetric model for each outcome
+# This function estimates the symmetric and asymmetric model for each outcome
 festim  <- function(outcome) {
   set.seed(123)
   cat("Outcome: ", outcome, "\n", sep = "")
@@ -38,7 +39,7 @@ festim  <- function(outcome) {
   
   exovar  <- c("age", "female", "grade", "hispanic", "racewhite", 
                "raceblack", "raceasian", "melhigh", "memhigh", "memiss", 
-               "mjprof", "mjother", "mjmiss","match","nmatch")
+               "mjprof", "mjother", "mjmiss", "match", "nmatch")
   
   G       <- norm.network(G)
   match   <- data$match
@@ -46,8 +47,7 @@ festim  <- function(outcome) {
   y       <- data$y
   X       <- as.matrix(data[,exovar])
   GX      <- peer.avg(G, X)
-  drop    <-  rep(FALSE, length(y)) # Observation to be dropped
-  drop    <- (match == 0) & (nmatch > 0)
+  drop    <- (match == 0) & (nmatch > 0) # Observations to be dropped: false isolated
   
   ########################################################
   ###################### Estimation ######################
@@ -62,7 +62,7 @@ festim  <- function(outcome) {
                        sample.fraction = 0.8,
                        num.threads = 8,
                        seed = 123)
-    
+  
   ## Estimation assuming symmetry
   ssym <- summary(asypeer.estim(formula = y ~ X + GX, 
                                 Glist = G, 
@@ -88,7 +88,7 @@ festim  <- function(outcome) {
                    diagnostic = TRUE, KP = TRUE)
   
   print(sasym)
- 
+  
   ## Saving results
   save(ssym, sasym, file = paste0(OutResPath, "/", outcome, ".Rda"))
   invisible(NULL)
@@ -161,80 +161,6 @@ fres <- function(k) {
   colnames(out) <- c("coef", paste0(OUTCOME[k], c("_asym", "_sym")))
   
   return(out)
-  # Format SEs with parentheses
-  se_fmt <- paste0("(", se, ")")
-  
-  # Interleave estimates and SEs
-  values <- as.vector(rbind(est, se_fmt))
-  
-  # Create a 'Name' column: only for estimate rows, blank for SE rows
-  name_col <- rep("", length(values))
-  name_col[seq(1, length(values), by = 2)] <- c("$\\beta^l", "$\\beta^h$","Age","Female", "Grade","Hispanic","White","Black","Asian","melhigh","memhigh","memiss",
-                                                "mjprof","mjother","mjmiss","degree_matched","degree_nmatch","Age","Female", "Grade","Hispanic","White","Black","Asian","melhigh","memhigh","memiss",
-                                                "mjprof","mjother","mjmiss","degree_matched","degree_nmatch")  # 1st, 3rd, ... rows
-  name_test   <-c("SymTest","")
-  values_test <- as.vector(rbind(round(sasym$gmm$diffbeta[1],3), 
-                                 paste0("(", round(sasym$gmm$diffbeta[2],3), ")")))
-  test_table1 <-data.frame(
-    Coefficient = name_test,
-    Asymmetric = values_test,
-    stringsAsFactors = FALSE
-  )
-  
-  # Put in a data.frame
-  pub_table1   <- data.frame(
-    Coefficient = name_col,
-    Asymmetric = values,
-    stringsAsFactors = FALSE
-  )
-  diag <- sasym$diagnostics[,3]
-  
-  diag_df <- data.frame(
-    Coefficient   = names(diag),
-    Asymmetric = round(as.numeric(diag), 3),
-    row.names = NULL,
-    stringsAsFactors = FALSE
-  )
-  minbeta <-  min(sasym$gmm$Estimate[c("betal", "betah")])
-  maxbeta <- max(sasym$gmm$Estimate[c("betal", "betah")])
-  boundl <- unname(minbeta/ (1 + minbeta))
-  boundh <- unname(maxbeta / (1 + maxbeta))
-  asyrange <- paste0("[", deparse(round(boundl,4)),", ", deparse(round(boundh,4)),"]", sep = "")
-  asyrange <- data.frame(cbind("Total Peer Effects Range",asyrange))
-  colnames(asyrange) <- c("Coefficient","Asymmetric")
-  pub_table1 <-rbind(pub_table1[1:4,],c("$\\beta$",NA),c("",NA),
-                     pub_table1[5:nrow(pub_table1),],diag_df,test_table1,asyrange)
-  
-  # Coefficient names
-  coef_names <- rownames(ssym$coefficients)
-  
-  # Extract estimates and SEs
-  est <- round(ssym$coefficients[coef_names, "Estimate"], 3)
-  se  <- round(ssym$coefficients[coef_names, "Std. Error"], 3)
-  
-  # Format SEs with parentheses
-  se_fmt <- paste0("(", se, ")")
-  
-  # Interleave estimates and SEs
-  values <- as.vector(rbind(est, se_fmt))
-  
-  # Put in a data.frame
-  pub_table2 <- data.frame(
-    Symmetric = values,
-    stringsAsFactors = FALSE
-  )
-  diag <- ssym$diagnostics[,3]
-  
-  diag_df2 <- data.frame(
-    Symmetric = round(as.numeric(diag), 3),
-    row.names = NULL,
-    stringsAsFactors = FALSE
-  )
-  bound <- unname(ssym$gmm$Estimate["beta"] / (1 + ssym$gmm$Estimate["beta"]))
-  symrange <- deparse(round(bound,4))
-  names(symrange) <- "Symmetric"
-  pub_table2<-rbind(NA,NA,NA,NA,pub_table2,diag_df2[1,],NA,NA,diag_df2[2,],NA,NA,symrange)
-  cbind(pub_table1,pub_table2)
 }
 out    <- lapply(1:length(depvar), fres)
 out    <- out[[1]] %>% left_join(out[[2]], by = "coef") %>% 
@@ -255,3 +181,4 @@ writeData(wb, "Estimates", out, keepNA = TRUE, na.string = "", startRow = 1, sta
 
 # Save the workbook
 saveWorkbook(wb, paste0(OutResPath, "/estimation.xlsx"), overwrite = TRUE)
+

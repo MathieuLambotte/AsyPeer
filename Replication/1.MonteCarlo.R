@@ -15,11 +15,6 @@ library(dplyr)
 
 OutResPath  <- "PATH/TO/WHERE/RESULTS/WILL/BE/SAVED" # Where results should be saved
 
-OutResPath  <- "~/projects/def-haache/haache/AsyPeer/Results"
-OutResPath  <- "~/projects/def-eahou5/AsyPeer"
-OutResPath  <- "~/Dropbox/Academy/1.Papers/AsymmetricPeer/AsyPeerCode/package/AsyPeer/Replication"
-
-
 ### Sample size
 ngr   <- 50  # Number of subnets
 nvec  <- rep(50, ngr)  # Size of subnets

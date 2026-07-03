@@ -4,7 +4,7 @@
 ###################### Add Health Data Extraction #########################
 ###########################################################################
 
-# Last updated: 2026-05-27
+# Last updated: 2026-07-02
 
 ## This script imports raw Add Health data and prepares them for estimation.
 ## The outputs of this script include an .Rda file for each outcome.
@@ -15,6 +15,7 @@
 rm(list = ls())
 library(dplyr)
 library(haven)
+library(openxlsx)
 
 InDataPath  <- "PATH/TO/RAW/DATA" # Where raw data are located
 OutDataPath <- "PATH/TO/WHERE/PREPARED/DATA/WILL/BE/SAVED" # Where prepared data will be saved
@@ -43,23 +44,26 @@ Inschool <- Inschool %>% left_join(sfriend, by = "SQID")
 
 # Create variables that will be used
 Inschool <- Inschool %>% 
-  # I recoded some variables before constructing the ones that will be used in the models.
+  # We recoded some variables before constructing the ones that will be used in the models.
   # Replace 99 with NA
   mutate(across(c(all_of("S1"), starts_with("S45"), starts_with("S59"), starts_with("S62")), ~ ifelse(. == 99, NA, .))) %>%
   # Replace 9 with NA
   mutate(across(c(all_of(c("S2", "S48", "S63", "S64")), starts_with("S46")), ~ ifelse(. == 9, NA, .))) %>%
   # Replace values out of 1:4 with NA (this is for the GPA)
   mutate(across(all_of(c("S10A", "S10B", "S10C", "S10D")), ~ ifelse(. %in% (1:4), ., NA))) %>%
-  # Variable about perception of future vary from zero to eight. Add one so that they vary from one to nine.
-  # higher values indicate a more positive perception of the future.
-  mutate(across(all_of(c("S45A", "S45E", "S45F")), ~ 1 + .)) %>% 
-  # S45C (be killed) and S45D (get HIV) capture negative perception. 
-  # Thus, do 9 - variable so that they vary from zero to nine, where higher values indicate a more positive perception of the future.
-  mutate(across(all_of(c("S45C", "S45D")), ~ 9 - .)) %>% 
+  # Variable about perception of future vary from zero to eight. 
+  # But S45C (be killed) and S45D (get HIV) capture negative perception. 
+  # Thus, we do 8 - variable so that they vary from zero to eight, where higher values indicate a more positive perception of the future.
+  mutate(across(all_of(c("S45C", "S45D")), ~ 8 - .)) %>% 
   # Get trouble is converted to the number of times per week.
   mutate(across(all_of(c("S46A", "S46B", "S46C", "S46D")), ~ ifelse(. == 1, 0, ifelse(. == 2, 1, ifelse(. == 3, 2.5, ifelse(. == 4, 5, .)))))) %>%
-  # Dangerous activities
-  mutate(across(starts_with("S59"), ~ ifelse(. == 1, 0.029, ifelse(. == 2, 0.25, ifelse(. == 3, 0.625, ifelse(. == 4, 1.5, ifelse(. == 5, 4, ifelse(. == 6, 7, .)))))))) %>%
+  # Dangerous activities (we convert in week)
+  mutate(across(starts_with("S59"), ~ ifelse(. == 1, 0.029, #1.5 per year / 52 week
+                                             ifelse(. == 2, 0.25, # 0.5 per month / 4 weeks
+                                                    ifelse(. == 3, 0.625, # 2.5 per month / 4 weeks
+                                                           ifelse(. == 4, 1.5, # 1.5 per week
+                                                                  ifelse(. == 5, 4, # 4 per weeks
+                                                                         ifelse(. == 6, 7, .)))))))) %>% # everyday
   # Self esteem
   mutate(across(starts_with("S62"), ~ ifelse(. == 5, 0, ifelse(. == 4, 0.25, ifelse(. == 3, 0.5, ifelse(. == 2, 0.75, .)))))) %>%
   # Model variable creation
@@ -102,7 +106,10 @@ Inschool <- Inschool %>%
          across(starts_with("S62"), ~ NULL),
          physicalexercise = ifelse(S63 == 1, 1.5, ifelse(S63 == 2, 4.5, ifelse(S63 == 3, 6.5, ifelse(S63 == 4, 7.5, S63)))),
          S63 = NULL,
-         fight = ifelse(S64 == 1, 1.5, ifelse(S64 == 2, 4.5, ifelse(S64 == 3, 6.5, ifelse(S64 == 4, 7.5, S64)))),
+         fight = ifelse(S64 == 1, 1.5, # 1.5 per year
+                        ifelse(S64 == 2, 4, # 4 per year 
+                               ifelse(S64 == 3, 6.5, # 6.5 per year
+                                      ifelse(S64 == 4, 8, S64)))), # 8 per year
          S64 = NULL) %>%
   arrange(SSCHLCDE, AID) %>% mutate(SCID = SSCHLCDE)
 
@@ -196,3 +203,57 @@ for (outcome in depvar) {
   data[["nmatch"]] <- unlist(nmatch)
   save(data, G, exovar, file = paste0(OutDataPath, "/", outcome, ".Rda")) # Saving data
 }
+
+# Data summary
+results <- list()
+for(outcome in depvar){
+  load(paste0(OutDataPath, "/", outcome, ".Rda"))
+  data <- data %>%  filter(match != 0 | nmatch <= 0)
+  exovar  <- c("age", "female", "grade", "hispanic", "racewhite", 
+               "raceblack", "raceasian", "melhigh", "memhigh", "memiss", 
+               "mjprof", "mjother", "mjmiss","match","nmatch")
+  YX       <- cbind(data$y, as.matrix(data[,exovar]))
+  colnames(YX) <- c("outcome",exovar)
+  XY <- data.frame( Mean = round(colMeans(YX, na.rm = TRUE), 3),
+                    SD   = round(apply(YX, 2, sd, na.rm = TRUE), 3),
+                    Min  = round(apply(YX, 2, min, na.rm = TRUE), 3),
+                    Max  = round(apply(YX, 2, max, na.rm = TRUE), 3))
+  export <- rbind(XY, N = c(nrow(data), NA, NA, NA),
+    M = c(length(unique(data$SSCHLCDE)), NA, NA, NA))
+  colnames(XY) <-  c("Mean", "SD", "Min", "Max")
+  
+  results[[outcome]] <- export
+}
+stat_des <- do.call(cbind, results)
+wb       <- createWorkbook()
+addWorksheet(wb, "Summary")
+
+## First header row (outcome names)
+header1   <- c("Variable")
+for(outcome in depvar)
+  header1 <- c(header1, outcome, "", "", "")
+
+## Second header row (statistics)
+header2 <- c("")
+for(i in seq_along(depvar))
+  header2 <- c(header2, "Mean", "SD", "Min", "Max")
+
+## Write headers
+writeData(wb, "Summary", t(header1), startRow = 1, colNames = FALSE)
+writeData(wb, "Summary", t(header2), startRow = 2, colNames = FALSE)
+
+## Merge outcome headers
+for(i in seq_along(depvar)){
+  first_col <- 2 + (i - 1) * 4
+  mergeCells(wb, "Summary",
+             cols = first_col:(first_col + 3),
+             rows = 1)
+}
+
+## Write data
+writeData(wb, "Summary",
+          cbind(Variable = rownames(stat_des), stat_des),
+          startRow = 3,
+          colNames = FALSE)
+
+saveWorkbook(wb, paste0(OutResPath,"/","stats.des.xlsx"), overwrite = TRUE)

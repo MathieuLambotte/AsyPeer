@@ -159,7 +159,7 @@ Rcpp::List fRankSym(const double& beta, // for the misspecified symmetric model
                     const Eigen::ArrayXd& alpha,
                     const Eigen::MatrixXd& G,
                     const std::vector<Eigen::ArrayXi>& idpeer,
-                    const Eigen::ArrayXd& treat,
+                    const double& treat,
                     const Eigen::ArrayXd& d,
                     const Eigen::ArrayXi& isolates,
                     const double& tol,
@@ -169,14 +169,22 @@ Rcpp::List fRankSym(const double& beta, // for the misspecified symmetric model
   
   Eigen::MatrixXd A = Eigen::MatrixXd::Identity(n, n) - theta * G.transpose();
   Eigen::ArrayXd AinvOne = A.colPivHouseholderQr().solve(Eigen::VectorXd::Ones(n));
-  AinvOne *= (isolates == 0).select(1.0/(1 + beta), Eigen::ArrayXd::Constant(n, 1.0));
+  AinvOne *= (isolates == 0).select(treat/(1 + beta), 
+              Eigen::ArrayXd::Constant(n, treat));
   
   // Rank in AinvOne
   Eigen::ArrayXi RAinvOne = Eigen::ArrayXi::LinSpaced(n, 0, n - 1);
-  std::sort(RAinvOne.data(), RAinvOne.data() + n,
-            [&AinvOne](int a, int b) {
-              return AinvOne(a) > AinvOne(b);
-            });
+  if (treat > 0) {
+    std::sort(RAinvOne.data(), RAinvOne.data() + n,
+              [&AinvOne](int a, int b) {
+                return AinvOne(a) > AinvOne(b);
+              });
+  } else {
+    std::sort(RAinvOne.data(), RAinvOne.data() + n,
+              [&AinvOne](int a, int b) {
+                return AinvOne(a) < AinvOne(b);
+              });
+  }
   
   // For each i we define the set of individuals that should be treated together
   // This is important for ties
@@ -205,7 +213,7 @@ Rcpp::List fRankSym(const double& beta, // for the misspecified symmetric model
   // Compute spillover 
   Eigen::ArrayXd Spill(n);
   Eigen::ArrayXd Diffy(n);
-  Eigen::ArrayXd streat(n);
+  Eigen::ArrayXd streat = Eigen::ArrayXd::LinSpaced(n, 1, n) * treat;
   double ysum = y.sum();
   
 #ifdef _OPENMP
@@ -214,29 +222,28 @@ Rcpp::List fRankSym(const double& beta, // for the misspecified symmetric model
   for(unsigned int k = 0; k < n; ++ k) {
     // treatment
     Eigen::ArrayXd alphak = alpha;
-    double treatsum = 0;
     for (unsigned int l = 0; l <= k ; ++ l) {
-      alphak(setRank[l]) += treat(setRank[l]) / NTreat(l);
-      treatsum += treat(setRank[l]).sum() / NTreat(l);
+      alphak(setRank[l]) += treat / NTreat(l);
     }
+    
     // Nash equilibrium
     Diffy(k)  = NashSingle(y, alphak, G, betadelta, idpeer, d, tol).sum() - ysum;
-    Spill(k)  = Diffy(k) / treatsum;
-    streat(k) = treatsum;
+    Spill(k)  = Diffy(k) / streat(k);
   }
 #else
   for(unsigned int k = 0; k < n; ++ k) {
     // treatment
     Eigen::ArrayXd alphak = alpha;
-    double treatsum = 0;
     for (unsigned int l = 0; l <= k ; ++ l) {
-      alphak(setRank[l]) += treat(setRank[l]) / NTreat(l);
-      treatsum += treat(setRank[l]).sum() / NTreat(l);
+      alphak(setRank[l]) += treat / NTreat(l);
     }
+    
+    // sum treatment
+    double treatsum = (k + 1) * treat;
+    
     // Nash equilibrium
     Diffy(k)  = NashSingle(y, alphak, G, betadelta, idpeer, d, tol).sum() - ysum;
-    Spill(k)  = Diffy(k) / treatsum;
-    streat(k) = treatsum;
+    Spill(k)  = Diffy(k) / streat(k);
   }
 #endif
   
@@ -257,7 +264,7 @@ Rcpp::List fRankASym(const Eigen::ArrayXd& y,
                      const Eigen::ArrayXd& betadelta,
                      const Eigen::MatrixXd& G,
                      const std::vector<Eigen::ArrayXi>& idpeer,
-                     const Eigen::ArrayXd& treat,
+                     const double& treat,
                      const Eigen::ArrayXd& d,
                      const double& tol,
                      const unsigned int& nthread,
@@ -281,7 +288,7 @@ Rcpp::List fRankASym(const Eigen::ArrayXd& y,
   Eigen::ArrayXXi Rk(n, 2);
   
   // Spillover for forward and backward
-  Eigen::ArrayXXd Spill(n, 2), Diffy(n, 2), streat(n, 2);
+  Eigen::ArrayXXd Spill(n, 2), Diffy(n, 2);
   Diffy(n - 1, 1) = yB.sum() - ysum;
   
   // Remaining indices for forward and backward
@@ -306,12 +313,12 @@ Rcpp::List fRankASym(const Eigen::ArrayXd& y,
       
       // Forward 
       Eigen::ArrayXd alphak = alphaF;
-      alphak(RF[i]) += treat(RF[i]);
+      alphak(RF[i]) += treat;
       simyF.col(i) = NashSingle(yF, alphak, G, betadelta, idpeer, d, tol);
       
       // Backward
       alphak = alphaB;
-      alphak(RB[i]) -= treat(RB[i]);
+      alphak(RB[i]) -= treat;
       simyB.col(i) = NashSingle(yB, alphak, G, betadelta, idpeer, d, tol);
     }
 #else
@@ -319,12 +326,12 @@ Rcpp::List fRankASym(const Eigen::ArrayXd& y,
       
       // Forward 
       Eigen::ArrayXd alphak = alphaF;
-      alphak(RF[i]) += treat(RF[i]);
+      alphak(RF[i]) += treat;
       simyF.col(i) = NashSingle(yF, alphak, G, betadelta, idpeer, d, tol);
       
       // Backward
       alphak = alphaB;
-      alphak(RB[i]) -= treat(RB[i]);
+      alphak(RB[i]) -= treat;
       simyB.col(i) = NashSingle(yB, alphak, G, betadelta, idpeer, d, tol);
     }
 #endif
@@ -334,7 +341,12 @@ Rcpp::List fRankASym(const Eigen::ArrayXd& y,
     // Forward
     {
       Eigen::ArrayXd SpilF = simyF.colwise().sum() - ysum;
-      double best = SpilF.maxCoeff();
+      double best;
+      if (treat > 0) {
+        best = SpilF.maxCoeff();
+      } else {
+        best = SpilF.minCoeff();
+      }
       Diffy(k, 0) = best;
       
       // Randomize rank in case of ties
@@ -351,7 +363,12 @@ Rcpp::List fRankASym(const Eigen::ArrayXd& y,
     // Backward
     {
       Eigen::ArrayXd SpilB = simyB.colwise().sum() - ysum;
-      double best = SpilB.maxCoeff();
+      double best;
+      if (treat > 0) {
+        best = SpilB.maxCoeff();
+      } else {
+        best = SpilB.minCoeff();
+      }
       if (k < n - 1) {
         Diffy(n - 2 - k, 1) = best;
       }
@@ -368,8 +385,8 @@ Rcpp::List fRankASym(const Eigen::ArrayXd& y,
     }
     
     // update alphaF alphaB
-    alphaF(RF[iF]) += treat(RF[iF]);
-    alphaB(RB[iB]) -= treat(RB[iB]);
+    alphaF(RF[iF]) += treat;
+    alphaB(RB[iB]) -= treat;
     
     // Update y
     yF = simyF.col(iF);
@@ -388,11 +405,10 @@ Rcpp::List fRankASym(const Eigen::ArrayXd& y,
   }
   
   // Spillover
+  Eigen::ArrayXd streat = Eigen::ArrayXd::LinSpaced(n, 1, n) * treat;
   for (unsigned int k = 0; k < n; ++ k) {
-    streat(k, 0) = treat(Rk.col(0).head(k + 1)).sum();
     Spill(k, 0)  = Diffy(k, 0) / streat(k, 0);
-    streat(k, 1) = treat(Rk.col(1).head(k + 1)).sum();
-    Spill(k, 1)  = Diffy(k, 1) / treat(Rk.col(0).head(k + 1)).sum();
+    Spill(k, 1)  = Diffy(k, 1) / streat(k, 0);
   }
   
   return Rcpp::List::create(Rcpp::_["sum.treat"] = streat,

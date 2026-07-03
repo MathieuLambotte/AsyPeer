@@ -1,50 +1,56 @@
-#' @title Find the optimal targeting order in an intervention
+#' @title Find the Optimal Targeting Order in an Intervention
 #' @description
-#' `spillover` identifies the optimal targeting order in an intervention aiming at 
-#' maximizing the utilitarian welfare and computes the associated individual spillovers. 
-#' The targeting order and the spillovers can be generated via different targeting methods:
-#' using the symmetric specification or the asymmetric specification. In the latter case,
-#' the optimal order is computed by forward or backward optimization.
-#' 
-#' @param asymodel An object of class \code{\link{asypeer.estim}} or 
-#' \code{\link{summary.asypeer.estim}}, 
-#' estimated using the asymmetric specification (\code{asymmetry=TRUE}).
-#' @param symodel An object of class \code{\link{asypeer.estim}} or 
-#' \code{\link{summary.asypeer.estim}},
-#'  estimated using the symmetric specification (\code{asymmetry=FALSE}).
-#' 
-#' @param Glist The adjacency matrix or list of adjacency matrices. For networks 
-#'   consisting of multiple subnets (e.g., schools), \code{Glist} must be a list, 
-#'   where the \code{s}-th element is an \eqn{n_s x n_s} adjacency matrix and 
+#' `spillover` identifies the optimal targeting order in an intervention aimed at
+#' maximizing utilitarian welfare and computes the associated individual spillovers.
+#' The targeting order and spillovers can be generated using different targeting
+#' methods: the symmetric specification or the asymmetric specification. In the
+#' latter case, the optimal order is computed through forward or backward
+#' optimization.
+#'
+#' @param asymodel An object of class \code{\link{asypeer.estim}} or
+#'   \code{\link{summary.asypeer.estim}}, estimated using the asymmetric
+#'   specification (\code{asymmetry = TRUE}).
+#'
+#' @param symodel An object of class \code{\link{asypeer.estim}} or
+#'   \code{\link{summary.asypeer.estim}}, estimated using the symmetric
+#'   specification (\code{asymmetry = FALSE}).
+#'
+#' @param Glist An adjacency matrix or a list of adjacency matrices. For networks
+#'   consisting of multiple subnets (e.g., schools), \code{Glist} must be a list,
+#'   where the \eqn{s}-th element is an \eqn{n_s \times n_s} adjacency matrix and
 #'   \eqn{n_s} is the number of nodes in subnet \code{s}.
-#'   
-#' @param targ.net A scalar indicating the index in \code{Glist} of the network
-#' for which the targeting order and spillovers must be computed.
-#' 
-#' @param data An optional data frame, list, or environment (or an object that can 
-#'   be coerced to a data frame via \link[base]{as.data.frame}) containing the 
-#'   variables in the model. If a variable is not found in \code{data}, it is 
-#'   retrieved from the environment of \code{asymodel}.
-#'   
-#' @param treatment A scalar, or a vector whose length equals the 
-#' number of agents in the targeted network, indicating the value of the treatment.
-#' 
-#' @param nthread The number of CPU cores (threads) used for parallel computation.
-#' 
-#' @param print A logical value indicating whether a progress bar should be printed. 
-#' 
-#' @param tol A numeric tolerance used to assess the convergence, post-intervention,
-#'  to a Nash equilibrium
-#'   
+#'
+#' @param targ.net A scalar indicating the index of the network in \code{Glist}
+#'   for which the targeting order and spillovers are to be computed.
+#'
+#' @param data An optional data frame, list, environment, or any object that can
+#'   be coerced to a data frame via \link[base]{as.data.frame}, containing the
+#'   variables used in the model. If a variable is not found in \code{data}, it
+#'   is retrieved from the environment of \code{asymodel}.
+#'
+#' @param treatment A scalar indicating the treatment value.
+#'
+#' @param nthread The number of CPU cores (threads) used for parallel
+#'   computation.
+#'
+#' @param print A logical value indicating whether a progress bar should be
+#'   displayed.
+#'
+#' @param tol A numeric tolerance used to assess convergence to a
+#'   post-intervention Nash equilibrium.
+#'
 #' @return A list containing:
-#'     \item{targeted}{A matrix or list containing the indices 
-#'     of the intervention's targets, ordered by their influence.}
-#'     \item{budget}{A matrix indicating the intervention's budget for any number 
-#'     of targeted agents.}
-#'     \item{diff.y}{A matrix indicating the difference between the baseline welfare 
-#'     and the welfare post-intervention, for any number of targeted agents.}
-#'     \item{spillover}{A matrix giving the spillover associated
-#'     with each targeted agent.}
+#' \item{targeted}{A matrix or list containing the indices of the targeted
+#'   individuals, ordered by their influence.}
+#' \item{budget}{A vector indicating the intervention budget (the absolute value
+#'   of the total treatment) for each number of targeted individuals.}
+#' \item{total.treatment}{A vector indicating the total treatment applied for
+#'   each number of targeted individuals.}
+#' \item{diff.y}{A matrix containing the difference between baseline welfare and
+#'   post-intervention welfare for each number of targeted individuals.}
+#' \item{spillover}{A matrix containing the spillover associated with each
+#'   targeted individual.}
+#'
 #' @examples
 #' \donttest{
 #' if (requireNamespace("PartialNetwork", quietly = TRUE)) {
@@ -105,7 +111,7 @@ spillover <- function(asymodel,
                       treatment = 1,
                       nthread = 1,
                       print = TRUE,
-                      tol = 1e-12) {
+                      tol = 1e-9) {
   
   tp        <- fnthreads(nthread = nthread)
   if ((tp == 1) & (nthread != 1)) {
@@ -161,14 +167,6 @@ spillover <- function(asymodel,
   degree   <- rowSums(Glist)
   isolates <- sapply(idpeer, \(s) ifelse(length(s) == 0, 1, 0))
   
-  # treatment
-  if (length(treatment == 1)) {
-    treatment <- rep(treatment, n)
-  }
-  if (length(treatment) != n) {
-    stop("`treatment` must be either a scalar or a vector whose length equals the number of individuals in the treated network.")
-  }
-  
   # Outcome
   form     <- as.formula(paste0(asymodel$model.info$yname, " ~ 1"))
   if (missing(data)) {
@@ -201,6 +199,11 @@ spillover <- function(asymodel,
   # Estimate alpha
   alpha    <- falpha(betadelta = betdel, G = Glist, y = y, isolates = isolates)
   
+  # treatment
+  if (abs(treatment) < tol) {
+    stop("`treatment` is nearly zero.")
+  }
+  
   # Spillover
   # Asymmetric model
   out      <- list()
@@ -214,8 +217,7 @@ spillover <- function(asymodel,
   targeted <- list(asym.forw  = RASym$Rank[,1] + 1,
                    asym.backw = RASym$Rank[,2] + 1)
   
-  streat   <- data.frame(asym.forw  = RASym$sum.treat[,1],
-                         asym.backw = RASym$sum.treat[,2])
+  streat   <- RASym$sum.treat
   
   diff.y   <- data.frame(asym.forw = RASym$Diff.sumy[,1],
                          asym.backw = RASym$Diff.sumy[,2])
@@ -242,32 +244,40 @@ spillover <- function(asymodel,
                        tol = tol, nthread = nthread)
     
     targeted$sym <- lapply(RSym$setRank, \(k) k + 1)
-    streat$sym   <- RSym$sum.treat
     diff.y$sym   <- RSym$Diff.sumy
     spill$sym    <- RSym$Spillover - 1
   }
   
-  out        <- list(targeted  = targeted, 
-                     budget    = streat,
-                     diff.y    = diff.y, 
-                     spillover = spill)
+  out        <- list(targeted    = targeted, 
+                     budget      = abs(streat),
+                     sum.treated = streat,
+                     diff.y      = diff.y, 
+                     spillover   = spill)
   class(out) <- "spillover"
   return(out)
   
 }
 
-#' @title Plotting the effect of a targeted intervention
+#' @title Plot the Effects of a Targeted Intervention
 #' @description
-#'  `plot.spillover` creates plots that illustrate the spillovers across different
-#'  intervention's budgets and targeting methods.
-#' @param x An object of class \code{\link{spillover}} as returned by the function \link{spillover}.
-#' @param metric A character string specifying which plots should be generated.
-#' Available options include \code{"spillover"}, \code{"gain"}, \code{"outcome"}
-#' and any combination of these options.
+#' `plot.spillover` generates plots illustrating spillovers under different
+#' intervention budgets and targeting methods.
+#'
+#' @param x An object of class \code{\link{spillover}}, as returned by
+#'   \link{spillover}.
+#'
+#' @param metric A character string specifying which metrics should be plotted.
+#'   Available options are \code{"spillover"}, \code{"gain"},
+#'   \code{"outcome"}, or any combination of these.
+#'
+#' @param range A vector of integer indices indicating the ranks to be
+#'   considered.
+#'
 #' @param ... Further arguments passed to or from other methods.
+#'
 #' @export
 #' @importFrom graphics par layout legend lines plot.new
-plot.spillover <- function(x, metric = "all", ...) {
+plot.spillover <- function(x, metric = "all", range, ...) {
   
   # Graph
   metric <- unique(tolower(metric))
@@ -281,6 +291,10 @@ plot.spillover <- function(x, metric = "all", ...) {
   }
   
   # Plot
+  n       <- length(x$budget)
+  if (missing(range)) {
+    range <- 1:n
+  }
   plotspillover <- "spillover" %in% metric
   plotgain <- "gain" %in% metric
   plotoutcome   <- "outcome" %in% metric
@@ -306,7 +320,7 @@ plot.spillover <- function(x, metric = "all", ...) {
   # plots
   iplot <- c("spillover" = 1, "gain" = 2, "outcome" = 3)
   for (k in 1:length(metric)) {
-    fplot(x = x, which = iplot[metric[k]])
+    fplot(x = x, which = iplot[metric[k]], range = range)
   }
   
   # Legend
@@ -334,34 +348,36 @@ plot.spillover <- function(x, metric = "all", ...) {
 }
 
 
-fplot <- function(x, which) {
+fplot <- function(x, which, range) {
   
   if (which == 1) {
     
-    plot(x$budget[,"sym"], x$spillover$sym * 100, type = "l",
+    plot(x$budget[range], x$spillover$sym[range] * 100, type = "l",
          xlab = "Budget", ylab = "Spillover (%)", col = "red", 
-         ylim = c(min(unlist(x$spillover)), max(unlist(x$spillover))) * 100)
-    lines(x$budget[,"asym.backw"], x$spillover$asym.backw * 100, col = "blue")
-    lines(x$budget[,"asym.forw"], x$spillover$asym.forw * 100, col = "#22AA99")
+         ylim = c(min(unlist(x$spillover[range,])), 
+                  max(unlist(x$spillover[range,]))) * 100)
+    lines(x$budget[range], x$spillover$asym.backw[range] * 100, col = "blue")
+    lines(x$budget[range], x$spillover$asym.forw[range] * 100, col = "#22AA99")
     
   } else if (which == 2) {
     
     tp   <- as.data.frame(apply(x$spillover, 2, \(s) ifelse(abs(s) < 1e-8, 0, s)))
     gain <- (tp[,1:2] / tp[,3] - 1) * 100
     
-    plot(x$budget[,"sym"], gain$asym.backw, type = "l",
+    plot(x$budget[range], ifelse(is.na(gain$asym.backw[range]), 0, gain$asym.backw[range]), type = "l",
          xlab = "Budget", ylab = "Gain (%)", col = "blue", 
-         ylim = c(min(unlist(gain), na.rm = TRUE), 
-                  max(unlist(gain), na.rm = TRUE)))
-    lines(x$budget[,"asym.backw"], gain$asym.forw, col = "#22AA99")
+         ylim = c(min(unlist(gain[range,]), na.rm = TRUE), 
+                  max(unlist(gain[range,]), na.rm = TRUE)))
+    lines(x$budget[range], ifelse(is.na(gain$asym.forw[range]), 0, gain$asym.forw[range]), col = "#22AA99")
     
   } else {
     
-    plot(x$budget[,"sym"], x$diff.y$sym, type = "l",
+    plot(x$budget[range], x$diff.y$sym[range], type = "l",
          xlab = "Budget", ylab = "Outcome increase", col = "red", 
-         ylim = c(min(unlist(x$diff.y)), max(unlist(x$diff.y))))
-    lines(x$budget[,"asym.backw"], x$diff.y$asym.backw, col = "blue")
-    lines(x$budget[,"asym.forw"], x$diff.y$asym.forw, col = "#22AA99")
+         ylim = c(min(unlist(x$diff.y[range,])), 
+                  max(unlist(x$diff.y[range,]))))
+    lines(x$budget[range], x$diff.y$asym.backw[range], col = "blue")
+    lines(x$budget[range], x$diff.y$asym.forw[range], col = "#22AA99")
     
   }
   

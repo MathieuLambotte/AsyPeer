@@ -2,20 +2,24 @@
 % Please edit documentation in R/spillover.R
 \name{plot.spillover}
 \alias{plot.spillover}
-\title{Plotting the effect of a targeted intervention}
+\title{Plot the Effects of a Targeted Intervention}
 \usage{
-\method{plot}{spillover}(x, metric = "all", ...)
+\method{plot}{spillover}(x, metric = "all", range, ...)
 }
 \arguments{
-\item{x}{An object of class \code{\link{spillover}} as returned by the function \link{spillover}.}
+\item{x}{An object of class \code{\link{spillover}}, as returned by
+\link{spillover}.}
 
-\item{metric}{A character string specifying which plots should be generated.
-Available options include \code{"spillover"}, \code{"gain"}, \code{"outcome"}
-and any combination of these options.}
+\item{metric}{A character string specifying which metrics should be plotted.
+Available options are \code{"spillover"}, \code{"gain"},
+\code{"outcome"}, or any combination of these.}
+
+\item{range}{A vector of integer indices indicating the ranks to be
+considered.}
 
 \item{...}{Further arguments passed to or from other methods.}
 }
 \description{
-\code{plot.spillover} creates plots that illustrate the spillovers across different
-intervention's budgets and targeting methods.
+\code{plot.spillover} generates plots illustrating spillovers under different
+intervention budgets and targeting methods.
 }

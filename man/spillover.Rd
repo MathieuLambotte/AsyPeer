@@ -2,7 +2,7 @@
 % Please edit documentation in R/spillover.R
 \name{spillover}
 \alias{spillover}
-\title{Find the optimal targeting order in an intervention}
+\title{Find the Optimal Targeting Order in an Intervention}
 \usage{
 spillover(
   asymodel,
@@ -13,58 +13,62 @@ spillover(
   treatment = 1,
   nthread = 1,
   print = TRUE,
-  tol = 1e-12
+  tol = 1e-09
 )
 }
 \arguments{
 \item{asymodel}{An object of class \code{\link{asypeer.estim}} or
-\code{\link{summary.asypeer.estim}},
-estimated using the asymmetric specification (\code{asymmetry=TRUE}).}
+\code{\link{summary.asypeer.estim}}, estimated using the asymmetric
+specification (\code{asymmetry = TRUE}).}
 
 \item{symodel}{An object of class \code{\link{asypeer.estim}} or
-\code{\link{summary.asypeer.estim}},
-estimated using the symmetric specification (\code{asymmetry=FALSE}).}
+\code{\link{summary.asypeer.estim}}, estimated using the symmetric
+specification (\code{asymmetry = FALSE}).}
 
-\item{Glist}{The adjacency matrix or list of adjacency matrices. For networks
+\item{Glist}{An adjacency matrix or a list of adjacency matrices. For networks
 consisting of multiple subnets (e.g., schools), \code{Glist} must be a list,
-where the \code{s}-th element is an \eqn{n_s x n_s} adjacency matrix and
+where the \eqn{s}-th element is an \eqn{n_s \times n_s} adjacency matrix and
 \eqn{n_s} is the number of nodes in subnet \code{s}.}
 
-\item{targ.net}{A scalar indicating the index in \code{Glist} of the network
-for which the targeting order and spillovers must be computed.}
+\item{targ.net}{A scalar indicating the index of the network in \code{Glist}
+for which the targeting order and spillovers are to be computed.}
 
-\item{data}{An optional data frame, list, or environment (or an object that can
-be coerced to a data frame via \link[base]{as.data.frame}) containing the
-variables in the model. If a variable is not found in \code{data}, it is
-retrieved from the environment of \code{asymodel}.}
+\item{data}{An optional data frame, list, environment, or any object that can
+be coerced to a data frame via \link[base]{as.data.frame}, containing the
+variables used in the model. If a variable is not found in \code{data}, it
+is retrieved from the environment of \code{asymodel}.}
 
-\item{treatment}{A scalar, or a vector whose length equals the
-number of agents in the targeted network, indicating the value of the treatment.}
+\item{treatment}{A scalar indicating the treatment value.}
 
-\item{nthread}{The number of CPU cores (threads) used for parallel computation.}
+\item{nthread}{The number of CPU cores (threads) used for parallel
+computation.}
 
-\item{print}{A logical value indicating whether a progress bar should be printed.}
+\item{print}{A logical value indicating whether a progress bar should be
+displayed.}
 
-\item{tol}{A numeric tolerance used to assess the convergence, post-intervention,
-to a Nash equilibrium}
+\item{tol}{A numeric tolerance used to assess convergence to a
+post-intervention Nash equilibrium.}
 }
 \value{
 A list containing:
-\item{targeted}{A matrix or list containing the indices
-of the intervention's targets, ordered by their influence.}
-\item{budget}{A matrix indicating the intervention's budget for any number
-of targeted agents.}
-\item{diff.y}{A matrix indicating the difference between the baseline welfare
-and the welfare post-intervention, for any number of targeted agents.}
-\item{spillover}{A matrix giving the spillover associated
-with each targeted agent.}
+\item{targeted}{A matrix or list containing the indices of the targeted
+individuals, ordered by their influence.}
+\item{budget}{A vector indicating the intervention budget (the absolute value
+of the total treatment) for each number of targeted individuals.}
+\item{total.treatment}{A vector indicating the total treatment applied for
+each number of targeted individuals.}
+\item{diff.y}{A matrix containing the difference between baseline welfare and
+post-intervention welfare for each number of targeted individuals.}
+\item{spillover}{A matrix containing the spillover associated with each
+targeted individual.}
 }
 \description{
-\code{spillover} identifies the optimal targeting order in an intervention aiming at
-maximizing the utilitarian welfare and computes the associated individual spillovers.
-The targeting order and the spillovers can be generated via different targeting methods:
-using the symmetric specification or the asymmetric specification. In the latter case,
-the optimal order is computed by forward or backward optimization.
+\code{spillover} identifies the optimal targeting order in an intervention aimed at
+maximizing utilitarian welfare and computes the associated individual spillovers.
+The targeting order and spillovers can be generated using different targeting
+methods: the symmetric specification or the asymmetric specification. In the
+latter case, the optimal order is computed through forward or backward
+optimization.
 }
 \examples{
 \donttest{

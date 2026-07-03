@@ -19,6 +19,7 @@ library(openxlsx)
 
 InDataPath  <- "PATH/TO/RAW/DATA" # Where raw data are located
 OutDataPath <- "PATH/TO/WHERE/PREPARED/DATA/WILL/BE/SAVED" # Where prepared data will be saved
+OutResPath  <- "PATH/TO/WHERE/RESULTS/WILL/BE/SAVED" # Where results will be saved
 
 # Importing data sets
 # Friendship data set (WAVE I)

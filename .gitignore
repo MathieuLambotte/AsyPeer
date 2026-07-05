@@ -58,3 +58,4 @@ inst/doc
 Replication/*.xlsx
 Replication/*.Rda
 *.tmp
+Replication/spillovers.pdf

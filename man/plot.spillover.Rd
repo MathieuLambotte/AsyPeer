@@ -4,7 +4,7 @@
 \alias{plot.spillover}
 \title{Plot the Effects of a Targeted Intervention}
 \usage{
-\method{plot}{spillover}(x, metric = "all", range, ...)
+\method{plot}{spillover}(x, metric = c("spillover", "outcome"), range, ...)
 }
 \arguments{
 \item{x}{An object of class \code{\link{spillover}}, as returned by

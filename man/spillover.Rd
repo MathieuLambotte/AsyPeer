@@ -55,7 +55,7 @@ A list containing:
 individuals, ordered by their influence.}
 \item{budget}{A vector indicating the intervention budget (the absolute value
 of the total treatment) for each number of targeted individuals.}
-\item{total.treatment}{A vector indicating the total treatment applied for
+\item{total.treat}{A vector indicating the total treatment applied for
 each number of targeted individuals.}
 \item{diff.y}{A matrix containing the difference between baseline welfare and
 post-intervention welfare for each number of targeted individuals.}

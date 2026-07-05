@@ -44,7 +44,7 @@
 #'   individuals, ordered by their influence.}
 #' \item{budget}{A vector indicating the intervention budget (the absolute value
 #'   of the total treatment) for each number of targeted individuals.}
-#' \item{total.treatment}{A vector indicating the total treatment applied for
+#' \item{total.treat}{A vector indicating the total treatment applied for
 #'   each number of targeted individuals.}
 #' \item{diff.y}{A matrix containing the difference between baseline welfare and
 #'   post-intervention welfare for each number of targeted individuals.}
@@ -250,7 +250,7 @@ spillover <- function(asymodel,
   
   out        <- list(targeted    = targeted, 
                      budget      = abs(streat),
-                     sum.treated = streat,
+                     total.treat = streat,
                      diff.y      = diff.y, 
                      spillover   = spill)
   class(out) <- "spillover"
@@ -277,17 +277,17 @@ spillover <- function(asymodel,
 #'
 #' @export
 #' @importFrom graphics par layout legend lines plot.new
-plot.spillover <- function(x, metric = "all", range, ...) {
+plot.spillover <- function(x, metric = c("spillover", "outcome"), range, ...) {
   
   # Graph
   metric <- unique(tolower(metric))
   if (length(metric) == 1) {
     if (metric == "all") {
-      metric <- c("spillover", "gain", "outcome")
+      metric <- c("spillover", "gain", "loss", "outcome")
     }
   }
-  if (!all(metric %in% c("spillover", "gain", "outcome"))) {
-    stop("Expected metrics include 'spillover', 'gain', and 'outcome'.")
+  if (!all(metric %in% c("spillover", "gain", "loss", "outcome"))) {
+    stop("Expected metrics include 'spillover', 'gain', 'loss' and 'outcome'.")
   }
   
   # Plot
@@ -295,10 +295,12 @@ plot.spillover <- function(x, metric = "all", range, ...) {
   if (missing(range)) {
     range <- 1:n
   }
+  
   plotspillover <- "spillover" %in% metric
   plotgain <- "gain" %in% metric
+  plotloss <- "loss" %in% metric
   plotoutcome   <- "outcome" %in% metric
-
+  
   ## layout 
   op <- par(no.readonly = TRUE)
   on.exit(par(op))
@@ -311,14 +313,18 @@ plot.spillover <- function(x, metric = "all", range, ...) {
     layout(matrix(c(1, 2, 3, 3), nrow = 2, ncol = 2, byrow = TRUE), 
            heights = c(4, 0.8))
     par(mar = c(4, 5, 3, 1))
-  } else {
+  } else if (length(metric) == 3)  {
     layout(matrix(c(1, 2, 3, 4, 4, 4), nrow = 2, ncol = 3, byrow = TRUE), 
            heights = c(4, 0.6))
+    par(mar = c(4, 4, 3, 1))
+  } else {
+    layout(matrix(c(1, 2, 3, 4, 5, 5), nrow = 3, ncol=2, byrow = TRUE),
+           heights = c(4, 4, 0.6))
     par(mar = c(4, 4, 3, 1))
   }
   
   # plots
-  iplot <- c("spillover" = 1, "gain" = 2, "outcome" = 3)
+  iplot <- c("spillover" = 1, "gain" = 2, "loss" = 3, "outcome" = 4)
   for (k in 1:length(metric)) {
     fplot(x = x, which = iplot[metric[k]], range = range)
   }
@@ -343,7 +349,7 @@ plot.spillover <- function(x, metric = "all", range, ...) {
            col = c("#22AA99", "blue"),
            lty = 1)
   }
-
+  
   invisible(NULL)
 }
 
@@ -363,12 +369,25 @@ fplot <- function(x, which, range) {
     
     tp   <- as.data.frame(apply(x$spillover, 2, \(s) ifelse(abs(s) < 1e-8, 0, s)))
     gain <- (tp[,1:2] / tp[,3] - 1) * 100
+    gain[nrow(gain), ]<-c(0,0)
     
     plot(x$budget[range], ifelse(is.na(gain$asym.backw[range]), 0, gain$asym.backw[range]), type = "l",
          xlab = "Budget", ylab = "Gain (%)", col = "blue", 
          ylim = c(min(unlist(gain[range,]), na.rm = TRUE), 
                   max(unlist(gain[range,]), na.rm = TRUE)))
     lines(x$budget[range], ifelse(is.na(gain$asym.forw[range]), 0, gain$asym.forw[range]), col = "#22AA99")
+    
+  } else if (which == 3) {
+    
+    tp   <- as.data.frame(apply(x$spillover, 2, \(s) ifelse(abs(s) < 1e-8, 0, s)))
+    loss <- (1 - tp[, 3] / tp[, 1:2]) * 100
+    loss[nrow(loss), ]<-c(0,0)
+    
+    plot(x$budget[range], ifelse(is.na(loss$asym.backw[range]), 0, loss$asym.backw[range]), type = "l",
+         xlab = "Budget", ylab = "Loss (%)", col = "blue", 
+         ylim = c(min(unlist(loss[range,]), na.rm = TRUE), 
+                  max(unlist(loss[range,]), na.rm = TRUE)))
+    lines(x$budget[range], ifelse(is.na(loss$asym.forw[range]), 0, loss$asym.forw[range]), col = "#22AA99")
     
   } else {
     

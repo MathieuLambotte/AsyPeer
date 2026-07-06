@@ -59,3 +59,7 @@ Replication/*.xlsx
 Replication/*.Rda
 *.tmp
 Replication/spillovers.pdf
+Replication/spillovers.drink.pdf
+Replication/spillovers.fight.pdf
+Replication/spillovers.optimism.pdf
+Replication/spillovers.smoke.pdf

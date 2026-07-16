@@ -4,7 +4,7 @@
 ###################### Add Health Data Extraction #########################
 ###########################################################################
 
-# Last updated: 2026-07-02
+# Last updated: 2026-07-15
 
 ## This script imports raw Add Health data and prepares them for estimation.
 ## The outputs of this script include an .Rda file for each outcome.
@@ -209,32 +209,41 @@ for (outcome in depvar) {
 results <- list()
 for(outcome in depvar){
   load(paste0(OutDataPath, "/", outcome, ".Rda"))
-  data <- data %>%  filter(match != 0 | nmatch <= 0)
+  # data <- data %>%  filter(match != 0 | nmatch <= 0) Remove fake isolated
   exovar  <- c("age", "female", "grade", "hispanic", "racewhite", 
                "raceblack", "raceasian", "melhigh", "memhigh", "memiss", 
                "mjprof", "mjother", "mjmiss","match","nmatch")
   YX       <- cbind(data$y, as.matrix(data[,exovar]))
-  colnames(YX) <- c("outcome",exovar)
-  XY <- data.frame( Mean = round(colMeans(YX, na.rm = TRUE), 3),
-                    SD   = round(apply(YX, 2, sd, na.rm = TRUE), 3),
-                    Min  = round(apply(YX, 2, min, na.rm = TRUE), 3),
-                    Max  = round(apply(YX, 2, max, na.rm = TRUE), 3))
-  export <- rbind(XY, N = c(nrow(data), NA, NA, NA),
-    M = c(length(unique(data$SSCHLCDE)), NA, NA, NA))
-  colnames(XY) <-  c("Mean", "SD", "Min", "Max")
+  namesXY  <- c("Outcome", "Age", "Female", "Grade", "Hispanic", 
+                "\\quad White", "\\quad Black", "\\quad Asian",
+                "\\quad $<$ High", "\\quad $>$ High", "\\quad Missing",
+                "\\quad Professional", "\\quad Other", "\\quad Missing",
+                "\\quad Matched", "\\quad Unmatched", 
+                "$n$ (students)", "$M$ (schools)")
+  XY <- data.frame(Id   = 1:length(namesXY),
+                   Var  = namesXY,
+                   Mean = c(round(colMeans(YX, na.rm = TRUE), 3), nrow(data), 
+                            length(unique(data$SSCHLCDE))),
+                   SD   = c(round(apply(YX, 2, sd, na.rm = TRUE), 3), NA, NA),
+                   Min  = c(round(apply(YX, 2, min, na.rm = TRUE), 3), NA, NA),
+                   Max  = c(round(apply(YX, 2, max, na.rm = TRUE), 3), NA, NA))
   
-  results[[outcome]] <- export
+  results[[outcome]] <- XY
 }
-stat_des <- do.call(cbind, results)
+
+stat_des <- results[[1]] %>% 
+  left_join(results[[2]] %>% select(-"Var"), by = "Id") %>%
+  left_join(results[[3]] %>% select(-"Var"), by = "Id") %>%
+  left_join(results[[4]] %>% select(-"Var"), by = "Id") %>% select(-"Id")
+
 wb       <- createWorkbook()
 addWorksheet(wb, "Summary")
 
 ## First header row (outcome names)
-header1   <- c("Variable")
+header1   <- c("")
 for(outcome in depvar)
   header1 <- c(header1, outcome, "", "", "")
 
-## Second header row (statistics)
 header2 <- c("")
 for(i in seq_along(depvar))
   header2 <- c(header2, "Mean", "SD", "Min", "Max")
@@ -253,7 +262,7 @@ for(i in seq_along(depvar)){
 
 ## Write data
 writeData(wb, "Summary",
-          cbind(Variable = rownames(stat_des), stat_des),
+          stat_des,
           startRow = 3,
           colNames = FALSE)
 

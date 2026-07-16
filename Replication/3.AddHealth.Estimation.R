@@ -4,11 +4,11 @@
 ########################### Add Health Estimation #########################
 ###########################################################################
 # This script replicates our empirical results using Add Health data.
-# Before using this script, use first the script AddHealth.data.R to 
+# Before using this script, use first the script '2.AddHealth.data.R' to 
 # prepare the data set.
 # The data set should be saved in the folder with the path `OutDataPath`
 
-# Last update: 2026-07-02
+# Last update: 2026-07-15
 
 rm(list = ls())
 
@@ -23,9 +23,11 @@ library(openxlsx)
 OutDataPath <- "PATH/TO/WHERE/PREPARED/DATA/WILL/BE/SAVED" # Where prepared data will be saved
 OutResPath  <- "PATH/TO/WHERE/RESULTS/WILL/BE/SAVED" # Where results will be saved
 
-
 # List of outcome variables
 depvar  <- c("smoke","fight", "optimism", "drink")
+
+# Remove fake isolated
+rmfiso  <- FALSE
 
 # This function estimates the symmetric and asymmetric model for each outcome
 festim  <- function(outcome) {
@@ -47,7 +49,9 @@ festim  <- function(outcome) {
   y       <- data$y
   X       <- as.matrix(data[,exovar])
   GX      <- peer.avg(G, X)
-  drop    <- (match == 0) & (nmatch > 0) # Observations to be dropped: false isolated
+  drop    <- NULL
+  if (rmfiso)
+    drop  <- (match == 0) & (nmatch > 0) # Observations to be dropped: false isolated
   
   ########################################################
   ###################### Estimation ######################
@@ -90,7 +94,8 @@ festim  <- function(outcome) {
   print(sasym)
   
   ## Saving results
-  save(ssym, sasym, file = paste0(OutResPath, "/", outcome, ".Rda"))
+  save(ssym, sasym, file = paste0(OutResPath, "/", outcome, 
+                                  ifelse(rmfiso, ".noFakeIso", ""), ".Rda"))
   invisible(NULL)
 }
 
@@ -104,7 +109,8 @@ OUTCOME <- c("Smoking","Fighting","Optimism","Drinking")
 # Argument k is the index of the outcome in depvar
 fres <- function(k) {
   # Load results
-  load(paste0(OutResPath, "/", depvar[k], ".Rda"))
+  load(paste0(OutResPath, "/", depvar[k], 
+              ifelse(rmfiso, ".noFakeIso", ""), ".Rda"))
   
   # First column
   coef_names <- rownames(sasym$coefficients)
@@ -180,5 +186,6 @@ addWorksheet(wb, "Estimates")
 writeData(wb, "Estimates", out, keepNA = TRUE, na.string = "", startRow = 1, startCol = 1)
 
 # Save the workbook
-saveWorkbook(wb, paste0(OutResPath, "/estimation.xlsx"), overwrite = TRUE)
+saveWorkbook(wb, paste0(OutResPath, "/estimation", 
+                        ifelse(rmfiso, ".noFakeIso", ""), ".xlsx"), overwrite = TRUE)
 

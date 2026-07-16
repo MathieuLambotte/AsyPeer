@@ -3,13 +3,13 @@
 ######## Asymmetries in Peer Effects for Continuous Outcomes ##############
 ########################### Targeting policy ##############################
 ###########################################################################
-# This script replicates our counterfactual analysis the estimated models
-# Please, prior use the script AddHealth.Estimation.R to estimate the models
-# for each each outcome in an expected form for this script.
-# This scripts assumes that the estimated model are saved in the folder with path 
-# `OutResPath`
+# This script replicates our empirical results using Add Health data.
+# Before using this script, use first the script '2.AddHealth.data.R' to 
+# prepare the data set, and '3.AddHealth.Estimation.R' to estimate the 
+# This script assumes that the estimated models are saved in the folder with 
+# path `OutResPath`
 
-# Last update: 2026-07-06
+# Last update: 2026-07-15
 
 library(ggplot2)
 library(ggh4x)
@@ -22,7 +22,11 @@ set.seed(123)
 OutDataPath <- "PATH/TO/WHERE/PREPARED/DATA/WILL/BE/SAVED"
 OutResPath  <- "PATH/TO/WHERE/RESULTS/WILL/BE/SAVED"
 
-depvar  <- c("smoke","fight", "optimism", "drink")
+# List of outcome variables
+depvar  <- c("smoke", "fight", "optimism", "drink")
+
+# Remove fake isolated
+rmfiso  <- FALSE
 
 # This function computes spillover for each outcome
 spillovers <- function(outcome){
@@ -31,7 +35,8 @@ spillovers <- function(outcome){
   
   ### Data and result loading
   load(paste0(OutDataPath, "/", outcome, ".Rda"))
-  load(paste0(OutResPath, "/", outcome, ".Rda"))
+  load(paste0(OutResPath, "/", outcome, 
+              ifelse(rmfiso, ".noFakeIso", ""), ".Rda"))
   
   ## Variables and networks
   exovar  <- c("age", "female", "grade", "hispanic", "racewhite", 
@@ -67,7 +72,9 @@ spillovers <- function(outcome){
                         print = TRUE,
                         tol = 1e-9) 
   
-  save(spill1, spill2, schools, file = paste0(OutResPath, "/", outcome, ".spillover.Rda"))
+  save(spill1, spill2, schools, 
+       file = paste0(OutResPath, "/", outcome, 
+                     ifelse(rmfiso, ".noFakeIso", ""), ".spillover.Rda"))
   invisible(NULL)
 }
 
@@ -77,7 +84,8 @@ lapply(depvar, spillovers)
 data_plot <- function(outcome){
   
   ## Load estimation
-  load(paste0(OutResPath, "/", outcome, ".spillover.Rda"))
+  load(paste0(OutResPath, "/", outcome, 
+              ifelse(rmfiso, ".noFakeIso", ""), ".spillover.Rda"))
   
   ## Round spillover to zero when it is lower that 1e-8
   ## Because it lead to loss = -1000%. This is only due to numerical precisions
@@ -190,8 +198,9 @@ schid_labels <- df %>%
 )
 
 
-ggsave("spillovers.pdf", path = OutResPath, plot = graph, device = "pdf", 
-       width = 13, height = 9)
+ggsave(paste0("spillovers", ifelse(rmfiso, ".noFakeIso", ""), ".pdf", 
+              path = OutResPath, plot = graph, device = "pdf", 
+              width = 13, height = 9))
 
 ## Separate figures for outcome
 ## This is used in our slides
@@ -229,6 +238,6 @@ for (k in 1:4) {
   )
   
   
-  ggsave(paste0("spillovers.", depvar[k], ".pdf"), path = OutResPath, 
-         plot = graph, device = "pdf", width = 7.6, height = 4.6)
+  ggsave(paste0("spillovers.", depvar[k], ifelse(rmfiso, ".noFakeIso", ""), ".pdf"), 
+         path = OutResPath, plot = graph, device = "pdf", width = 7.6, height = 4.6)
 }

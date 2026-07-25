@@ -9,7 +9,7 @@
 # This script assumes that the estimated models are saved in the folder with 
 # path `OutResPath`
 
-# Last update: 2026-07-15
+# Last update: 2026-07-25
 
 library(ggplot2)
 library(ggh4x)
@@ -170,7 +170,7 @@ schid_labels <- df %>%
                 scales = "free",
                 independent = "all",
                 labeller = labeller(FacetCol = as_labeller(function(x) {
-                  ifelse(grepl("Spillover", x), "Spillover (%)", "Symmetric Loss (%)")}))) +
+                  ifelse(grepl("Spillover", x), "Panel A: Spillover (%)", "Panel B: Symmetric Loss (%)")}))) +
     geom_text(data = schid_labels,
               aes(x = x, y = Inf, label = paste("School:", SCHID)),
               hjust = -0.1, vjust = 1.5,
@@ -182,8 +182,8 @@ schid_labels <- df %>%
                                    "Asymmetric (Backward)" = "blue"),
                         breaks = c("Symmetric",
                                    "Asymmetric (Forward)",
-                                   "Asymmetric (Backward)"))+
-    labs(y = NULL) +
+                                   "Asymmetric (Backward)")) +
+    labs(x = expression("Budget (" * kappa * ")"), y = NULL) +
     theme_bw() +
     
     theme(
@@ -198,9 +198,9 @@ schid_labels <- df %>%
 )
 
 
-ggsave(paste0("spillovers", ifelse(rmfiso, ".noFakeIso", ""), ".pdf", 
-              path = OutResPath, plot = graph, device = "pdf", 
-              width = 13, height = 9))
+ggsave(paste0("spillovers", ifelse(rmfiso, ".noFakeIso", ""), ".pdf"), 
+       path = OutResPath, plot = graph, device = "pdf", 
+       width = 15, height = 9)
 
 ## Separate figures for outcome
 ## This is used in our slides
@@ -216,7 +216,7 @@ for (k in 1:4) {
                   scales = "free",
                   independent = "all",
                   labeller = labeller(Metric = as_labeller(function(x) {
-                    ifelse(grepl("Spillover", x), "Spillover (%)", "Symmetric Loss (%)")}))) +
+                    ifelse(grepl("Spillover", x), "Panel A: Spillover (%)", "Panel B: Symmetric Loss (%)")}))) +
       scale_colour_manual(values = c("Symmetric" = "red",
                                      "Asymmetric (Forward)" = "#22AA99",
                                      "Asymmetric (Backward)" = "blue"),

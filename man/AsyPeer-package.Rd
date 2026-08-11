@@ -73,7 +73,6 @@ Useful links:
 
 Authors:
 \itemize{
-  \item Mathieu Lambotte \email{mathieu.lambotte@univ-rennes.fr} (\href{https://orcid.org/0000-0002-7806-7286}{ORCID})
   \item Aristide Houndetoungan \email{ahoundetoungan@ecn.ulaval.ca} (\href{https://orcid.org/0009-0003-2733-9362}{ORCID})
 }
 

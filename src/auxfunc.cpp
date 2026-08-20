@@ -108,7 +108,7 @@ List highlowstat2(const Eigen::VectorXd& y,
     Eigen::ArrayXd ym        = y.segment(n1, nm);
     Eigen::MatrixXd Xm       = X.block(n1, 0, nm, K);
     Eigen::ArrayXd Gmsum(G[m].rowwise().sum()); g.segment(n1, nm)  = Gmsum;
-    Eigen::ArrayXd Gmy(G[m].matrix() * ym.matrix()); yb.segment(n1, nm)      = Gmy;
+    Eigen::ArrayXd Gmy(G[m].matrix() * ym.matrix()); yb.segment(n1, nm) = Gmy;
     Eigen::ArrayXXd GmX(G[m].matrix() * Xm); Xb.block(n1, 0, nm, K) = GmX;
     for (int i(0); i < nm; ++ i) {
       Eigen::ArrayXd Gmhi = (ym > ym(i)).select(G[m].row(i).transpose(), 0);

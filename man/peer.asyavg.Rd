@@ -8,8 +8,8 @@ peer.asyavg(formula, Glist, data, nthread = 1)
 }
 \arguments{
 \item{formula}{An object of class \link[stats]{formula}, which should be specified as \code{y ~ X},
-where \code{y} is the outcome used to characterized which friends have a higher or lower outcome and \code{X} is the vector
-or matrix of variables whose average values among peers should be computed.}
+where \code{y} is the dependent variable used to characterized which friends have a higher or lower outcome
+and \code{X} is the vector or matrix of variables whose average values among peers should be computed.}
 
 \item{Glist}{The adjacency matrix. For networks consisting of multiple subnets (e.g., schools),
 \code{Glist} must be a list of subnets, with the \code{m}-th element being an \eqn{n_m \times n_m}
@@ -23,8 +23,17 @@ from which \code{peer.asyavg} is called.}
 \item{nthread}{A strictly positive integer specifying the number of threads used in
 computationally intensive steps.}
 }
+\value{
+A list containing:
+\item{degree}{The row sum of the network matrix. As \code{Glist} is row-normalized, it is either \code{0} or \code{1}.}
+\item{peer.avg}{The average of \code{X} (see the \code{formula} argument) among all peers.}
+\item{hdegree}{The share of higher-performing friends.}
+\item{hpeer.avg}{The sum of \code{X} weighted by \eqn{g_{ij}} among higher-performing friends.}
+\item{ldegree}{The share of lower-performing friends.}
+\item{lpeer.avg}{The sum of \code{X} weighted by \eqn{g_{ij}} among lower-performing friends.}
+}
 \description{
-\code{peer.asyavg} computes the average values of a matrix \code{X} among friends,
+\code{peer.asyavg} computes the average values of a vector or matrix \code{X} among friends,
 differentiating between friends with a higher or lower outcome than the agent.
 }
 \examples{

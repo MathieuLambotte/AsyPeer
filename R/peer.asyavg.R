@@ -1,8 +1,8 @@
 #' @title Computing peer (asymmetric) average values
 #' 
 #' @param formula An object of class \link[stats]{formula}, which should be specified as \code{y ~ X}, 
-#' where `y` is the outcome used to characterized which friends have a higher or lower outcome and `X` is the vector 
-#'   or matrix of variables whose average values among peers should be computed.
+#' where `y` is the dependent variable used to characterized which friends have a higher or lower outcome 
+#' and `X` is the vector or matrix of variables whose average values among peers should be computed.
 #' @param Glist The adjacency matrix. For networks consisting of multiple subnets (e.g., schools), 
 #'   `Glist` must be a list of subnets, with the \code{m}-th element being an \eqn{n_m \times n_m} 
 #'   adjacency matrix, where \eqn{n_m} is the number of nodes in the \code{m}-th subnet.  
@@ -14,8 +14,16 @@
 #'   computationally intensive steps.
 #'   
 #' @description
-#' `peer.asyavg` computes the average values of a matrix `X` among friends, 
+#' `peer.asyavg` computes the average values of a vector or matrix `X` among friends, 
 #' differentiating between friends with a higher or lower outcome than the agent.
+#' 
+#' @return A list containing:
+#'   \item{degree}{The row sum of the network matrix. As `Glist` is row-normalized, it is either `0` or `1`.}
+#'   \item{peer.avg}{The average of `X` (see the `formula` argument) among all peers.}
+#'   \item{hdegree}{The share of higher-performing friends.}
+#'   \item{hpeer.avg}{The sum of `X` weighted by \eqn{g_{ij}} among higher-performing friends.}
+#'   \item{ldegree}{The share of lower-performing friends.}
+#'   \item{lpeer.avg}{The sum of `X` weighted by \eqn{g_{ij}} among lower-performing friends.}
 #' 
 #' @examples
 #' if (requireNamespace("PartialNetwork", quietly = TRUE)) {

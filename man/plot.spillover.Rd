@@ -19,6 +19,9 @@ considered.}
 
 \item{...}{Further arguments passed to or from other methods.}
 }
+\value{
+This function is called for its side effect of producing a plot. It does not return a value.
+}
 \description{
 \code{plot.spillover} generates plots illustrating spillovers under different
 intervention budgets and targeting methods.

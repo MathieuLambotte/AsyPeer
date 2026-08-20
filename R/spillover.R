@@ -275,6 +275,8 @@ spillover <- function(asymodel,
 #'
 #' @param ... Further arguments passed to or from other methods.
 #'
+#' @return This function is called for its side effect of producing a plot. It does not return a value.
+#' 
 #' @export
 #' @importFrom graphics par layout legend lines plot.new
 plot.spillover <- function(x, metric = c("spillover", "outcome"), range, ...) {

@@ -21,7 +21,6 @@ Replication code for all results in the paper is available in the [Replication](
 
 ## Installation
 ### CRAN version
-Forthcoming
 **AsyPeer** can be directly installed from CRAN.
 ```R
 install.packages("AsyPeer")

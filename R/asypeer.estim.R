@@ -681,9 +681,9 @@ print.summary.asypeer.estim <- function(x, ...) {
   
   cat("\nHAC: ", hete, "\n", sep = "")
   if(hete %in% c("group-iid")){
-    cat(", sigma (isolates): ", format(sig_iso, digits = 5), ", (non-isolates): ", format(sig_niso, digits = 5), "\n", sep = "")
+    cat("  sigma (isolates): ", format(sig_iso, digits = 5), ", (non-isolates): ", format(sig_niso, digits = 5), "\n", sep = "")
   } else if (hete == "iid") {
-    cat(", sigma: ", format(sig_overall, digits = 5), "\n", sep = "")
+    cat("  sigma: ", format(sig_overall, digits = 5), "\n", sep = "")
   }
   
   ## range

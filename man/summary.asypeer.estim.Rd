@@ -28,7 +28,7 @@ These include an F-test of the first-stage regression for weak instruments, a Wu
 for endogeneity, and a Hansen's J-test for overidentifying restrictions (the latter only when
 the number of instruments exceeds the number of regressors).}
 
-\item{SW}{Logical value indicating whether the Sanderson–Windmeijer conditional F-statistic is computed instead of the classical first-stage F-statistic.}
+\item{SW}{Logical value indicating whether the Sanderson–Windmeijer conditional F-statistic should be computed.}
 
 \item{KP}{A logical value indicating whether a Kleibergen-Paap Wald test should be performed in addition to the standard F test
 of the first-stage regression for weak instruments. should be performed instead of the standard F test.}

@@ -571,7 +571,7 @@ asypeer.estim <- function(formula,
 #'   the number of instruments exceeds the number of regressors).
 #' @param KP A logical value indicating whether a Kleibergen-Paap Wald test should be performed in addition to the standard F test 
 #'   of the first-stage regression for weak instruments. should be performed instead of the standard F test.
-#' @param SW Logical value indicating whether the Sanderson–Windmeijer conditional F-statistic is computed instead of the classical first-stage F-statistic.
+#' @param SW Logical value indicating whether the Sanderson–Windmeijer conditional F-statistic should be computed.
 #' @param nthread A strictly positive integer specifying the number of threads used in
 #'   computationally intensive steps of the estimation procedure.
 #' @param x An object of class \code{\link{summary.asypeer.estim}} or \code{\link{asypeer.estim}} as returned by the function \link{summary.asypeer.estim} or \link{asypeer.estim}, respectively.

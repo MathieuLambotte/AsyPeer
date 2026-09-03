@@ -461,22 +461,22 @@ fdiagnostic <- function(object, KP, SW, nthread) {
     SW  <- FALSE
   }
   
-  tpF   <- NULL
+  tpF   <- fFstat(endo = endo, Z = Z, K = Kinc, cumsn = cumsn, 
+                cluster = (HACn == 3), nthread = nthread)
+  rn    <- if (asymmetry) {
+    paste0("Weak instruments F (", c("ybar", "ycheck"), ")")
+  } else {
+    "Weak instruments F"
+  }
   
   if (SW) {
-    tpF <- fswstat(endo = endo, Z = Z, K = Kinc, nthread = nthread)
-    rownames(tpF) <- paste0("Weak instruments - Cond. F (", c("ybar", "ycheck"), ")")
-  } else {
-    tpF <- fFstat(endo = endo, Z = Z, K = Kinc, cumsn = cumsn, 
-                  cluster = (HACn == 3), nthread = nthread)
-    rn  <- if (asymmetry) {
-      paste0("Weak instruments F (", c("ybar", "ycheck"), ")")
-    } else {
-      "Weak instruments F"
-    }
-    rownames(tpF) <- rn
-  }
-  out   <- tpF
+    tpF <- rbind(tpF, 
+                 fswstat(endo = endo, Z = Z, K = Kinc, nthread = nthread))
+    rn  <- c(rn, paste0("Weak instruments - Cond. F (", c("ybar", "ycheck"), ")"))
+  } 
+  
+  rownames(tpF) <- rn
+  out           <- tpF
   
   # LM test KP
   tpKP  <- NULL

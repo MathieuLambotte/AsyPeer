@@ -2,4 +2,5 @@
 - Initial Release
 
 ### Version 0.0.2 
-- Allow the Conditional Sanderson–Windmeijer F statistic and the classical F test to be printed simultaneously.
+- Allowing the Conditional Sanderson–Windmeijer F statistic and the classical F test to be printed simultaneously.
+- Changing `Eigen::all` to `Eigen::indexing::all` because the former will not be supported by the new version of `Eigen`.

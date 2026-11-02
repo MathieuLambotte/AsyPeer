@@ -29,12 +29,12 @@ Eigen::MatrixXd fV(const Eigen::MatrixXd& endo,      // Endogenous variables
   
   Eigen::MatrixXd V = Eigen::MatrixXd::Zero(n, Ktheta - 1);
   if (spillover){
-    V(Eigen::all, Eigen::seqN(0, Kendo + Kx)) << endo, X;
+    V(Eigen::indexing::all, Eigen::seqN(0, Kendo + Kx)) << endo, X;
   } else {
     if (Kendo == 2) {
       V(nIso, 0) = endo(nIso, 1);
     }
-    V(Eigen::all, Eigen::seqN(Kendo - 1, Kx)) = X;
+    V(Eigen::indexing::all, Eigen::seqN(Kendo - 1, Kx)) = X;
   }
   if (Knc > 0) {
     V(Iso, Kendo - (1 - spillover) + nc_gamma).setConstant(0); // These columns will have different coeff for iso
@@ -59,7 +59,7 @@ double fAsyobj(const double betal,             // starting value for betal
   
   // 1. Scale V for non-isolated
   Eigen::MatrixXd sV = V;
-  sV(nIso, Eigen::all) /= (1 + betal);
+  sV(nIso, Eigen::indexing::all) /= (1 + betal);
   
   // 2. Closed-form GMM parameters:
   Eigen::MatrixXd ZtsV(Z.transpose() * sV); // kz x ksV: Z'sV
@@ -91,7 +91,7 @@ double fAsyobj_nospill(const double betal,             // starting value for bet
                        const Eigen::ArrayXi& nIso){    // Indices for nonisolated
   // 1. Scale V for non-isolated
   Eigen::MatrixXd sV = V;
-  sV(nIso, Eigen::all) /= (1.0 + betal);
+  sV(nIso, Eigen::indexing::all) /= (1.0 + betal);
   
   // 2. Closed-form GMM parameters:
   Eigen::VectorXd u = y - (betal / (1.0 + betal)) * Gy;
@@ -125,7 +125,7 @@ Rcpp::List fGmmEstim(const double betal,             // starting value for betal
   
   // 1. Scale V for non-isolated
   Eigen::MatrixXd sV = V;
-  sV(nIso, Eigen::all) /= (1 + betal);
+  sV(nIso, Eigen::indexing::all) /= (1 + betal);
   
   // 2. Closed-form GMM parameters:
   Eigen::MatrixXd ZtsV(Z.transpose() * sV); // kz x ksV: Z'sV
@@ -169,7 +169,7 @@ Rcpp::List fGmmEstim_nospill(const double betal,             // starting value f
   
   // 1. Scale V for non-isolated
   Eigen::MatrixXd sV = V;
-  sV(nIso, Eigen::all) /= (1.0 + betal);
+  sV(nIso, Eigen::indexing::all) /= (1.0 + betal);
   
   // 2. Closed-form GMM parameters:
   Eigen::VectorXd u = y - (betal / (1.0 + betal)) * Gy;
@@ -224,7 +224,7 @@ Eigen::MatrixXd fAsyWopt(const Eigen::VectorXd& theta,     // Parameters
     
     double serr(sqrt(uneta.dot(uneta) / (dfiso + dfniso)));
     Eigen::MatrixXd Ze = Z * serr;
-    Ze(nIso, Eigen::all) /= (1 + theta(0));
+    Ze(nIso, Eigen::indexing::all) /= (1 + theta(0));
     Vm = Ze.transpose() * Ze / pow(S, 2); 
     
   } else if (HAC == 1) {// 1.2 iid separately
@@ -232,8 +232,8 @@ Eigen::MatrixXd fAsyWopt(const Eigen::VectorXd& theta,     // Parameters
     double serriso(sqrt(eta(Iso).dot(eta(Iso)) / dfiso));
     double serrniso(sqrt(eta(nIso).dot(eta(nIso)) / dfniso));
     Eigen::MatrixXd Ze = Z;
-    Ze(Iso, Eigen::all)  *= serriso;
-    Ze(nIso, Eigen::all) *= serrniso;
+    Ze(Iso, Eigen::indexing::all)  *= serriso;
+    Ze(nIso, Eigen::indexing::all) *= serrniso;
     Vm = Ze.transpose() * Ze / pow(S, 2);
     
   } else if (HAC == 2) { // 1.3 heteroskedasticity
@@ -246,7 +246,7 @@ Eigen::MatrixXd fAsyWopt(const Eigen::VectorXd& theta,     // Parameters
     Eigen::ArrayXXd Ze    = Z.array().colwise() * eta.array();
     for (int s(0); s < S; ++ s) { // 1.4 clustering
       int n1(cumsn(s)), n2(cumsn(s + 1) - 1); 
-      Eigen::RowVectorXd Zes(Ze(Eigen::seq(n1, n2), Eigen::all).colwise().sum());
+      Eigen::RowVectorXd Zes(Ze(Eigen::seq(n1, n2), Eigen::indexing::all).colwise().sum());
       Vm += Zes.transpose() * Zes;
     }
     Vm /= pow(S, 2);
@@ -285,7 +285,7 @@ Rcpp::List fAsyparms(const Eigen::VectorXd& theta,     // reduced-form parameter
   // 0. sV and unscaled residuals
   Eigen::MatrixXd sV = V;
   Eigen::VectorXd uneta(eta);
-  sV(nIso, Eigen::all) /= (1.0 + theta(0));
+  sV(nIso, Eigen::indexing::all) /= (1.0 + theta(0));
   uneta(nIso) *= (1 + theta(0));
   
   // 1. Variance of S^0.5 * moment
@@ -297,7 +297,7 @@ Rcpp::List fAsyparms(const Eigen::VectorXd& theta,     // reduced-form parameter
     
     serr = sqrt(uneta.dot(uneta) / (dfiso + dfniso));
     Eigen::MatrixXd Ze = Z * serr;
-    Ze(nIso, Eigen::all) /= (1 + theta(0));
+    Ze(nIso, Eigen::indexing::all) /= (1 + theta(0));
     Vm = Ze.transpose() * Ze / S;
     
   } else if (HAC == 1) {// 1.2 iid separately
@@ -305,8 +305,8 @@ Rcpp::List fAsyparms(const Eigen::VectorXd& theta,     // reduced-form parameter
     serriso  = sqrt(eta(Iso).dot(eta(Iso)) / dfiso);
     serrniso = sqrt(eta(nIso).dot(eta(nIso)) / dfniso);
     Eigen::MatrixXd Ze = Z;
-    Ze(Iso, Eigen::all)  *= serriso;
-    Ze(nIso, Eigen::all) *= serrniso;
+    Ze(Iso, Eigen::indexing::all)  *= serriso;
+    Ze(nIso, Eigen::indexing::all) *= serrniso;
     Vm = Ze.transpose() * Ze / S;
     serrniso *= (1 + theta(0));
     
@@ -320,7 +320,7 @@ Rcpp::List fAsyparms(const Eigen::VectorXd& theta,     // reduced-form parameter
     Eigen::ArrayXXd Ze    = Z.array().colwise() * eta.array();
     for (int s(0); s < S; ++ s) { // 1.4 clustering
       int n1(cumsn(s)), n2(cumsn(s + 1) - 1); 
-      Eigen::RowVectorXd Zes(Ze(Eigen::seq(n1, n2), Eigen::all).colwise().sum());
+      Eigen::RowVectorXd Zes(Ze(Eigen::seq(n1, n2), Eigen::indexing::all).colwise().sum());
       Vm += Zes.transpose() * Zes;
     }
     Vm /= S;
@@ -329,7 +329,7 @@ Rcpp::List fAsyparms(const Eigen::VectorXd& theta,     // reduced-form parameter
   
   // 2. Jacobian J = d Z'eta / d theta, where eta= y-Vphi/(1+betal) for niso and eta = y - Vphi for iso
   Eigen::MatrixXd  J(Kz, Ktheta);
-  J << Z(nIso, Eigen::all).transpose() * sVphi(nIso) / (S * (1 + theta(0))), 
+  J << Z(nIso, Eigen::indexing::all).transpose() * sVphi(nIso) / (S * (1 + theta(0))),
        -Z.transpose() * sV / S;
   
   // 3 Estimator's variance: Var = (J'WJ)^-1 J'W Vm W'J (J'WJ)'^-1,
@@ -428,7 +428,7 @@ Rcpp::List fAsyparms_nospill(const Eigen::VectorXd& theta,     // reduced-form p
   // 0. sV and unscaled residuals
   Eigen::MatrixXd sV = V;
   Eigen::VectorXd uneta(eta);
-  sV(nIso, Eigen::all) /= (1.0 + theta(0));
+  sV(nIso, Eigen::indexing::all) /= (1.0 + theta(0));
   uneta(nIso) *= (1 + theta(0));
   
   // 1. Variance of S^0.5 * moment
@@ -440,7 +440,7 @@ Rcpp::List fAsyparms_nospill(const Eigen::VectorXd& theta,     // reduced-form p
     
     serr = sqrt(uneta.dot(uneta) / (dfiso + dfniso));
     Eigen::MatrixXd Ze = Z * serr;
-    Ze(nIso, Eigen::all) /= (1 + theta(0));
+    Ze(nIso, Eigen::indexing::all) /= (1 + theta(0));
     Vm = Ze.transpose() * Ze / S;
     
   } else if (HAC == 1) {// 1.2 iid separately
@@ -448,8 +448,8 @@ Rcpp::List fAsyparms_nospill(const Eigen::VectorXd& theta,     // reduced-form p
     serriso  = sqrt(eta(Iso).dot(eta(Iso)) / dfiso);
     serrniso = sqrt(eta(nIso).dot(eta(nIso)) / dfniso);
     Eigen::MatrixXd Ze = Z;
-    Ze(Iso, Eigen::all)  *= serriso;
-    Ze(nIso, Eigen::all) *= serrniso;
+    Ze(Iso, Eigen::indexing::all)  *= serriso;
+    Ze(nIso, Eigen::indexing::all) *= serrniso;
     Vm = Ze.transpose() * Ze / S;
     serrniso *= (1 + theta(0));
     
@@ -463,7 +463,7 @@ Rcpp::List fAsyparms_nospill(const Eigen::VectorXd& theta,     // reduced-form p
     Eigen::ArrayXXd Ze    = Z.array().colwise() * eta.array();
     for (int s(0); s < S; ++ s) { // 1.4 clustering
       int n1(cumsn(s)), n2(cumsn(s + 1) - 1); 
-      Eigen::RowVectorXd Zes(Ze(Eigen::seq(n1, n2), Eigen::all).colwise().sum());
+      Eigen::RowVectorXd Zes(Ze(Eigen::seq(n1, n2), Eigen::indexing::all).colwise().sum());
       Vm += Zes.transpose() * Zes;
     }
     Vm /= S;
@@ -472,7 +472,7 @@ Rcpp::List fAsyparms_nospill(const Eigen::VectorXd& theta,     // reduced-form p
   
   // 2. Jacobian J = d Z'eta / d theta, where eta= y-Vphi/(1+betal) for niso and eta = y - Vphi for iso
   Eigen::MatrixXd  J(Kz, Ktheta);
-  J << Z(nIso, Eigen::all).transpose() * (sVphi(nIso) - endo(nIso, 0) / (1 + theta(0))) / (S * (1 + theta(0))), 
+  J << Z(nIso, Eigen::indexing::all).transpose() * (sVphi(nIso) - endo(nIso, 0) / (1 + theta(0))) / (S * (1 + theta(0))),
        -Z.transpose() * sV / S;
   
   // 3 Estimator's variance: Var = (J'WJ)^-1 J'W Vm W'J (J'WJ)'^-1,
@@ -596,13 +596,13 @@ Rcpp::List fbt(const Eigen::VectorXd& Zeta0,   // Zeta of the original sample
   Eigen::MatrixXd V_bt(N, Kv);
   
   if (N_iso_bt == 0) {
-    Z_bt = Z(nIso_bt, Eigen::all);
+    Z_bt = Z(nIso_bt, Eigen::indexing::all);
     y_bt = y(nIso_bt);
-    V_bt = V(nIso_bt, Eigen::all);
+    V_bt = V(nIso_bt, Eigen::indexing::all);
   } else {
-    Z_bt << Z(nIso_bt, Eigen::all), Z(Iso_bt, Eigen::all);
+    Z_bt << Z(nIso_bt, Eigen::indexing::all), Z(Iso_bt, Eigen::indexing::all);
     y_bt << y(nIso_bt), y(Iso_bt);
-    V_bt << V(nIso_bt, Eigen::all), V(Iso_bt, Eigen::all);
+    V_bt << V(nIso_bt, Eigen::indexing::all), V(Iso_bt, Eigen::indexing::all);
   }
   
   Eigen::VectorXd Zy_bt = Z_bt.transpose() * y_bt - Zeta0;
@@ -684,15 +684,15 @@ Rcpp::List f_nospillbt(const Eigen::VectorXd& Zeta0,   // Zeta of the original s
   Eigen::MatrixXd V_bt(N, Kv);
   
   if (N_iso_bt == 0) {
-    Z_bt  = Z(nIso_bt, Eigen::all);
+    Z_bt  = Z(nIso_bt, Eigen::indexing::all);
     y_bt  = y(nIso_bt);
     Gy_bt = Gy(nIso_bt);
-    V_bt  = V(nIso_bt, Eigen::all);
+    V_bt  = V(nIso_bt, Eigen::indexing::all);
   } else {
-    Z_bt  << Z(nIso_bt, Eigen::all), Z(Iso_bt, Eigen::all);
+    Z_bt  << Z(nIso_bt, Eigen::indexing::all), Z(Iso_bt, Eigen::indexing::all);
     y_bt  << y(nIso_bt), y(Iso_bt);
     Gy_bt << Gy(nIso_bt), Gy(Iso_bt);
-    V_bt  << V(nIso_bt, Eigen::all), V(Iso_bt, Eigen::all);
+    V_bt  << V(nIso_bt, Eigen::indexing::all), V(Iso_bt, Eigen::indexing::all);
   }
   
   Eigen::VectorXd Zy_bt  = Z_bt.transpose() * y_bt - Zeta0;
@@ -1031,7 +1031,7 @@ Rcpp::List fAsyparmsVar_bt(const std::vector<std::vector<Eigen::VectorXd>>& outb
 //     
 //     // 1. Scale V for non-isolated
 //     sV = V;
-//     sV(nIso, Eigen::all) /= (1 + betal);
+//     sV(nIso, Eigen::indexing::all) /= (1 + betal);
 //     
 //     // 2. Closed-form GMM parameters:
 //     Eigen::MatrixXd ZtsV(Z.transpose() * sV); // kz x ksV: Z'sV
@@ -1057,7 +1057,7 @@ Rcpp::List fAsyparmsVar_bt(const std::vector<std::vector<Eigen::VectorXd>>& outb
 //     // 5. Gradient with respect to betal
 //     // 5.1 dV: derivative of V
 //     Eigen::MatrixXd dsV(Eigen::MatrixXd::Zero(n, Ktheta - 1)); 
-//     dsV(nIso, Eigen::all) = -sV(nIso, Eigen::all) / (1 + betal); // dsV/dbetal
+//     dsV(nIso, Eigen::indexing::all) = -sV(nIso, Eigen::indexing::all) / (1 + betal); // dsV/dbetal
 //     
 //     // 5.2 dphi: derivative of phi
 //     Eigen::MatrixXd ZtdsV(Z.transpose() * dsV); // kz x ksV: Z'dsV
@@ -1122,7 +1122,7 @@ Rcpp::List fAsyparmsVar_bt(const std::vector<std::vector<Eigen::VectorXd>>& outb
 //     
 //     // 1. Scale V for non-isolated
 //     sV = V;
-//     sV(nIso, Eigen::all) /= (1.0 + betal);
+//     sV(nIso, Eigen::indexing::all) /= (1.0 + betal);
 //     
 //     // 2. Closed-form GMM parameters: 
 //     Eigen::VectorXd u = y - theta0 * Gy;
@@ -1150,7 +1150,7 @@ Rcpp::List fAsyparmsVar_bt(const std::vector<std::vector<Eigen::VectorXd>>& outb
 //     
 //     // 5.2 dV: derivative of V
 //     Eigen::MatrixXd dsV(Eigen::MatrixXd::Zero(n, Ktheta - 1)); 
-//     dsV(nIso, Eigen::all) = -sV(nIso, Eigen::all) / (1 + betal); // dsV/dbetal
+//     dsV(nIso, Eigen::indexing::all) = -sV(nIso, Eigen::indexing::all) / (1 + betal); // dsV/dbetal
 //     
 //     // 5.3 dphi: derivative of phi
 //     Eigen::MatrixXd ZtdsV(Z.transpose() * dsV); // kz x ksV: Z'dsV
@@ -1196,12 +1196,12 @@ Rcpp::List fAsyparmsVar_bt(const std::vector<std::vector<Eigen::VectorXd>>& outb
 //   // 1. V
 //   Eigen::MatrixXd V = Eigen::MatrixXd::Zero(n, Ktheta - 1);
 //   if (spillover){
-//     V(Eigen::all, Eigen::seqN(0, Kendo + Kx)) << endo, X;
+//     V(Eigen::indexing::all, Eigen::seqN(0, Kendo + Kx)) << endo, X;
 //   } else {
 //     if (Kendo == 2) {
 //       V(nIso, 0) = endo(nIso, 1);
 //     }
-//     V(Eigen::all, Eigen::seqN(Kendo - 1, Kx)) = X;
+//     V(Eigen::indexing::all, Eigen::seqN(Kendo - 1, Kx)) = X;
 //   }
 //   if (Knc > 0) {
 //     V(Iso, Kendo - (1 - spillover) + nc_gamma).setConstant(0); // These columns will have different coeff for iso

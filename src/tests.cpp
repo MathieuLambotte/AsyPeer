@@ -58,7 +58,7 @@ Eigen::ArrayXXd fFstat(const Eigen::MatrixXd& endo,
     if (cluster) {
       for (int r(0); r < ngroup; ++ r) {
         int n1(cumsn(r)), n2(cumsn(r + 1) - 1);
-        Eigen::VectorXd Ze(rZ(Eigen::seq(n1, n2), Eigen::all).transpose() * e(Eigen::seq(n1, n2), k).matrix());
+        Eigen::VectorXd Ze(rZ(Eigen::seq(n1, n2), Eigen::indexing::all).transpose() * e(Eigen::seq(n1, n2), k).matrix());
         V += Ze * Ze.transpose();
       }
     } else {
@@ -76,7 +76,7 @@ Eigen::ArrayXXd fFstat(const Eigen::MatrixXd& endo,
     if (cluster) {
       for (int r(0); r < ngroup; ++ r) {
         int n1(cumsn(r)), n2(cumsn(r + 1) - 1);
-        Eigen::VectorXd Ze(rZ(Eigen::seq(n1, n2), Eigen::all).transpose() * e(Eigen::seq(n1, n2), k).matrix());
+        Eigen::VectorXd Ze(rZ(Eigen::seq(n1, n2), Eigen::indexing::all).transpose() * e(Eigen::seq(n1, n2), k).matrix());
         V += Ze * Ze.transpose();
       }
     } else {
@@ -144,7 +144,7 @@ Eigen::ArrayXXd fKPstat(const Eigen::MatrixXd& endo,
   if (cluster) {
     for (int r(0); r < ngroup; ++ r) {
       int n1(cumsn(r)), n2(cumsn(r + 1) - 1);
-      Eigen::VectorXd tp(vecZe(Eigen::seq(n1, n2), Eigen::all).array().colwise().sum().matrix().transpose());
+      Eigen::VectorXd tp(vecZe(Eigen::seq(n1, n2), Eigen::indexing::all).array().colwise().sum().matrix().transpose());
       VvecZe += tp * tp.transpose();
     }
   } else {

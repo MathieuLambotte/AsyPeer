@@ -55,7 +55,7 @@ Eigen::ArrayXXd fCESdata(const Eigen::ArrayXXd& X,
   for (int s = 0; s < S; s++) {
     // Extract data for group s
     int nm(nvec(s)), n1(cumsn(s));
-    Eigen::ArrayXXd Xm(X(Eigen::seqN(n1, nm), Eigen::all));
+    Eigen::ArrayXXd Xm(X(Eigen::seqN(n1, nm), Eigen::indexing::all));
     Eigen::ArrayXd ym(y.segment(n1, nm)), zm(z.segment(n1, nm));
     
     for (int i = 0; i < nm; i++) {
@@ -124,7 +124,7 @@ Eigen::ArrayXXd fCESdata(const Eigen::ArrayXXd& X,
   for (int s = 0; s < S; s++) {
     // Extract data for group s
     int nm(nvec(s)), n1(cumsn(s));
-    Eigen::ArrayXXd Xm(X(Eigen::seqN(n1, nm), Eigen::all));
+    Eigen::ArrayXXd Xm(X(Eigen::seqN(n1, nm), Eigen::indexing::all));
     Eigen::ArrayXd ym(y.segment(n1, nm)), zm(z.segment(n1, nm));
     
     for (int i = 0; i < nm; i++) {
@@ -206,22 +206,22 @@ Eigen::ArrayXXd fCESdata(const Eigen::ArrayXXd& X,
     for (int s = 0; s < S; ++ s) {
       // For isolated
       if (lIso[s].size() > 0) {
-        data(lIso[s], Eigen::all).rowwise() -= data(lIso[s], Eigen::all).colwise().mean();
+        data(lIso[s], Eigen::indexing::all).rowwise() -= data(lIso[s], Eigen::indexing::all).colwise().mean();
       }
       // For non-isolated
       if (lnIso[s].size() > 0) {
-        data(lnIso[s], Eigen::all).rowwise() -= data(lnIso[s], Eigen::all).colwise().mean();
+        data(lnIso[s], Eigen::indexing::all).rowwise() -= data(lnIso[s], Eigen::indexing::all).colwise().mean();
       }
     }
 #else
     for (int s = 0; s < S; ++ s) {
       // For isolated
       if (lIso[s].size() > 0) {
-        data(lIso[s], Eigen::all).rowwise() -= data(lIso[s], Eigen::all).colwise().mean();
+        data(lIso[s], Eigen::indexing::all).rowwise() -= data(lIso[s], Eigen::indexing::all).colwise().mean();
       }
       // For non-isolated
       if (lnIso[s].size() > 0) {
-        data(lnIso[s], Eigen::all).rowwise() -= data(lnIso[s], Eigen::all).colwise().mean();
+        data(lnIso[s], Eigen::indexing::all).rowwise() -= data(lnIso[s], Eigen::indexing::all).colwise().mean();
       }
     }
 #endif
@@ -249,12 +249,12 @@ double fCESobjrho(const double& beta,
   double theta0 = beta / (1.0 + beta);
   // 1. Scale X for non-isolated
   Eigen::MatrixXd sX = X;
-  sX(nIso, Eigen::all) /= (1.0 + beta);
+  sX(nIso, Eigen::indexing::all) /= (1.0 + beta);
   
   // 2. Closed-form GMM parameters: 
   Eigen::VectorXd u = y - theta0 * Gy;
-  Eigen::MatrixXd ZtsX(Z(sel, Eigen::all).transpose() * sX(sel, Eigen::all)); // kz x ksX: Z'sX
-  Eigen::VectorXd Ztu(Z(sel, Eigen::all).transpose() * u(sel));  // kz x 1: Z'u
+  Eigen::MatrixXd ZtsX(Z(sel, Eigen::indexing::all).transpose() * sX(sel, Eigen::indexing::all)); // kz x ksX: Z'sX
+  Eigen::VectorXd Ztu(Z(sel, Eigen::indexing::all).transpose() * u(sel));  // kz x 1: Z'u
   Eigen::MatrixXd sXtZW(ZtsX.transpose() * W);   //  ksX x kz: sX'Z W
   Eigen::ColPivHouseholderQR<Eigen::MatrixXd> Adec(sXtZW * ZtsX); // cholesky decomposition for A = sX'Z W Z' sX
   Eigen::VectorXd b(sXtZW * Ztu); // ksX x 1: sX'Z W Z'u
@@ -264,7 +264,7 @@ double fCESobjrho(const double& beta,
   Eigen::VectorXd eta = u - sX * phi;
   
   // 4. Objective function
-  Eigen::VectorXd mom(Z(sel, Eigen::all).transpose() * eta(sel)); // Not divised by S to avoid unreached precision
+  Eigen::VectorXd mom(Z(sel, Eigen::indexing::all).transpose() * eta(sel)); // Not divised by S to avoid unreached precision
   Eigen::VectorXd Wmom = W * mom;
   return mom.dot(Wmom);
 }
@@ -290,12 +290,12 @@ Eigen::VectorXd fCESparmrho(const double& beta,
   double theta0 = beta / (1.0 + beta);
   // 1. Scale X for non-isolated
   Eigen::MatrixXd sX = X;
-  sX(nIso, Eigen::all) /= (1.0 + beta);
+  sX(nIso, Eigen::indexing::all) /= (1.0 + beta);
   
   // 2. Closed-form GMM parameters: 
   Eigen::VectorXd u = y - theta0 * Gy;
-  Eigen::MatrixXd ZtsX(Z(sel, Eigen::all).transpose() * sX(sel, Eigen::all)); // kz x ksX: Z'sX
-  Eigen::VectorXd Ztu(Z(sel, Eigen::all).transpose() * u(sel));  // kz x 1: Z'u
+  Eigen::MatrixXd ZtsX(Z(sel, Eigen::indexing::all).transpose() * sX(sel, Eigen::indexing::all)); // kz x ksX: Z'sX
+  Eigen::VectorXd Ztu(Z(sel, Eigen::indexing::all).transpose() * u(sel));  // kz x 1: Z'u
   Eigen::MatrixXd sXtZW(ZtsX.transpose() * W);   //  ksX x kz: sX'Z W
   Eigen::ColPivHouseholderQR<Eigen::MatrixXd> Adec(sXtZW * ZtsX); // cholesky decomposition for A = sX'Z W Z' sX
   Eigen::VectorXd b(sXtZW * Ztu); // ksX x 1: sX'Z W Z'u
@@ -363,12 +363,12 @@ double fCESobj(const Eigen::VectorXd& theta01,
   
   // 2. Scale X for non-isolated
   Eigen::MatrixXd sX = data.block(0, 0, n, Kx);
-  sX(nIso, Eigen::all) /= (1.0 + beta);
+  sX(nIso, Eigen::indexing::all) /= (1.0 + beta);
   
   // 3. Closed-form GMM parameters: 
   Eigen::VectorXd u = data.col(Kx) - parm1 * data.col(Kx + 1); // u = y - parm1 * Gy
-  Eigen::MatrixXd ZtsX(Z(sel, Eigen::all).transpose() * sX(sel, Eigen::all)); // kz x ksX: Z'sX
-  Eigen::VectorXd Ztu(Z(sel, Eigen::all).transpose() * u(sel));  // kz x 1: Z'u
+  Eigen::MatrixXd ZtsX(Z(sel, Eigen::indexing::all).transpose() * sX(sel, Eigen::indexing::all)); // kz x ksX: Z'sX
+  Eigen::VectorXd Ztu(Z(sel, Eigen::indexing::all).transpose() * u(sel));  // kz x 1: Z'u
   Eigen::MatrixXd sXtZW(ZtsX.transpose() * W);   //  ksX x kz: sX'Z W
   Eigen::ColPivHouseholderQR<Eigen::MatrixXd> Adec(sXtZW * ZtsX); // cholesky decomposition for A = sX'Z W Z' sX
   Eigen::VectorXd b(sXtZW * Ztu); // ksX x 1: sX'Z W Z'u
@@ -378,7 +378,7 @@ double fCESobj(const Eigen::VectorXd& theta01,
   Eigen::VectorXd eta = u - sX * phi;
   
   // 4. Objective function
-  Eigen::VectorXd mom(Z(sel, Eigen::all).transpose() * eta(sel)); // Not divised by S to avoid unreached precision
+  Eigen::VectorXd mom(Z(sel, Eigen::indexing::all).transpose() * eta(sel)); // Not divised by S to avoid unreached precision
   Eigen::VectorXd Wmom = W * mom;
   return mom.dot(Wmom);
 }
@@ -432,12 +432,12 @@ Eigen::VectorXd fCESparm(const Eigen::VectorXd& theta01,
   
   // 2. Scale X for non-isolated
   Eigen::MatrixXd sX = data.block(0, 0, n, Kx);
-  sX(nIso, Eigen::all) /= (1.0 + beta);
+  sX(nIso, Eigen::indexing::all) /= (1.0 + beta);
   
   // 3. Closed-form GMM parameters: 
   Eigen::VectorXd u = data.col(Kx) - parm1 * data.col(Kx + 1); // u = y - parm1 * Gy
-  Eigen::MatrixXd ZtsX(Z(sel, Eigen::all).transpose() * sX(sel, Eigen::all)); // kz x ksX: Z'sX
-  Eigen::VectorXd Ztu(Z(sel, Eigen::all).transpose() * u(sel));  // kz x 1: Z'u
+  Eigen::MatrixXd ZtsX(Z(sel, Eigen::indexing::all).transpose() * sX(sel, Eigen::indexing::all)); // kz x ksX: Z'sX
+  Eigen::VectorXd Ztu(Z(sel, Eigen::indexing::all).transpose() * u(sel));  // kz x 1: Z'u
   Eigen::MatrixXd sXtZW(ZtsX.transpose() * W);   //  ksX x kz: sX'Z W
   Eigen::ColPivHouseholderQR<Eigen::MatrixXd> Adec(sXtZW * ZtsX); // cholesky decomposition for A = sX'Z W Z' sX
   Eigen::VectorXd b(sXtZW * Ztu); // ksX x 1: sX'Z W Z'u
@@ -474,7 +474,7 @@ Eigen::MatrixXd fCESWeight_1ins(const Eigen::VectorXd& theta,
                                 const int& dfniso) {
   // 1. Scale X for non-isolated
   Eigen::MatrixXd sX = X;
-  sX(nIso, Eigen::all) /= (1 + theta(1));
+  sX(nIso, Eigen::indexing::all) /= (1 + theta(1));
   
   // 2. scaled residuals
   Eigen::VectorXd eta = y - (theta(1) / (1 + theta(1))) * Gy - sX * theta.segment(2, Kx);
@@ -489,21 +489,21 @@ Eigen::MatrixXd fCESWeight_1ins(const Eigen::VectorXd& theta,
     
     double serr(sqrt(uneta(sel).dot(uneta(sel)) / (dfiso + dfniso)));
     Ze *= serr;
-    Ze(nIso, Eigen::all) /= (1 + theta(1));
-    Vm = Ze(sel, Eigen::all).transpose() * Ze(sel, Eigen::all) / pow(S, 2);
+    Ze(nIso, Eigen::indexing::all) /= (1 + theta(1));
+    Vm = Ze(sel, Eigen::indexing::all).transpose() * Ze(sel, Eigen::indexing::all) / pow(S, 2);
     
   } else if (HACn == 1) {
     
     double serriso(sqrt(eta(Iso).dot(eta(Iso)) / dfiso));
     double serrniso(sqrt(eta(nIso).dot(eta(nIso)) / dfniso));
-    Ze(Iso, Eigen::all)  *= serriso;
-    Ze(nIso, Eigen::all) *= serrniso;
-    Vm = Ze(sel, Eigen::all).transpose() * Ze(sel, Eigen::all) / pow(S, 2);
+    Ze(Iso, Eigen::indexing::all)  *= serriso;
+    Ze(nIso, Eigen::indexing::all) *= serrniso;
+    Vm = Ze(sel, Eigen::indexing::all).transpose() * Ze(sel, Eigen::indexing::all) / pow(S, 2);
     
   } else if(HACn == 2) {
     
     Ze.array().colwise() *= eta.array();
-    Vm = Ze(sel, Eigen::all).transpose() * Ze(sel, Eigen::all) / pow(S, 2);
+    Vm = Ze(sel, Eigen::indexing::all).transpose() * Ze(sel, Eigen::indexing::all) / pow(S, 2);
     
   } else {
     
@@ -513,7 +513,7 @@ Eigen::MatrixXd fCESWeight_1ins(const Eigen::VectorXd& theta,
       if (ns > 0) {
         Eigen::ArrayXi sels(ns);
         sels << lIso[s], lnIso[s];
-        Eigen::RowVectorXd Zes(Ze(sels, Eigen::all).array().colwise().sum());
+        Eigen::RowVectorXd Zes(Ze(sels, Eigen::indexing::all).array().colwise().sum());
         Vm += Zes.transpose() * Zes;
       }
     }
@@ -575,9 +575,9 @@ Eigen::MatrixXd fCESWeight_2ins(const Eigen::VectorXd& theta,
   // 1. y, Gy(CES of y), X, and Scale X for non-isolated
   Eigen::VectorXd y_(data.col(Kx));
   Eigen::VectorXd Gy_(data.col(Kx + 1));
-  Eigen::MatrixXd X_(data(Eigen::all, Eigen::seqN(0, Kx)));
+  Eigen::MatrixXd X_(data(Eigen::indexing::all, Eigen::seqN(0, Kx)));
   Eigen::MatrixXd sX = X_;
-  sX(nIso, Eigen::all) /= (1 + theta(1));
+  sX(nIso, Eigen::indexing::all) /= (1 + theta(1));
   
   // 2. scaled residuals
   Eigen::VectorXd eta = y_ - (theta(1) / (1 + theta(1))) * Gy_ - sX * theta.segment(2, Kx);
@@ -601,21 +601,21 @@ Eigen::MatrixXd fCESWeight_2ins(const Eigen::VectorXd& theta,
     
     double serr(sqrt(uneta(sel).dot(uneta(sel)) / (dfiso + dfniso)));
     Ze *= serr;
-    Ze(nIso, Eigen::all) /= (1 + theta(1));
-    Vm = Ze(sel, Eigen::all).transpose() * Ze(sel, Eigen::all) / pow(S, 2);
+    Ze(nIso, Eigen::indexing::all) /= (1 + theta(1));
+    Vm = Ze(sel, Eigen::indexing::all).transpose() * Ze(sel, Eigen::indexing::all) / pow(S, 2);
     
   } else if (HACn == 1) {
     
     double serriso(sqrt(eta(Iso).dot(eta(Iso)) / dfiso));
     double serrniso(sqrt(eta(nIso).dot(eta(nIso)) / dfniso));
-    Ze(Iso, Eigen::all)  *= serriso;
-    Ze(nIso, Eigen::all) *= serrniso;
-    Vm = Ze(sel, Eigen::all).transpose() * Ze(sel, Eigen::all) / pow(S, 2);
+    Ze(Iso, Eigen::indexing::all)  *= serriso;
+    Ze(nIso, Eigen::indexing::all) *= serrniso;
+    Vm = Ze(sel, Eigen::indexing::all).transpose() * Ze(sel, Eigen::indexing::all) / pow(S, 2);
     
   } else if(HACn == 2) {
     
     Ze.array().colwise() *= eta.array();
-    Vm = Ze(sel, Eigen::all).transpose() * Ze(sel, Eigen::all) / pow(S, 2);
+    Vm = Ze(sel, Eigen::indexing::all).transpose() * Ze(sel, Eigen::indexing::all) / pow(S, 2);
     
   } else {
     
@@ -625,7 +625,7 @@ Eigen::MatrixXd fCESWeight_2ins(const Eigen::VectorXd& theta,
       if (ns > 0) {
         Eigen::ArrayXi sels(ns);
         sels << lIso[s], lnIso[s];
-        Eigen::RowVectorXd Zes(Ze(sels, Eigen::all).array().colwise().sum());
+        Eigen::RowVectorXd Zes(Ze(sels, Eigen::indexing::all).array().colwise().sum());
         Vm += Zes.transpose() * Zes;
       }
     }
@@ -663,7 +663,7 @@ Rcpp::List fCESparmCovrho(const Eigen::VectorXd& theta,
   
   // 1. y, Gy(CES of y), X, and Scale X for non-isolated
   Eigen::MatrixXd sX = X;
-  sX(nIso, Eigen::all) /= (1 + theta(1));
+  sX(nIso, Eigen::indexing::all) /= (1 + theta(1));
   
   // 2. scaled residuals
   Eigen::VectorXd eta = y - (theta(1) / (1 + theta(1))) * Gy - sX * theta.segment(2, Kx);
@@ -681,22 +681,22 @@ Rcpp::List fCESparmCovrho(const Eigen::VectorXd& theta,
     
     serr = sqrt(uneta(sel).dot(uneta(sel)) / (dfiso + dfniso));
     Ze *= serr;
-    Ze(nIso, Eigen::all) /= (1 + theta(1));
-    Vm  = Ze(sel, Eigen::all).transpose() * Ze(sel, Eigen::all) / S;
+    Ze(nIso, Eigen::indexing::all) /= (1 + theta(1));
+    Vm  = Ze(sel, Eigen::indexing::all).transpose() * Ze(sel, Eigen::indexing::all) / S;
     
   } else if (HACn == 1) {
     
     serriso  = sqrt(eta(Iso).dot(eta(Iso)) / dfiso);
     serrniso = sqrt(eta(nIso).dot(eta(nIso)) / dfniso);
-    Ze(Iso, Eigen::all)  *= serriso;
-    Ze(nIso, Eigen::all) *= serrniso;
-    Vm = Ze(sel, Eigen::all).transpose() * Ze(sel, Eigen::all) / S;
+    Ze(Iso, Eigen::indexing::all)  *= serriso;
+    Ze(nIso, Eigen::indexing::all) *= serrniso;
+    Vm = Ze(sel, Eigen::indexing::all).transpose() * Ze(sel, Eigen::indexing::all) / S;
     serrniso *= (1 + theta(1));
     
   } else if(HACn == 2) {
     
     Ze.array().colwise() *= eta.array();
-    Vm = Ze(sel, Eigen::all).transpose() * Ze(sel, Eigen::all) / S;
+    Vm = Ze(sel, Eigen::indexing::all).transpose() * Ze(sel, Eigen::indexing::all) / S;
     
   } else {
     
@@ -706,7 +706,7 @@ Rcpp::List fCESparmCovrho(const Eigen::VectorXd& theta,
       if (ns > 0) {
         Eigen::ArrayXi sels(ns);
         sels << lIso[s], lnIso[s];
-        Eigen::RowVectorXd Zes(Ze(sels, Eigen::all).array().colwise().sum());
+        Eigen::RowVectorXd Zes(Ze(sels, Eigen::indexing::all).array().colwise().sum());
         Vm += Zes.transpose() * Zes;
       }
     }
@@ -718,14 +718,14 @@ Rcpp::List fCESparmCovrho(const Eigen::VectorXd& theta,
   Eigen::MatrixXd J(Kz, 1 + Kx);
   // 5.1 dsX: derivative of sX with respect to beta
   Eigen::MatrixXd dsX(Eigen::MatrixXd::Zero(n, Kx)); 
-  dsX(nIso, Eigen::all) = -sX(nIso, Eigen::all) / (1 + theta(1)); 
-  dsX = dsX(sel, Eigen::all);
+  dsX(nIso, Eigen::indexing::all) = -sX(nIso, Eigen::indexing::all) / (1 + theta(1));
+  dsX = dsX(sel, Eigen::indexing::all);
   
   // 5.2 Jacobian
   // J.col(0) = Z' * (- Gy / (1 + beta)^2 - d sX / dbeta * theta.segment(2, Kx))
-  J.col(0) = Z(sel, Eigen::all).transpose() * (-Gy(sel) / pow(1 + theta(1), 2) - dsX * theta.segment(2, Kx));
+  J.col(0) = Z(sel, Eigen::indexing::all).transpose() * (-Gy(sel) / pow(1 + theta(1), 2) - dsX * theta.segment(2, Kx));
   // J.col(1 and +) = Z' * sX
-  J.block(0, 1, Kz, Kx) = Z(sel, Eigen::all).transpose() * sX(sel, Eigen::all);
+  J.block(0, 1, Kz, Kx) = Z(sel, Eigen::indexing::all).transpose() * sX(sel, Eigen::indexing::all);
   // Normalization 
   J /= S;
   
@@ -799,9 +799,9 @@ Rcpp::List fCESparmCov(const Eigen::VectorXd& theta,
   // 1. y, Gy(CES of y), X, and Scale X for non-isolated
   Eigen::VectorXd y_(data.col(Kx));
   Eigen::VectorXd Gy_(data.col(Kx + 1));
-  Eigen::MatrixXd X_(data(Eigen::all, Eigen::seqN(0, Kx)));
+  Eigen::MatrixXd X_(data(Eigen::indexing::all, Eigen::seqN(0, Kx)));
   Eigen::MatrixXd sX = X_;
-  sX(nIso, Eigen::all) /= (1 + theta(1));
+  sX(nIso, Eigen::indexing::all) /= (1 + theta(1));
   
   // 2. scaled residuals
   Eigen::VectorXd eta = y_ - (theta(1) / (1 + theta(1))) * Gy_ - sX * theta.segment(2, Kx);
@@ -828,22 +828,22 @@ Rcpp::List fCESparmCov(const Eigen::VectorXd& theta,
     
     serr = sqrt(uneta(sel).dot(uneta(sel)) / (dfiso + dfniso));
     Ze *= serr;
-    Ze(nIso, Eigen::all) /= (1 + theta(1));
-    Vm  = Ze(sel, Eigen::all).transpose() * Ze(sel, Eigen::all) / S;
+    Ze(nIso, Eigen::indexing::all) /= (1 + theta(1));
+    Vm  = Ze(sel, Eigen::indexing::all).transpose() * Ze(sel, Eigen::indexing::all) / S;
     
   } else if (HACn == 1) {
     
     serriso  = sqrt(eta(Iso).dot(eta(Iso)) / dfiso);
     serrniso = sqrt(eta(nIso).dot(eta(nIso)) / dfniso);
-    Ze(Iso, Eigen::all)  *= serriso;
-    Ze(nIso, Eigen::all) *= serrniso;
-    Vm = Ze(sel, Eigen::all).transpose() * Ze(sel, Eigen::all) / S;
+    Ze(Iso, Eigen::indexing::all)  *= serriso;
+    Ze(nIso, Eigen::indexing::all) *= serrniso;
+    Vm = Ze(sel, Eigen::indexing::all).transpose() * Ze(sel, Eigen::indexing::all) / S;
     serrniso *= (1 + theta(1));
     
   } else if(HACn == 2) {
     
     Ze.array().colwise() *= eta.array();
-    Vm = Ze(sel, Eigen::all).transpose() * Ze(sel, Eigen::all) / S;
+    Vm = Ze(sel, Eigen::indexing::all).transpose() * Ze(sel, Eigen::indexing::all) / S;
     
   } else {
     
@@ -853,7 +853,7 @@ Rcpp::List fCESparmCov(const Eigen::VectorXd& theta,
       if (ns > 0) {
         Eigen::ArrayXi sels(ns);
         sels << lIso[s], lnIso[s];
-        Eigen::RowVectorXd Zes(Ze(sels, Eigen::all).array().colwise().sum());
+        Eigen::RowVectorXd Zes(Ze(sels, Eigen::indexing::all).array().colwise().sum());
         Vm += Zes.transpose() * Zes;
       }
     }
@@ -871,23 +871,23 @@ Rcpp::List fCESparmCov(const Eigen::VectorXd& theta,
   
   // 5.2 dsX: derivative of sX with respect to beta
   Eigen::MatrixXd dsX_b(Eigen::MatrixXd::Zero(n, Kx)); 
-  dsX_b(nIso, Eigen::all) = -sX(nIso, Eigen::all) / (1 + beta); 
-  dsX_b = dsX_b(sel, Eigen::all);
+  dsX_b(nIso, Eigen::indexing::all) = -sX(nIso, Eigen::indexing::all) / (1 + beta);
+  dsX_b = dsX_b(sel, Eigen::indexing::all);
   
   // 5.3  dZ: derivative of Z with respect to rho
   // column 0 of Z is Gz and column 1 is dGz.
   Eigen::MatrixXd dZ_r(Eigen::MatrixXd::Zero(n, Kz)); 
   dZ_r(nIso, 0)        = data(nIso, Kx + 3); //dGz
   dZ_r(nIso, 1)        = data(nIso, Kx + 5); //ddGz
-  dZ_r = dZ_r(sel, Eigen::all);
+  dZ_r = dZ_r(sel, Eigen::indexing::all);
   
   // Jacobian
   // J.col(0) = dZ'/drho * eta + Z' * du/drho
-  J.col(0) = dZ_r.transpose() * eta(sel) + Z(sel, Eigen::all).transpose() * du_r;
+  J.col(0) = dZ_r.transpose() * eta(sel) + Z(sel, Eigen::indexing::all).transpose() * du_r;
   // J.col(1) = Z' * (- Gy / (1 + beta)^2 - d sX / dbeta * theta.segment(2, Kx))
-  J.col(1) = Z(sel, Eigen::all).transpose() * (-Gy_(sel) / pow(1 + beta, 2) - dsX_b * theta.segment(2, Kx));
+  J.col(1) = Z(sel, Eigen::indexing::all).transpose() * (-Gy_(sel) / pow(1 + beta, 2) - dsX_b * theta.segment(2, Kx));
   // J.col(2 and +) = Z' * sX
-  J.block(0, 2, Kz, Kx) = Z(sel, Eigen::all).transpose() * sX(sel, Eigen::all);
+  J.block(0, 2, Kz, Kx) = Z(sel, Eigen::indexing::all).transpose() * sX(sel, Eigen::indexing::all);
   // Normalization 
   J /= S;
   

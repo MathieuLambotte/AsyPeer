@@ -259,22 +259,22 @@ Eigen::ArrayXXd Demean_separate(const Eigen::ArrayXXd& X,
   for (int s = 0; s < ngroup; ++ s) {
     // For isolated
     if (lIso[s].size() > 0) {
-      out(lIso[s], Eigen::all).rowwise() -= out(lIso[s], Eigen::all).colwise().mean();
+      out(lIso[s], Eigen::indexing::all).rowwise() -= out(lIso[s], Eigen::indexing::all).colwise().mean();
     }
     // For non-isolated
     if (lnIso[s].size() > 0) {
-      out(lnIso[s], Eigen::all).rowwise() -= out(lnIso[s], Eigen::all).colwise().mean();
+      out(lnIso[s], Eigen::indexing::all).rowwise() -= out(lnIso[s], Eigen::indexing::all).colwise().mean();
     }
   }
 #else
   for (int s = 0; s < ngroup; ++ s) {
     // For isolated
     if (lIso[s].size() > 0) {
-      out(lIso[s], Eigen::all).rowwise() -= out(lIso[s], Eigen::all).colwise().mean();
+      out(lIso[s], Eigen::indexing::all).rowwise() -= out(lIso[s], Eigen::indexing::all).colwise().mean();
     }
     // For non-isolated
     if (lnIso[s].size() > 0) {
-      out(lnIso[s], Eigen::all).rowwise() -= out(lnIso[s], Eigen::all).colwise().mean();
+      out(lnIso[s], Eigen::indexing::all).rowwise() -= out(lnIso[s], Eigen::indexing::all).colwise().mean();
     }
   }
 #endif
@@ -293,12 +293,12 @@ Eigen::ArrayXXd Demean_common(const Eigen::ArrayXXd& X,
 #pragma omp parallel for schedule(static)
   for (int s = 0; s < ngroup; ++ s) {
     int n1(cumsn(s)), ns(cumsn(s + 1) - cumsn(s));
-    out(Eigen::seq(n1, ns), Eigen::all).rowwise() -= out(Eigen::seq(n1, ns), Eigen::all).colwise().mean();
+    out(Eigen::seq(n1, ns), Eigen::indexing::all).rowwise() -= out(Eigen::seq(n1, ns), Eigen::indexing::all).colwise().mean();
   }
 #else
   for (int s = 0; s < ngroup; ++ s) {
     int n1(cumsn(s)), ns(cumsn(s + 1) - cumsn(s));
-    out(Eigen::seq(n1, ns), Eigen::all).rowwise() -= out(Eigen::seq(n1, ns), Eigen::all).colwise().mean();
+    out(Eigen::seq(n1, ns), Eigen::indexing::all).rowwise() -= out(Eigen::seq(n1, ns), Eigen::indexing::all).colwise().mean();
   }
 #endif
   return out;

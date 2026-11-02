@@ -43,11 +43,11 @@ Rcpp::List fdataML(const Eigen::ArrayXd& y,
       ddy.block(ddncs(i), 4, ddni(i), 1).setConstant(y(i));
       ddy.block(ddncs(i), 5, ddni(i), 1) = y(ncs(group(i)) + idpeer[i]);
       
-      ddXi(Eigen::seqN(ddncs(i), ddni(i)), Eigen::all).rowwise() = 
+      ddXi(Eigen::seqN(ddncs(i), ddni(i)), Eigen::indexing::all).rowwise() =
         X.row(i);
       
-      ddXj(Eigen::seqN(ddncs(i), ddni(i)), Eigen::all) = 
-        X(ncs(group(i)) + idpeer[i], Eigen::all);
+      ddXj(Eigen::seqN(ddncs(i), ddni(i)), Eigen::indexing::all) =
+        X(ncs(group(i)) + idpeer[i], Eigen::indexing::all);
     }
   }
 #else
@@ -60,11 +60,11 @@ Rcpp::List fdataML(const Eigen::ArrayXd& y,
       ddy.block(ddncs(i), 4, ddni(i), 1).setConstant(y(i));
       ddy.block(ddncs(i), 5, ddni(i), 1) = y(ncs(group(i)) + idpeer[i]);
       
-      ddXi(Eigen::seqN(ddncs(i), ddni(i)), Eigen::all).rowwise() = 
+      ddXi(Eigen::seqN(ddncs(i), ddni(i)), Eigen::indexing::all).rowwise() =
         X.row(i);
       
-      ddXj(Eigen::seqN(ddncs(i), ddni(i)), Eigen::all) = 
-        X(ncs(group(i)) + idpeer[i], Eigen::all);
+      ddXj(Eigen::seqN(ddncs(i), ddni(i)), Eigen::indexing::all) =
+        X(ncs(group(i)) + idpeer[i], Eigen::indexing::all);
     }
   }
 #endif
